@@ -1,0 +1,22 @@
+# Secretos
+.env
+.env.*
+!.env.example
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.db
+uploads/
+
+# Node
+node_modules/
+dist/
+
+# Editor / SO
+.DS_Store
+.vscode/
+.idea/

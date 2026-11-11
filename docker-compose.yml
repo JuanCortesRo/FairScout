@@ -1,0 +1,35 @@
+# Variables en .env (en el servidor: ~/talentscout.env, copiado por el workflow de despliegue).
+services:
+  backend:
+    build: ./backend
+    env_file: .env                 # ANTHROPIC_API_KEY, DATABASE_URL… (nunca en el repo)
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads       # CVs subidos
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    env_file: .env                 # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: ./frontend              # Dockerfile: etapa node (npm run build) + etapa caddy con /srv
+    ports: ["80:80", "443:443"]
+    environment:
+      - DOMAIN=${DOMAIN:-:80}
+    volumes:
+      - caddy_data:/data
+    depends_on: [backend]
+    restart: unless-stopped
+
+volumes: {uploads: {}, pgdata: {}, caddy_data: {}}

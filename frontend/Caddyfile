@@ -1,0 +1,11 @@
+# DOMAIN=:80 sirve por HTTP; DOMAIN=<ip-con-guiones>.sslip.io obtiene HTTPS automático con Let's Encrypt.
+{$DOMAIN} {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
