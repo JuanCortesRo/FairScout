@@ -20,5 +20,3 @@ dist/
 .DS_Store
 .vscode/
 .idea/
-
-.pip-check/
