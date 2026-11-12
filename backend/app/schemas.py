@@ -77,6 +77,7 @@ class VacanteEntrada(BaseModel):
 class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
+    id: str | None = None
 
 
 class CVSubido(BaseModel):

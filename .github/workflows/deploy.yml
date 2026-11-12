@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: Pruebas y build
+    name: Pruebas y build de contenedores
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,11 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      - name: Build de imágenes Docker
+        run: |
+          docker build --tag fairscout-backend:ci ./backend
+          docker build --tag fairscout-web:ci ./frontend
 
   deploy:
     needs: test

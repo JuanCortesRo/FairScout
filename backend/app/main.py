@@ -1,11 +1,21 @@
 """Punto de entrada de la API: crea la app FastAPI, configura CORS e incluye los routers."""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.db import init_db
 from app.routers import cvs, health, ranking, vacantes
 
-app = FastAPI(title="AI Talent Scout API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="AI Talent Scout API", lifespan=lifespan)
 
 # Lógica de CORS conservada del main.py original (orígenes adaptados al nuevo frontend).
 frontend_url = settings.FRONTEND_URL
