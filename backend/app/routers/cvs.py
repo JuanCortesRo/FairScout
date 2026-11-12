@@ -24,6 +24,14 @@ router = APIRouter(tags=["cvs"])
 EXTENSIONES_PERMITIDAS = {".pdf", ".docx"}
 
 
+def _tipos_de_alerta(documento) -> list[str]:
+    """Tipos de alerta sin repetir; agrega "ocr" si alguna línea salió de OCR (baja la confianza del puntaje)."""
+    tipos = [alerta.tipo for alerta in documento.alertas]
+    if any(linea.origen == "ocr" for linea in documento.lineas_originales):
+        tipos.append("ocr")
+    return list(dict.fromkeys(tipos))
+
+
 @router.post("/cvs", response_model=CargaCVsSalida)
 async def subir_cvs(
     archivos: list[UploadFile] = File(...),
@@ -58,12 +66,13 @@ async def subir_cvs(
             ))
             continue
 
+        alertas = _tipos_de_alerta(documento)
         subidos.append(CVSubido(
             id=cv_id,
             nombre_archivo=archivo.filename,
             lineas=documento.lineas_anonimizadas,
             estado=documento.estado,
-            alertas=[alerta.tipo for alerta in documento.alertas],
+            alertas=alertas,
         ))
         if documento.estado == "needs_review":
             continue
@@ -84,7 +93,7 @@ async def subir_cvs(
             lineas=documento.lineas_anonimizadas,
             ficha=ficha,
             estado=documento.estado,
-            alertas=[alerta.tipo for alerta in documento.alertas],
+            alertas=alertas,
         )
         db.merge(CandidatoDB(
             id=cv_id,
@@ -94,6 +103,7 @@ async def subir_cvs(
             ficha=ficha.model_dump(mode="json"),
             lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
             lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
+            alertas=alertas,
         ))
         db.commit()
     return CargaCVsSalida(archivos=subidos)
@@ -109,6 +119,7 @@ def listar_cvs(db: Session = Depends(get_db)) -> CargaCVsSalida:
             lineas=candidato.lineas_anonimizadas,
             ficha=candidato.ficha,
             estado=candidato.estado,
+            alertas=candidato.alertas or [],
         )
         for candidato in candidatos
     ])
@@ -125,4 +136,5 @@ def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSub
         lineas=candidato.lineas_anonimizadas,
         ficha=candidato.ficha,
         estado=candidato.estado,
+        alertas=candidato.alertas or [],
     )

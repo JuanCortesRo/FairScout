@@ -46,6 +46,8 @@ class CandidatoDB(Base):
     ficha: Mapped[dict] = mapped_column(JSON, nullable=False)
     lineas_anonimizadas: Mapped[list] = mapped_column(JSON, nullable=False)
     lineas_originales: Mapped[list] = mapped_column(JSON, nullable=False)
+    # Tipos de alerta del documento ("prompt_injection", "hidden_text", "ocr", ...). Bajan la confianza del puntaje.
+    alertas: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
 
 class EvaluacionDB(Base):

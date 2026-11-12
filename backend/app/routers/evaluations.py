@@ -14,6 +14,7 @@ from app.db import get_db
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida, evaluar
+from app.pipeline.scoring import alertas_para_puntaje, calcular_con_desglose
 from app.pipeline.verify import verificar_citas
 from app.schemas import (
     EvaluacionEntrada,
@@ -58,6 +59,9 @@ async def crear_evaluacion(
         }) for requisito in vacante.requisitos]
         evaluaciones, explicacion = await evaluar(ficha, requisitos, lineas)
         evaluaciones = verificar_citas(evaluaciones, lineas)
+        resultado_candidato, desglose = calcular_con_desglose(
+            evaluaciones, requisitos, candidato.id, alertas_para_puntaje(candidato.alertas or [])
+        )
     except (ValidationError, ValueError) as error:
         raise HTTPException(status_code=422, detail=f"Datos del candidato inválidos: {error}") from error
     except LLMNoConfigurado as error:
@@ -90,6 +94,8 @@ async def crear_evaluacion(
             vacante_id=vacante.id,
             version_requisitos=vacante.version_requisitos,
         ),
+        resultado=resultado_candidato,
+        motivos_confianza=desglose.motivos_confianza,
     )
     db.add(EvaluacionDB(
         id=resultado.evaluacion_id,

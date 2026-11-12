@@ -52,15 +52,16 @@ def test_ranking_igual_que_scoring_js():
     assert len(ordenados) == len(resultados)  # no recorta a un top-N
 
 
-def test_aws_no_es_azure_pero_azure_cuenta_como_equivalente():
-    """Momento clave de la demo: equivalente vale 0.8, no 1, y no saca al candidato de "cumple"."""
-    requisitos = [Requisito(id="o1", nombre="AWS", tipo="obligatorio", categoria="tecnica")]
+def test_equivalente_vale_0_8_y_sigue_cumpliendo():
+    """§7: equivalente solo si es real y defendible (PostgreSQL para "bases de datos relacionales";
+    Azure NO es equivalente de AWS). Vale 0,8, no 1, y no saca al candidato de "cumple"."""
+    requisitos = [Requisito(id="o1", nombre="Bases de datos relacionales", tipo="obligatorio", categoria="tecnica")]
     ev = EvaluacionRequisito(
         requisito_id="o1",
         resultado="equivalente",
-        cita="3 años administrando Azure",
+        cita="3 años administrando PostgreSQL",
         lineas=["p1-l4"],
-        justificacion="Azure es una nube equivalente, no es AWS.",
+        justificacion="PostgreSQL es una base de datos relacional.",
         cita_verificada=True,
     )
 

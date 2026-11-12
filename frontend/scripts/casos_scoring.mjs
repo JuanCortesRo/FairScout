@@ -26,7 +26,7 @@ const con = (cambios) => todoCumple.map((e) => cambios[e.requisito_id] ?? e);
 
 const casos = [
   ['todo_cumple', REQS, todoCumple],
-  ['equivalente_aws_azure', REQS, con({ o1: E('o1', 'equivalente') })],
+  ['obligatorio_equivalente', REQS, con({ o1: E('o1', 'equivalente') })],
   ['descalificante_presente', REQS, con({ x1: E('x1', 'presente') })],
   ['obligatorio_no_cumple', REQS, con({ o1: E('o1', 'no_cumple') })],
   ['obligatorio_sin_informacion', REQS, con({ o2: E('o2', 'sin_informacion') })],
