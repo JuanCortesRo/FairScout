@@ -115,7 +115,7 @@
       }
     },
     {
-      "nombre": "equivalente_aws_azure@60",
+      "nombre": "obligatorio_equivalente@60",
       "peso_obligatorios": 60,
       "requisitos": [
         {
@@ -208,7 +208,7 @@
       ],
       "alertas": [],
       "esperado": {
-        "candidato_id": "cand-equivalente_aws_azure",
+        "candidato_id": "cand-obligatorio_equivalente",
         "puntaje": 94,
         "estado": "cumple",
         "confianza": "alta",
@@ -2152,7 +2152,7 @@
       }
     },
     {
-      "nombre": "equivalente_aws_azure@80",
+      "nombre": "obligatorio_equivalente@80",
       "peso_obligatorios": 80,
       "requisitos": [
         {
@@ -2245,7 +2245,7 @@
       ],
       "alertas": [],
       "esperado": {
-        "candidato_id": "cand-equivalente_aws_azure",
+        "candidato_id": "cand-obligatorio_equivalente",
         "puntaje": 92,
         "estado": "cumple",
         "confianza": "alta",
@@ -4170,7 +4170,7 @@
       "alertas": []
     },
     {
-      "candidato_id": "cand-equivalente_aws_azure",
+      "candidato_id": "cand-obligatorio_equivalente",
       "evaluaciones": [
         {
           "requisito_id": "o1",
@@ -5098,7 +5098,7 @@
     "cand-todo_cumple_fechas",
     "cand-todo_cumple_injection",
     "cand-todo_cumple_ocr",
-    "cand-equivalente_aws_azure",
+    "cand-obligatorio_equivalente",
     "cand-resultado_desconocido",
     "cand-requisito_sin_evaluar",
     "cand-obligatorio_parcial",

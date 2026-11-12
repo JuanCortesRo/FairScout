@@ -28,6 +28,20 @@ ALERTA_PROMPT_INJECTION = "prompt_injection"
 
 ORDEN_ESTADO = {"cumple": 0, "cumple_parcialmente": 1, "no_cumple": 2}
 
+# Tipo de alerta del documento (suspicious_content / document_processor / cvs) → alerta que entiende el puntaje.
+# El texto oculto cuenta como intento de manipulación (§20.1). Los demás tipos no afectan la confianza.
+_ALERTA_DOCUMENTO_A_PUNTAJE = {
+    "prompt_injection": ALERTA_PROMPT_INJECTION,
+    "hidden_text": ALERTA_PROMPT_INJECTION,
+    "ocr": ALERTA_OCR,
+    "inconsistencia_fechas": ALERTA_FECHAS,
+}
+
+
+def alertas_para_puntaje(tipos: Iterable[str]) -> list[str]:
+    """Convierte los tipos de alerta guardados con el CV en las alertas que usa `calcular_resultado`."""
+    return list(dict.fromkeys(_ALERTA_DOCUMENTO_A_PUNTAJE[t] for t in tipos if t in _ALERTA_DOCUMENTO_A_PUNTAJE))
+
 
 @dataclass
 class Fila:

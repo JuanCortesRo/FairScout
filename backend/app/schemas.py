@@ -85,6 +85,9 @@ class EvaluacionSalida(BaseModel):
     evaluaciones: list[EvaluacionRequisito]
     explicacion: ExplicacionEvaluacion
     trazabilidad: TrazabilidadEvaluacion
+    # Calculado en código por pipeline/scoring.py, nunca por el LLM.
+    resultado: "ResultadoCandidato"
+    motivos_confianza: list[str] = Field(default_factory=list)
 
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
@@ -132,7 +135,8 @@ class EvaluacionEntrada(BaseModel):
 
 class RankingSalida(BaseModel):
     vacante_id: str | None = None
-    candidatos: list[ResultadoCandidato]
+    peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
+    candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
 
 
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.
