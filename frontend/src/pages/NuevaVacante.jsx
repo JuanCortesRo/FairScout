@@ -86,7 +86,7 @@ function FilaRequisito({ r, onChange, onDelete }) {
   );
 }
 
-function Resumen({ vacante, onEditar }) {
+function Resumen({ vacante, onEditar, onDelete }) {
   const navigate = useNavigate();
   const { candidatos } = useApp();
   const grupos = ['obligatorio', 'deseable', 'descalificante'].map((t) => ({ tipo: t, items: vacante.requisitos.filter((r) => r.tipo === t) }));
@@ -99,6 +99,7 @@ function Resumen({ vacante, onEditar }) {
         acciones={(
           <>
             <Button variant="outline" size="lg" onClick={onEditar}><Pencil /> Editar requisitos</Button>
+            <Button variant="destructive" size="lg" onClick={onDelete}><Trash2 /> Eliminar vacante</Button>
             <Button size="lg" onClick={() => navigate(candidatos.length ? '/ranking' : '/cvs')}>
               {candidatos.length ? 'Ver ranking' : 'Cargar CVs'} <ArrowRight />
             </Button>
@@ -133,7 +134,7 @@ function Resumen({ vacante, onEditar }) {
 }
 
 export default function NuevaVacante() {
-  const { vacante, confirmarVacante, backend, cargarDemo, registrar, notificar } = useApp();
+  const { vacante, confirmarVacante, backend, cargarDemo, registrar, notificar, eliminarVacante } = useApp();
   const navigate = useNavigate();
   const [editando, setEditando] = useState(!vacante);
   const [descripcion, setDescripcion] = useState(vacante?.descripcion ?? '');
@@ -154,7 +155,11 @@ export default function NuevaVacante() {
     !titulo.trim() && 'La vacante necesita un título.',
   ].filter(Boolean);
 
-  if (vacante && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} />;
+  if (vacante && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} onDelete={async () => {
+    if (!vacante?.id) return;
+    await eliminarVacante(vacante.id);
+    navigate('/vacante');
+  }} />;
 
   const extraer = async () => {
     setError('');

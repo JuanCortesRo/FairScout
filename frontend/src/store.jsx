@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { rankear } from '@/lib/scoring';
 import { ARCHIVOS_CON_ERROR, VACANTE_EJEMPLO, DESCRIPCION_EJEMPLO, crearCandidato, generarLoteDemo, hashTexto } from '@/data/demo';
-import { salud, subirCVs } from '@/api';
+import { borrarVacante, obtenerCandidato, obtenerEvaluacion, obtenerRanking, salud, subirCVs } from '@/api';
 
 const CLAVE = 'fairscout:v1';
 const Ctx = createContext(null);
@@ -73,6 +73,58 @@ export function AppProvider({ children }) {
     });
     return () => { vivo = false; };
   }, []);
+
+  useEffect(() => {
+    if (backend !== 'conectado' || !estado.vacante?.id) return;
+    let activo = true;
+
+    const sincronizarRankingReal = async () => {
+      try {
+        const rankingReal = await obtenerRanking(estado.vacante.id, estado.pesos.obligatorios);
+        const ids = Array.from(new Set([
+          ...rankingReal.candidatos.map((c) => c.candidato_id),
+          ...rankingReal.en_revision.map((c) => c.candidato_id),
+        ]));
+
+        const candidatos = await Promise.all(ids.map(async (id) => {
+          try {
+            const candidato = await obtenerCandidato(id);
+            const evaluacion = await obtenerEvaluacion(id, estado.vacante.id).catch(() => null);
+            return {
+              candidato_id: candidato.id,
+              nombre_real: candidato.nombre_archivo,
+              nombre_archivo: candidato.nombre_archivo,
+              formato: candidato.nombre_archivo?.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf',
+              alertas: candidato.alertas || [],
+              lineas: candidato.lineas || [],
+              ficha: candidato.ficha || null,
+              evaluaciones: evaluacion?.evaluaciones || [],
+              estado: candidato.estado,
+            };
+          } catch {
+            return null;
+          }
+        }));
+
+        if (!activo) return;
+        setEstado((s) => ({
+          ...s,
+          candidatos: candidatos.filter(Boolean),
+          archivos: s.archivos.map((archivo) => {
+            const dato = candidatos.find((c) => c && c.candidato_id === archivo.candidato_id);
+            if (!dato) return archivo;
+            return { ...archivo, estado: dato.estado === 'needs_review' ? 'error' : 'listo', error: dato.alertas?.length ? dato.alertas.join(', ') : null };
+          }),
+        }));
+      } catch (error) {
+        if (!activo) return;
+        notificar(`No se pudo sincronizar el ranking real: ${error.message}`, 'error');
+      }
+    };
+
+    sincronizarRankingReal();
+    return () => { activo = false; };
+  }, [backend, estado.vacante?.id, estado.pesos.obligatorios, notificar]);
 
   const set = useCallback((fn) => setEstado((s) => ({ ...s, ...fn(s) })), []);
 
@@ -151,6 +203,9 @@ export function AppProvider({ children }) {
         if (resultado.estado === 'failed') {
           actualizarArchivo(archivo.id, { estado: 'error', error: resultado.alertas?.join(', ') || 'No se pudo procesar el CV.' });
           continue;
+        }
+        if (resultado.estado === 'needs_review') {
+          notificar('Se bloqueó un CV por riesgo de datos protegidos o manipulación del prompt.', 'warn');
         }
         actualizarArchivo(archivo.id, {
           estado: resultado.estado === 'needs_review' ? 'error' : 'listo',
@@ -278,6 +333,17 @@ export function AppProvider({ children }) {
     notificar('Se borraron la vacante, los CVs y los resultados.', 'ok');
   }, [notificar]);
 
+  const eliminarVacante = useCallback(async (vacanteId) => {
+    try {
+      if (backend === 'conectado' && vacanteId) await borrarVacante(vacanteId);
+      setEstado((s) => ({ ...INICIAL, modoCiego: s.modoCiego }));
+      notificar('La vacante fue eliminada correctamente.', 'ok');
+      registrar('Vacante eliminada', vacanteId ? `Se eliminó la vacante ${vacanteId}` : 'Se eliminó la vacante actual');
+    } catch (error) {
+      notificar(`No se pudo eliminar la vacante: ${error.message}`, 'error');
+    }
+  }, [backend, notificar, registrar]);
+
   const toggleCiego = useCallback(() => set((s) => ({ modoCiego: !s.modoCiego })), [set]);
 
   const toggleSeleccion = useCallback((id) => {
@@ -321,7 +387,7 @@ export function AppProvider({ children }) {
   const valor = {
     ...estado, backend, avisos, ranking,
     confirmarVacante, setPesos, actualizarPesoRequisito, agregarArchivos, reintentar, quitarArchivo,
-    cargarDemo, borrarTodo, toggleCiego, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
+    cargarDemo, borrarTodo, eliminarVacante, toggleCiego, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
   };
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }

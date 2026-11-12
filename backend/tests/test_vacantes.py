@@ -127,3 +127,36 @@ def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
         assert vacante.titulo == "Senior Python"
         assert vacante.descripcion.endswith("También usamos Docker.")
         assert vacante.requisitos[0].nombre == "5 años con Python"
+
+
+def test_vacante_rechaza_requisitos_protegidos(monkeypatch, client):
+    protegido = {
+        "titulo": "Desarrollador",
+        "requisitos": [{
+            "id": "R1",
+            "nombre": "Edad entre 20 y 30 años",
+            "tipo": "obligatorio",
+            "categoria": "datos_personales",
+            "peso": 1.0,
+        }],
+    }
+    falso, _ = _cliente_falso(json.dumps(protegido))
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+
+    r = client.post("/api/vacantes", json=DESCRIPCION)
+
+    assert r.status_code == 502
+    assert "protegidos" in r.json()["detail"].lower()
+
+
+def test_borrar_vacante(monkeypatch, client, session_factory):
+    falso, _ = _cliente_falso("```json\n" + json.dumps(VALIDA) + "\n```")
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+    creada = client.post("/api/vacantes", json=DESCRIPCION).json()
+
+    r = client.delete(f"/api/vacantes/{creada['id']}")
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "deleted"
+    with session_factory() as db:
+        assert db.get(VacanteDB, creada["id"]) is None

@@ -132,6 +132,17 @@ def test_evaluacion_devuelve_puntaje_calculado_en_codigo(client):
     assert "1 cita(s) no encontradas en el CV" in cuerpo["motivos_confianza"]
 
 
+def test_obtener_evaluacion_por_candidato(client):
+    _evaluar(client, "C1")
+
+    cuerpo = client.get("/api/evaluations/C1", params={"vacante_id": "V1"}).json()
+
+    assert cuerpo["candidato_id"] == "C1"
+    assert cuerpo["vacante_id"] == "V1"
+    assert cuerpo["evaluaciones"][0]["requisito_id"] == "R1"
+    assert cuerpo["resultado"]["estado"] == "cumple"
+
+
 def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
     for cid in ("C2", "C3", "C1"):
         _evaluar(client, cid)

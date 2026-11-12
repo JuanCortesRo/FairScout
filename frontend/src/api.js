@@ -54,3 +54,21 @@ export function subirCVs(archivos) {
   archivos.forEach((a) => form.append('archivos', a));
   return request('/cvs', { method: 'POST', body: form });
 }
+
+export function obtenerRanking(vacanteId, pesoObligatorios = 60) {
+  const params = new URLSearchParams({ vacante_id: vacanteId, peso_obligatorios: String(pesoObligatorios) });
+  return request(`/ranking?${params.toString()}`);
+}
+
+export function obtenerCandidato(candidatoId) {
+  return request(`/candidatos/${encodeURIComponent(candidatoId)}`);
+}
+
+export function obtenerEvaluacion(candidatoId, vacanteId) {
+  const params = new URLSearchParams({ vacante_id: vacanteId });
+  return request(`/evaluations/${encodeURIComponent(candidatoId)}?${params.toString()}`);
+}
+
+export function borrarVacante(vacanteId) {
+  return request(`/vacantes/${encodeURIComponent(vacanteId)}`, { method: 'DELETE' });
+}

@@ -59,6 +59,21 @@ async def crear_evaluacion(
     return resultado
 
 
+@router.get("/evaluations/{candidato_id}", response_model=EvaluacionSalida)
+def obtener_evaluacion(
+    candidato_id: str,
+    vacante_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> EvaluacionSalida:
+    consulta = select(EvaluacionDB).where(EvaluacionDB.candidato_id == candidato_id)
+    if vacante_id is not None:
+        consulta = consulta.where(EvaluacionDB.vacante_id == vacante_id)
+    fila = db.scalars(consulta.order_by(EvaluacionDB.id.desc())).first()
+    if fila is None:
+        raise HTTPException(status_code=404, detail="No existe una evaluación para ese candidato.")
+    return EvaluacionSalida.model_validate(fila.resultado)
+
+
 @router.post("/vacantes/{vacante_id}/evaluar", response_model=EvaluacionLoteSalida)
 async def evaluar_todos(
     vacante_id: str,

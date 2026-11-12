@@ -99,3 +99,17 @@ def actualizar_vacante(
         titulo=vacante.titulo,
         requisitos=entrada.requisitos,
     )
+
+
+@router.delete("/vacantes/{vacante_id}")
+def borrar_vacante(
+    vacante_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+
+    db.delete(vacante)
+    db.commit()
+    return {"status": "deleted", "vacante_id": vacante_id}
