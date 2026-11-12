@@ -1,4 +1,4 @@
-"""Pipeline de procesamiento (sección 6 de docs/BASE_PROYECTO.md).
+"""Pipeline de procesamiento.
 
 Por vacante: requirements (LLM).
 Por CV: parsing → anonymize → extract (LLM 1) → postprocess → evaluate (LLM 2) → verify → scoring → explain (LLM 3).

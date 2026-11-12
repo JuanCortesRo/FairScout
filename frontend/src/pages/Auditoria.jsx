@@ -86,7 +86,7 @@ export default function Auditoria() {
             <Dato etiqueta="Versión de requisitos" valor={vacante ? `v${vacante.version} · ${vacante.requisitos.length} requisitos` : '—'} />
             <Dato etiqueta="Pesos" valor={`${pesos.obligatorios}% obligatorios · ${100 - pesos.obligatorios}% deseables`} />
             <Dato etiqueta="Modelo de extracción" valor="claude-haiku-5-5" mono />
-            <Dato etiqueta="Modelo de evaluación" valor="claude-sonnet-5-5" mono />
+            <Dato etiqueta="Modelo de evaluación" valor="claude-haiku-5-5" mono />
             <Dato etiqueta="Versión de prompts" valor="v1" mono />
             <Dato etiqueta="Confirmado" valor={vacante ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
           </div>
