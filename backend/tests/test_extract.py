@@ -1,6 +1,7 @@
 import anyio
+import pytest
 
-from app.pipeline.extract import extraer_ficha
+from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.schemas import Linea
 
 
@@ -35,3 +36,33 @@ def test_extraer_ficha_valida_json_y_evidencias(monkeypatch):
     )
     assert ficha.experiencias[0].cargo == "Backend"
     assert ficha.experiencias[0].lineas == ["p1-l1"]
+
+
+def test_extraer_ficha_bloquea_texto_no_anonimizado(monkeypatch):
+    monkeypatch.setattr("app.pipeline.extract.get_client", lambda: _Client())
+
+    with pytest.raises(RespuestaLLMInvalida, match="anonimización"):
+        anyio.run(
+            extraer_ficha,
+            [Linea(id="p1-l1", texto="Correo: correo@ejemplo.com", bbox=(0, 0, 1, 1))],
+        )
+
+
+def test_extraer_ficha_rechaza_stop_reason_incompleto(monkeypatch):
+    class _TruncatedMessages:
+        async def create(self, **kwargs):
+            return type("Message", (), {
+                "stop_reason": "max_tokens",
+                "content": [type("TextBlock", (), {"type": "text", "text": "{}"})()],
+            })()
+
+    class _TruncatedClient:
+        messages = _TruncatedMessages()
+
+    monkeypatch.setattr("app.pipeline.extract.get_client", lambda: _TruncatedClient())
+
+    with pytest.raises(RespuestaLLMInvalida, match="incompleta"):
+        anyio.run(
+            extraer_ficha,
+            [Linea(id="p1-l1", texto="Experiencia con Python", bbox=(0, 0, 1, 1))],
+        )

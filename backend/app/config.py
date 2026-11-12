@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     MODELO_EXTRACCION: str = "claude-haiku-5-5"
     MODELO_EVALUACION: str = "claude-haiku-5-5"
     PROMPT_VERSION: str = "v1"
+    LLM_TIMEOUT_SECONDS: float = 60.0
     UPLOADS_DIR: str = "uploads"
     LIBREOFFICE_PATH: str = ""
 

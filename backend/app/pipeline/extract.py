@@ -1,12 +1,16 @@
 import logging
+import re
+from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
 from app.config import settings
 from app.llm import cargar_prompt, extract_json, get_client, texto_de_respuesta
+from app.pipeline.anonymize import anonimizar_con_metadatos
 from app.schemas import Ficha, Linea
 
 log = logging.getLogger(__name__)
+_LINE_ID = re.compile(r"^p\d+-l\d+$")
 
 
 class RespuestaLLMInvalida(RuntimeError):
@@ -24,6 +28,21 @@ async def extraer_ficha(lineas: list[Linea]) -> Ficha:
     if not lineas:
         raise RespuestaLLMInvalida("El documento no contiene líneas para extraer.")
 
+    ids = [linea.id for linea in lineas]
+    if any(not _LINE_ID.fullmatch(linea_id) for linea_id in ids):
+        raise RespuestaLLMInvalida("Las líneas no tienen identificadores de trazabilidad válidos.")
+    if len(ids) != len(set(ids)):
+        raise RespuestaLLMInvalida("El documento contiene identificadores de línea duplicados.")
+
+    verificacion = anonimizar_con_metadatos(lineas)
+    if any(
+        original.texto != anonimo.texto
+        for original, anonimo in zip(lineas, verificacion.lineas_anonimizadas)
+    ) or "posible_fuga_personal" in verificacion.alertas:
+        raise RespuestaLLMInvalida(
+            "El documento no superó la verificación de anonimización y no se enviará al modelo."
+        )
+
     client = get_client()
     contenido = "\n".join(f"[{linea.id}] {linea.texto}" for linea in lineas)
     messages = [{
@@ -35,6 +54,13 @@ async def extraer_ficha(lineas: list[Linea]) -> Ficha:
         ),
     }]
 
+    log.info(
+        "Iniciando extracción: modelo=%s prompt=%s fecha=%s lineas=%d",
+        settings.MODELO_EXTRACCION,
+        settings.PROMPT_VERSION,
+        datetime.now(timezone.utc).isoformat(),
+        len(lineas),
+    )
     for intento in range(2):
         message = await client.messages.create(
             model=settings.MODELO_EXTRACCION,
@@ -45,8 +71,10 @@ async def extraer_ficha(lineas: list[Linea]) -> Ficha:
         )
         if message.stop_reason == "refusal":
             raise RespuestaLLMInvalida("El modelo se negó a extraer la ficha.")
-        if message.stop_reason == "max_tokens":
-            raise RespuestaLLMInvalida("La respuesta del modelo quedó incompleta.")
+        if message.stop_reason != "end_turn":
+            raise RespuestaLLMInvalida(
+                f"La respuesta del modelo quedó incompleta (stop_reason={message.stop_reason})."
+            )
 
         texto = texto_de_respuesta(message)
         try:
@@ -65,6 +93,8 @@ async def extraer_ficha(lineas: list[Linea]) -> Ficha:
                 for idioma in ficha.idiomas
                 for evidencia in idioma.lineas
             }
+            if any(not _LINE_ID.fullmatch(evidencia) for evidencia in ids_usados):
+                raise ValueError("La ficha contiene evidencias con formato inválido.")
             if not ids_usados.issubset(ids_validos):
                 raise ValueError("La ficha contiene evidencias que no existen en el documento.")
             return ficha
