@@ -38,8 +38,8 @@ cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env  # y pon tu ANTHROPIC_API_KEY
-python -m uvicorn app.main:app --reload
+Copy-Item .env.example .env 
+python -m uvicorn app.main:app --reload o .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 pytest
 ```
 

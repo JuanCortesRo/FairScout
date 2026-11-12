@@ -68,7 +68,7 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
 }
 
 export default function CargaCVs() {
-  const { vacante, archivos, agregarArchivos, reintentar, quitarArchivo, cargarDemo, lote, notificar } = useApp();
+  const { vacante, archivos, agregarArchivos, reintentar, quitarArchivo, cargarDemo, lote, notificar, backend } = useApp();
   const navigate = useNavigate();
   const input = useRef(null);
   const [arrastrando, setArrastrando] = useState(false);
@@ -120,7 +120,9 @@ export default function CargaCVs() {
       <PageHeader
         paso="Paso 2 de 3"
         titulo="Carga de CVs"
-        descripcion="Sube entre 50 y 100 hojas de vida en PDF o DOCX. Cada archivo se lee, se anonimiza y se evalúa por separado: un archivo con problemas nunca detiene el lote."
+        descripcion={backend === 'demo'
+          ? 'El backend no está conectado. Inícialo para procesar el CV real; no se generarán datos ficticios para tus archivos.'
+          : 'Sube entre 50 y 100 hojas de vida en PDF o DOCX. Cada archivo se lee, se anonimiza y se evalúa por separado: un archivo con problemas nunca detiene el lote.'}
         acciones={conteo.listos > 0 && (
           <Button size="lg" onClick={() => navigate('/ranking')} disabled={conteo.proceso > 0}>
             {conteo.proceso > 0 ? <><Loader2 className="animate-spin" /> Procesando…</> : <>Ver ranking <ArrowRight /></>}

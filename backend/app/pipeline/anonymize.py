@@ -1,6 +1,7 @@
 """Anonimización determinista de líneas de CV antes de usar un LLM."""
 from dataclasses import dataclass
 import re
+import unicodedata
 from copy import deepcopy
 
 from app.schemas import Linea
@@ -13,7 +14,7 @@ _PHONE = re.compile(
 )
 _DOCUMENT = re.compile(
     r"(?i)\b(?:cc|c\.c\.|cédula|cedula|dni|documento|id)\s*[:#-]?\s*"
-    r"[A-Z0-9][A-Z0-9 .-]{4,24}"
+    r"(?=[A-Z0-9 .-]{4,24}\d)\S(?:[A-Z0-9 .-]{3,24}\S)?"
 )
 _DATE_OF_BIRTH = re.compile(
     r"(?i)\b(?:fecha\s+de\s+nacimiento|nacimiento|date\s+of\s+birth|dob)\s*[:#-]?\s*"
@@ -30,7 +31,11 @@ _NATIONALITY = re.compile(
     r"(?i)\b(?:nacionalidad|nationality)\s*[:#-]?\s*[A-Za-zÁÉÍÓÚáéíóúÑñ-]+"
 )
 _GENDER = re.compile(
-    r"(?i)\b(?:género|genero|gender|sexo|sex)\s*[:#-]?\s*[A-Za-zÁÉÍÓÚáéíóúÑñ-]+"
+    r"(?i)\b(?:(?:identidad\s+de\s+)?género|(?:identidad\s+de\s+)?genero|"
+    r"gender|sexo|sex)\s*[:#-]?\s*"
+    r"(?:mujer\s+trans|hombre\s+trans|mujer|hombre|masculin[oa]|femenin[oa]|"
+    r"trans(?:género|genero)?|travesti|no\s*binari[oa]|non[- ]binary|"
+    r"intersex(?:ual)?|queer)(?:\s*\([^)]*\))?"
 )
 _MARITAL = re.compile(
     r"(?i)\b(?:estado\s+civil|marital\s+status)\s*[:#-]?\s*[A-Za-zÁÉÍÓÚáéíóúÑñ-]+"
@@ -40,11 +45,33 @@ _INJECTION = re.compile(
     r"(?i)\b(?:ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions?|"
     r"ignore\s+all\s+rules|system\s+prompt|reveal\s+your\s+instructions)\b"
 )
-
-_NAME_LABEL = re.compile(
-    r"(?i)^(?:nombre(?:\s+completo)?|name|full\s+name)\s*[:#-]\s*(.+)$"
+_NAME_CONTEXT = re.compile(
+    r"(?i)\b(?:mi nombre es|my name is|soy|i am|candidato|candidate|"
+    r"nombre completo|nombres y apellidos|full name|applicant)\s*[:#-]?\s*(.+)$"
 )
-_NAME_WORDS = re.compile(r"^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3}$")
+_NAME_LABEL = re.compile(
+    r"(?i)^(?:nombre(?:\s+completo)?|nombres\s+y\s+apellidos|name|full\s+name|"
+    r"candidate(?:\s+name)?|applicant)\s*[:#-]\s*(.+)$"
+)
+_PERSONAL_LABEL = re.compile(
+    r"(?i)\b(?:información personal|informacion personal|datos personales|"
+    r"contact information|personal information)\b"
+)
+_PROFESSIONAL_WORDS = {
+    "engineer", "developer", "designer", "manager", "director", "analyst",
+    "software", "full", "stack", "backend", "frontend", "universidad",
+    "university", "corporation", "company", "technologies", "technology",
+    "experience", "summary", "skills", "education", "certifications",
+    "experiencia", "resumen", "habilidades", "educacion", "formacion",
+    "profesional", "laboral",
+}
+_NAME_TOKEN = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[-'][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)?$")
+_POSSIBLE_PERSONAL = (
+    _EMAIL,
+    _PHONE,
+    _DOCUMENT,
+    _DATE_OF_BIRTH,
+)
 
 
 @dataclass(frozen=True)
@@ -64,7 +91,33 @@ def _reemplazar(texto: str, patron: re.Pattern[str], etiqueta: str, encontrados:
     return patron.sub(reemplazo, texto)
 
 
-def _anonimizar_texto(texto: str, encontrados: set[str], alertas: list[str]) -> str:
+def _sin_acentos(texto: str) -> str:
+    return "".join(
+        caracter for caracter in unicodedata.normalize("NFKD", texto)
+        if not unicodedata.combining(caracter)
+    )
+
+
+def _parece_nombre(texto: str, posicion: int, contexto_personal: bool) -> bool:
+    limpio = " ".join(texto.strip().split())
+    palabras = limpio.replace("·", " ").split()
+    if not 2 <= len(palabras) <= 5 or any(not _NAME_TOKEN.fullmatch(palabra) for palabra in palabras):
+        return False
+    normalizado = _sin_acentos(limpio).casefold()
+    if any(palabra in _PROFESSIONAL_WORDS for palabra in normalizado.split()):
+        return False
+    # A name-like line is only anonymized without a label near the CV header
+    # or inside an explicitly personal-information block.
+    return contexto_personal or posicion < 3
+
+
+def _anonimizar_texto(
+    texto: str,
+    encontrados: set[str],
+    alertas: list[str],
+    posicion: int,
+    contexto_personal: bool,
+) -> str:
     if not texto:
         return texto
 
@@ -83,11 +136,16 @@ def _anonimizar_texto(texto: str, encontrados: set[str], alertas: list[str]) -> 
     texto = _reemplazar(texto, _PHONE, "[TELEFONO]", encontrados)
 
     nombre = _NAME_LABEL.match(texto.strip())
+    contexto_nombre = _NAME_CONTEXT.search(texto.strip())
     if nombre:
         inicio = texto.find(nombre.group(1))
         texto = texto[:inicio] + "[NOMBRE]"
         encontrados.add("[NOMBRE]")
-    elif _NAME_WORDS.fullmatch(texto.strip()):
+    elif contexto_nombre:
+        inicio = texto.find(contexto_nombre.group(1))
+        texto = texto[:inicio] + "[NOMBRE]"
+        encontrados.add("[NOMBRE]")
+    elif _parece_nombre(texto, posicion, contexto_personal):
         texto = "[NOMBRE]"
         encontrados.add("[NOMBRE]")
     return texto
@@ -98,11 +156,20 @@ def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
     anonimizadas: list[Linea] = []
     categorias: set[str] = set()
     alertas: list[str] = []
-    for linea in lineas:
+    contexto_personal_restante = 0
+    for posicion, linea in enumerate(lineas):
         if not isinstance(linea, Linea) or not linea.id or linea.texto is None:
             raise ValueError("Cada línea debe tener id y texto válido.")
-        texto = _anonimizar_texto(linea.texto, categorias, alertas)
+        if _PERSONAL_LABEL.search(linea.texto):
+            contexto_personal_restante = 3
+        contexto_personal = contexto_personal_restante > 0
+        texto = _anonimizar_texto(linea.texto, categorias, alertas, posicion, contexto_personal)
+        if contexto_personal_restante:
+            contexto_personal_restante -= 1
         anonimizadas.append(linea.model_copy(update={"texto": texto}))
+    fugas = any(patron.search(linea.texto) for linea in anonimizadas for patron in _POSSIBLE_PERSONAL)
+    if fugas:
+        alertas.append("posible_fuga_personal")
     return ResultadoAnonimizacion(anonimizadas, tuple(sorted(categorias)), tuple(sorted(set(alertas))))
 
 

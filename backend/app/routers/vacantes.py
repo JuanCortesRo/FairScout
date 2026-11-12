@@ -35,13 +35,18 @@ async def crear_vacante(
         raise HTTPException(status_code=502, detail="No fue posible conectarse con el servicio del modelo.")
     except anthropic.APIStatusError as e:
         log.error("Error de la API de Anthropic: %s", e.status_code)
-        raise HTTPException(status_code=502, detail=f"El servicio del modelo respondió con error ({e.status_code}).")
+        raise HTTPException(
+            status_code=502,
+            detail=f"El servicio del modelo respondió con error ({e.status_code}). "
+                   "Verifica el ID del modelo y los permisos de la API key.",
+        )
 
     vacante_id = uuid.uuid4().hex
     vacante = VacanteDB(
         id=vacante_id,
         titulo=propuesta.titulo,
         descripcion=entrada.descripcion,
+        requisitos_confirmados=False,
         requisitos=[
             RequisitoDB(
                 id=requisito.id,
@@ -75,6 +80,8 @@ def actualizar_vacante(
 
     vacante.titulo = entrada.titulo
     vacante.descripcion = entrada.descripcion
+    vacante.requisitos_confirmados = True
+    vacante.version_requisitos += 1
     vacante.requisitos = [
         RequisitoDB(
             id=requisito.id,

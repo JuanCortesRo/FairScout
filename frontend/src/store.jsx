@@ -1,5 +1,5 @@
-// Estado global de la app. Mientras el pipeline del backend no expone resultados, el procesamiento
-// de CVs se simula aquí con los mismos estados por archivo que tendrá el backend (sección 20.2).
+// Estado global de la app. El backend procesa archivos reales; el modo demo se
+// conserva cuando la API no está disponible.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { rankear } from '@/lib/scoring';
 import { ARCHIVOS_CON_ERROR, VACANTE_EJEMPLO, DESCRIPCION_EJEMPLO, crearCandidato, generarLoteDemo, hashTexto } from '@/data/demo';
@@ -44,6 +44,7 @@ export function AppProvider({ children }) {
   const [estado, setEstado] = useState(cargar);
   const [backend, setBackend] = useState('verificando'); // verificando | conectado | demo
   const [avisos, setAvisos] = useState([]);
+  const filesRef = useRef(new Map());
   const ref = useRef(estado);
   ref.current = estado;
 
@@ -53,7 +54,23 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     let vivo = true;
-    salud().then((ok) => vivo && setBackend(ok ? 'conectado' : 'demo'));
+    salud().then((ok) => {
+      if (!vivo) return;
+      setBackend(ok ? 'conectado' : 'demo');
+      setEstado((s) => {
+        const idsDemo = new Set(
+          s.candidatos
+            .filter((c) => /^\d+$/.test(String(c.candidato_id)))
+            .map((c) => String(c.candidato_id)),
+        );
+        if (!idsDemo.size) return s;
+        return {
+          ...s,
+          candidatos: s.candidatos.filter((c) => !idsDemo.has(String(c.candidato_id))),
+          archivos: s.archivos.filter((a) => !idsDemo.has(String(a.candidato_id ?? ''))),
+        };
+      });
+    });
     return () => { vivo = false; };
   }, []);
 
@@ -116,6 +133,52 @@ export function AppProvider({ children }) {
     actualizarArchivo(archivo.id, { estado: 'listo', candidato_id: id });
   }, [actualizarArchivo, set]);
 
+  const procesarConBackend = useCallback(async (archivos, files) => {
+    archivos.forEach((archivo) => actualizarArchivo(archivo.id, {
+      estado: 'leyendo',
+      error: null,
+      intentos: (archivo.intentos ?? 0) + 1,
+    }));
+    try {
+      const respuesta = await subirCVs(files);
+      const porNombre = new Map(respuesta.archivos.map((a) => [a.nombre_archivo, a]));
+      for (const archivo of archivos) {
+        const resultado = porNombre.get(archivo.nombre);
+        if (!resultado) {
+          actualizarArchivo(archivo.id, { estado: 'error', error: 'El servidor no devolvió este archivo.' });
+          continue;
+        }
+        if (resultado.estado === 'failed') {
+          actualizarArchivo(archivo.id, { estado: 'error', error: resultado.alertas?.join(', ') || 'No se pudo procesar el CV.' });
+          continue;
+        }
+        actualizarArchivo(archivo.id, {
+          estado: resultado.estado === 'needs_review' ? 'error' : 'listo',
+          error: resultado.estado === 'needs_review' ? 'El documento requiere revisión antes de enviarse al modelo.' : null,
+          candidato_id: resultado.ficha ? resultado.id : null,
+        });
+        if (resultado.ficha) {
+          set((s) => ({
+            candidatos: [...s.candidatos.filter((c) => c.candidato_id !== resultado.id), {
+              candidato_id: resultado.id,
+              nombre_real: null,
+              nombre_archivo: resultado.nombre_archivo,
+              formato: resultado.nombre_archivo.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf',
+              alertas: resultado.alertas || [],
+              lineas: resultado.lineas || [],
+              ficha: resultado.ficha,
+              evaluaciones: [],
+            }],
+          }));
+        }
+      }
+      set((s) => ({ lote: s.lote ? { ...s.lote, fin: Date.now() } : null }));
+    } catch (e) {
+      for (const archivo of archivos) actualizarArchivo(archivo.id, { estado: 'error', error: e.message });
+      notificar(`El servidor no pudo procesar los CVs: ${e.message}`, 'error');
+    }
+  }, [actualizarArchivo, set, notificar]);
+
   const ejecutarCola = useCallback(async (lista) => {
     const cola = [...lista];
     const trabajadores = Array.from({ length: Math.min(4, cola.length) }, async () => {
@@ -137,28 +200,47 @@ export function AppProvider({ children }) {
       if (f.size === 0) nuevos.push({ ...base, estado: 'error', error: 'El archivo está vacío.', reintentable: false });
       else if (f.size > MAX_BYTES) nuevos.push({ ...base, estado: 'error', error: 'El archivo supera el máximo de 10 MB.', reintentable: false });
       else if ([...existentes, ...nuevos].some((a) => a.nombre === f.name && a.tamano === f.size)) nuevos.push({ ...base, estado: 'duplicado', error: 'Ya se cargó un archivo idéntico; no se volverá a procesar.' });
-      else nuevos.push({ ...base, estado: 'pendiente' });
+      else {
+        filesRef.current.set(base.id, f);
+        nuevos.push({ ...base, estado: 'pendiente' });
+      }
     }
     if (nuevos.length) {
       set((s) => ({ archivos: [...nuevos, ...s.archivos], lote: { inicio: Date.now(), fin: null, total: nuevos.length } }));
       registrar('Carga de CVs', `${nuevos.length} archivo(s) recibidos`);
-      ejecutarCola(nuevos.filter((a) => a.estado === 'pendiente'));
-      if (backend === 'conectado') {
-        subirCVs(files.filter((f) => EXTENSIONES.some((e) => f.name.toLowerCase().endsWith(e))))
-          .catch((e) => notificar(`El servidor no guardó los archivos: ${e.message}`, 'error'));
+      if (backend !== 'demo') {
+        const pendientes = nuevos.filter((a) => a.estado === 'pendiente');
+        procesarConBackend(pendientes, files.filter((f) => pendientes.some((a) => a.nombre === f.name)));
+      } else {
+        const pendientes = nuevos.filter((a) => a.estado === 'pendiente');
+        pendientes.forEach((archivo) => actualizarArchivo(archivo.id, {
+          estado: 'error',
+          error: 'El backend no está conectado; el CV no se procesó y no se generaron datos demo.',
+          reintentable: false,
+        }));
+        if (pendientes.length) {
+          notificar('Inicia el backend para procesar el CV real.', 'error');
+        }
       }
     }
     return rechazados;
-  }, [set, registrar, ejecutarCola, backend, notificar]);
+  }, [set, registrar, ejecutarCola, procesarConBackend, backend]);
 
   const reintentar = useCallback((id) => {
     const a = ref.current.archivos.find((x) => x.id === id);
-    if (a) ejecutarCola([a]);
-  }, [ejecutarCola]);
+    const file = filesRef.current.get(id);
+    if (!a || !file) {
+      if (a) actualizarArchivo(id, { estado: 'error', error: 'Selecciona nuevamente el archivo para reintentarlo.', reintentable: false });
+      return;
+    }
+    if (backend === 'conectado') procesarConBackend([a], [file]);
+    else notificar('El backend no está conectado; no se puede reintentar el CV real.', 'error');
+  }, [backend, procesarConBackend, actualizarArchivo, notificar]);
 
   const quitarArchivo = useCallback((id) => {
     set((s) => {
       const a = s.archivos.find((x) => x.id === id);
+      filesRef.current.delete(id);
       return {
         archivos: s.archivos.filter((x) => x.id !== id),
         candidatos: a?.candidato_id ? s.candidatos.filter((c) => c.candidato_id !== a.candidato_id) : s.candidatos,
