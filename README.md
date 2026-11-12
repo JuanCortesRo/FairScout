@@ -32,13 +32,14 @@ docker-compose.yml  db (postgres:16) + backend + web (Caddy)
 
 **Backend** (requiere Python 3.12):
 
-```bash
+```powershell
 cd backend
-python3.12 -m venv .venv && source .venv/bin/activate
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env          # y pon tu ANTHROPIC_API_KEY
-uvicorn app.main:app --reload # http://localhost:8000/api/health
-pytest                        # pruebas
+Copy-Item .env.example .env  # y pon tu ANTHROPIC_API_KEY
+uvicorn app.main:app --reload
+pytest
 ```
 
 **Frontend** (requiere Node 20+):
