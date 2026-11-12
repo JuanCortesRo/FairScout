@@ -9,6 +9,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import CandidatoDB, RequisitoDB, VacanteDB
 from app.pipeline.scoring import alertas_para_puntaje
+from app.pipeline.evaluate import RespuestaEvaluacionInvalida
 from app.schemas import EvaluacionRequisito, ExplicacionEvaluacion
 
 LINEAS = [
@@ -16,10 +17,12 @@ LINEAS = [
     {"id": "p1-l2", "texto": "3 años administrando Azure", "bbox": [0, 0, 1, 1]},
     {"id": "p1-l3", "texto": "Inglés avanzado C1", "bbox": [0, 0, 1, 1]},
 ]
-FICHA = {
-    "experiencias": [], "formacion": [], "certificaciones": [], "idiomas": [],
-    "habilidades_tecnicas": ["Python"], "competencias_blandas": [],
-}
+def _ficha(candidato_id):
+    # El evaluador falso reconoce al candidato por su única habilidad.
+    return {
+        "experiencias": [], "formacion": [], "certificaciones": [], "idiomas": [],
+        "habilidades_tecnicas": [candidato_id], "competencias_blandas": [],
+    }
 REQUISITOS = [
     ("R1", "Python", "obligatorio", "tecnica"),
     ("R2", "AWS", "obligatorio", "tecnica"),
@@ -48,6 +51,16 @@ RESPUESTAS = {
 }
 
 
+FALLAN: set[str] = set()
+
+
+@pytest.fixture(autouse=True)
+def _sin_fallas():
+    FALLAN.clear()
+    yield
+    FALLAN.clear()
+
+
 @pytest.fixture
 def session_factory(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})
@@ -58,10 +71,14 @@ def session_factory(tmp_path):
             id="V1", titulo="Backend", descripcion="Vacante de prueba", requisitos_confirmados=True,
             requisitos=[RequisitoDB(id=i, nombre=n, tipo=t, categoria=c, peso=1.0) for i, n, t, c in REQUISITOS],
         ))
-        for cid, alertas in (("C1", []), ("C2", []), ("C3", ["hidden_text"])):
+        candidatos = (
+            ("C1", "processed", []), ("C2", "processed", []), ("C3", "processed", ["hidden_text"]),
+            ("C4", "needs_review", ["prompt_injection"]),
+        )
+        for cid, estado, alertas in candidatos:
             db.add(CandidatoDB(
-                id=cid, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado="processed",
-                ficha=FICHA, lineas_anonimizadas=LINEAS, lineas_originales=LINEAS, alertas=alertas,
+                id=cid, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado=estado,
+                ficha=_ficha(cid), lineas_anonimizadas=LINEAS, lineas_originales=LINEAS, alertas=alertas,
             ))
         db.commit()
     yield factory
@@ -77,20 +94,25 @@ def client(session_factory, monkeypatch):
         finally:
             db.close()
 
+    llamadas = []
+
     async def evaluar_falso(ficha, requisitos, lineas):
-        return RESPUESTAS[evaluar_falso.candidato], ExplicacionEvaluacion()
+        candidato_id = ficha.habilidades_tecnicas[0]
+        llamadas.append(candidato_id)
+        if candidato_id in FALLAN:
+            raise RespuestaEvaluacionInvalida("El modelo devolvió una evaluación con formato inválido.")
+        return RESPUESTAS[candidato_id], ExplicacionEvaluacion()
 
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(main_module, "init_db", lambda: None)
     monkeypatch.setattr("app.routers.evaluations.evaluar", evaluar_falso)
     with TestClient(main_module.app) as test_client:
-        test_client.evaluar_falso = evaluar_falso
+        test_client.llamadas = llamadas
         yield test_client
     app.dependency_overrides.pop(get_db, None)
 
 
 def _evaluar(client, candidato_id):
-    client.evaluar_falso.candidato = candidato_id
     respuesta = client.post("/api/evaluations", json={"candidato_id": candidato_id, "vacante_id": "V1"})
     assert respuesta.status_code == 200, respuesta.text
     return respuesta.json()
@@ -126,7 +148,7 @@ def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
 
 def test_ranking_recalcula_con_otro_peso_sin_llamar_al_llm(client):
     _evaluar(client, "C3")
-    client.evaluar_falso.candidato = None  # si el ranking llamara al LLM, fallaría con KeyError
+    llamadas_antes = len(client.llamadas)
 
     con_60 = client.get("/api/ranking", params={"vacante_id": "V1"}).json()["candidatos"][0]
     con_80 = client.get("/api/ranking", params={"vacante_id": "V1", "peso_obligatorios": 80}).json()
@@ -134,6 +156,7 @@ def test_ranking_recalcula_con_otro_peso_sin_llamar_al_llm(client):
     assert con_60["puntaje"] == 70.0   # 0.6 * 0.5 + 0.4 * 1
     assert con_80["candidatos"][0]["puntaje"] == 60.0   # 0.8 * 0.5 + 0.2 * 1
     assert con_80["peso_obligatorios"] == 80
+    assert len(client.llamadas) == llamadas_antes
 
 
 def test_ranking_usa_la_evaluacion_mas_reciente_e_ignora_versiones_viejas(client, session_factory):
@@ -162,3 +185,48 @@ def test_ranking_valida_vacante_y_peso(client):
 def test_alertas_para_puntaje():
     tipos = ["fotografia_o_imagen", "hidden_text", "prompt_injection", "ocr"]
     assert alertas_para_puntaje(tipos) == ["prompt_injection", "ocr"]
+
+
+def test_lote_evalua_todos_los_procesados_y_no_los_que_estan_en_revision(client):
+    cuerpo = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert cuerpo == {"vacante_id": "V1", "evaluados": 3, "omitidos": 0, "errores": []}
+    assert sorted(client.llamadas) == ["C1", "C2", "C3"]   # C4 (prompt injection) nunca llega al LLM
+    ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
+    assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3", "C2"]
+    assert ranking["en_revision"] == [
+        {"candidato_id": "C4", "nombre_archivo": "C4.pdf", "alertas": ["prompt_injection"]}
+    ]
+
+
+def test_lote_omite_a_los_ya_evaluados_salvo_que_se_pida_reevaluar(client):
+    _evaluar(client, "C1")
+
+    cuerpo = client.post("/api/vacantes/V1/evaluar").json()
+    assert (cuerpo["evaluados"], cuerpo["omitidos"]) == (2, 1)
+
+    cuerpo = client.post("/api/vacantes/V1/evaluar", params={"reevaluar": True}).json()
+    assert (cuerpo["evaluados"], cuerpo["omitidos"]) == (3, 0)
+
+
+def test_lote_un_candidato_que_falla_no_detiene_el_resto(client):
+    FALLAN.add("C2")
+
+    cuerpo = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert cuerpo["evaluados"] == 2
+    assert cuerpo["errores"] == [
+        {"candidato_id": "C2", "detalle": "El modelo devolvió una evaluación con formato inválido."}
+    ]
+    ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
+    assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3"]
+
+
+def test_lote_exige_requisitos_confirmados(client, session_factory):
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").requisitos_confirmados = False
+        db.commit()
+
+    assert client.post("/api/vacantes/V1/evaluar").status_code == 409
+    assert client.post("/api/vacantes/NO/evaluar").status_code == 404
+    assert client.llamadas == []

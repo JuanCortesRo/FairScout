@@ -17,7 +17,7 @@ from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB
-from app.schemas import CargaCVsSalida, CVSubido
+from app.schemas import CargaCVsSalida, CVSubido, Ficha
 
 router = APIRouter(tags=["cvs"])
 
@@ -74,7 +74,9 @@ async def subir_cvs(
             estado=documento.estado,
             alertas=alertas,
         ))
-        if documento.estado == "needs_review":
+        if not documento.puede_enviarse_al_llm:
+            # Alerta crítica: no va al LLM, pero se guarda para que aparezca "en revisión" en el ranking.
+            _guardar_candidato(db, cv_id, archivo.filename, documento, _FICHA_VACIA, alertas)
             continue
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
@@ -95,18 +97,28 @@ async def subir_cvs(
             estado=documento.estado,
             alertas=alertas,
         )
-        db.merge(CandidatoDB(
-            id=cv_id,
-            documento_id=cv_id,
-            nombre_archivo=archivo.filename,
-            estado=documento.estado,
-            ficha=ficha.model_dump(mode="json"),
-            lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
-            lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
-            alertas=alertas,
-        ))
-        db.commit()
+        _guardar_candidato(db, cv_id, archivo.filename, documento, ficha, alertas)
     return CargaCVsSalida(archivos=subidos)
+
+
+_FICHA_VACIA = Ficha(
+    experiencias=[], formacion=[], certificaciones=[], idiomas=[],
+    habilidades_tecnicas=[], competencias_blandas=[],
+)
+
+
+def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, ficha: Ficha, alertas: list[str]) -> None:
+    db.merge(CandidatoDB(
+        id=cv_id,
+        documento_id=cv_id,
+        nombre_archivo=nombre_archivo,
+        estado=documento.estado,
+        ficha=ficha.model_dump(mode="json"),
+        lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
+        lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
+        alertas=alertas,
+    ))
+    db.commit()
 
 
 @router.get("/cvs", response_model=CargaCVsSalida)

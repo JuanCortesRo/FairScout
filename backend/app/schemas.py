@@ -133,10 +133,30 @@ class EvaluacionEntrada(BaseModel):
     vacante_id: str = Field(..., min_length=1)
 
 
+class ErrorEvaluacion(BaseModel):
+    candidato_id: str
+    detalle: str
+
+
+class EvaluacionLoteSalida(BaseModel):
+    vacante_id: str
+    evaluados: int
+    omitidos: int                      # ya tenían evaluación con la versión vigente de los requisitos
+    errores: list[ErrorEvaluacion] = []
+
+
+class CandidatoEnRevision(BaseModel):
+    """CV que no se envió al LLM por una alerta crítica (prompt injection, posible dato personal)."""
+    candidato_id: str
+    nombre_archivo: str
+    alertas: list[str]
+
+
 class RankingSalida(BaseModel):
     vacante_id: str | None = None
     peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
     candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
+    en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
 
 
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.
