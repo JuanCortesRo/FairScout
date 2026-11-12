@@ -30,15 +30,16 @@ docker-compose.yml  db (postgres:16) + backend + web (Caddy)
 
 ## Correr en local
 
-**Backend** (requiere Python 3.12):
+**Backend** (requiere Python 3.12 y LibreOffice para procesar `.docx`):
 
 ```powershell
+winget install --id TheDocumentFoundation.LibreOffice
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env  # y pon tu ANTHROPIC_API_KEY
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 pytest
 ```
 

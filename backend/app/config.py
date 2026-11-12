@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     MODELO_EVALUACION: str = "claude-sonnet-5-5"
     PROMPT_VERSION: str = "v1"
     UPLOADS_DIR: str = "uploads"
+    LIBREOFFICE_PATH: str = ""
 
 
 @lru_cache

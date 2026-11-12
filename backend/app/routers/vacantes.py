@@ -10,7 +10,7 @@ from app.db import get_db
 from app.llm import LLMNoConfigurado
 from app.models import RequisitoDB, VacanteDB
 from app.pipeline.requirements import RespuestaLLMInvalida, proponer_requisitos
-from app.schemas import VacanteEntrada, VacanteSalida
+from app.schemas import VacanteActualizacion, VacanteEntrada, VacanteSalida
 
 router = APIRouter(tags=["vacantes"])
 log = logging.getLogger(__name__)
@@ -60,4 +60,35 @@ async def crear_vacante(
         id=vacante_id,
         titulo=propuesta.titulo,
         requisitos=propuesta.requisitos,
+    )
+
+
+@router.put("/vacantes/{vacante_id}", response_model=VacanteSalida)
+def actualizar_vacante(
+    vacante_id: str,
+    entrada: VacanteActualizacion,
+    db: Session = Depends(get_db),
+) -> VacanteSalida:
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+
+    vacante.titulo = entrada.titulo
+    vacante.descripcion = entrada.descripcion
+    vacante.requisitos = [
+        RequisitoDB(
+            id=requisito.id,
+            nombre=requisito.nombre,
+            tipo=requisito.tipo,
+            categoria=requisito.categoria,
+            peso=requisito.peso,
+        )
+        for requisito in entrada.requisitos
+    ]
+    db.commit()
+
+    return VacanteSalida(
+        id=vacante.id,
+        titulo=vacante.titulo,
+        requisitos=entrada.requisitos,
     )

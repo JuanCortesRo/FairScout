@@ -41,6 +41,14 @@ export function crearVacante(descripcion) {
   });
 }
 
+export function actualizarVacante(id, vacante) {
+  return request(`/vacantes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(vacante),
+  });
+}
+
 export function subirCVs(archivos) {
   const form = new FormData();
   archivos.forEach((a) => form.append('archivos', a));

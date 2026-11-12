@@ -100,3 +100,30 @@ def test_vacante_salida_invalida(monkeypatch, client, session_factory):
 
 def test_vacante_descripcion_corta(client):
     assert client.post("/api/vacantes", json={"descripcion": "corta"}).status_code == 422
+
+
+def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
+    falso, _ = _cliente_falso("```json\n" + json.dumps(VALIDA) + "\n```")
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+    creada = client.post("/api/vacantes", json=DESCRIPCION).json()
+
+    actualizada = {
+        "titulo": "Senior Python",
+        "descripcion": DESCRIPCION["descripcion"] + " También usamos Docker.",
+        "requisitos": [{
+            "id": "R1",
+            "nombre": "5 años con Python",
+            "tipo": "obligatorio",
+            "categoria": "experiencia",
+            "peso": 1.0,
+        }],
+    }
+    respuesta = client.put(f"/api/vacantes/{creada['id']}", json=actualizada)
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["titulo"] == "Senior Python"
+    with session_factory() as db:
+        vacante = db.get(VacanteDB, creada["id"])
+        assert vacante.titulo == "Senior Python"
+        assert vacante.descripcion.endswith("También usamos Docker.")
+        assert vacante.requisitos[0].nombre == "5 años con Python"

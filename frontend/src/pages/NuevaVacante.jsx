@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, TipoBadge, Alerta, Ayuda, CategoriaTag } from '@/components/ui/kit';
-import { crearVacante, ErrorConexion } from '@/api';
+import { actualizarVacante, crearVacante, ErrorConexion } from '@/api';
 import { useApp } from '@/store';
 import { DESCRIPCION_EJEMPLO, VACANTE_EJEMPLO } from '@/data/demo';
 import { detectarDatoProtegido } from '@/lib/protegidos';
@@ -139,6 +139,7 @@ export default function NuevaVacante() {
   const [descripcion, setDescripcion] = useState(vacante?.descripcion ?? '');
   const [titulo, setTitulo] = useState(vacante?.titulo ?? '');
   const [requisitos, setRequisitos] = useState(vacante ? structuredClone(vacante.requisitos) : null);
+  const [vacanteId, setVacanteId] = useState(vacante?.id ?? null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [intentado, setIntentado] = useState(false);
@@ -169,6 +170,7 @@ export default function NuevaVacante() {
       if (!res.requisitos.length) {
         setError('No encontramos requisitos en el texto. Escribe cada requisito en una línea que empiece con "-" o agrégalos a mano.');
       }
+      if (res.id) setVacanteId(res.id);
       setTitulo(res.titulo);
       setRequisitos(res.requisitos.map((r) => ({ ...r, peso: r.peso ?? 1 })));
       const bloqueados = res.requisitos.filter((r) => detectarDatoProtegido(r.nombre));
@@ -188,11 +190,21 @@ export default function NuevaVacante() {
     return [...rs, { id: `R${n}`, nombre: '', tipo: 'deseable', categoria: 'tecnica', peso: 1 }];
   });
 
-  const confirmar = () => {
+  const confirmar = async () => {
     setIntentado(true);
     if (problemas.length) return;
+    try {
+      if (backend === 'conectado' && vacanteId) {
+        await actualizarVacante(vacanteId, { titulo: titulo.trim(), descripcion, requisitos });
+      }
+    } catch (e) {
+      setError(e instanceof ErrorConexion
+        ? 'No pudimos guardar la vacante en el servidor.'
+        : e.message);
+      return;
+    }
     if (vacante) registrar('Corrección humana', `Requisitos editados (${requisitos.length} en total)`);
-    confirmarVacante({ titulo: titulo.trim(), descripcion, requisitos });
+    confirmarVacante({ id: vacanteId, titulo: titulo.trim(), descripcion, requisitos });
     setEditando(false);
     notificar('Requisitos confirmados. Ya puedes cargar CVs.', 'ok');
     navigate('/cvs');
