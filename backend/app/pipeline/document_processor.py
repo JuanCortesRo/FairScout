@@ -132,8 +132,10 @@ def process_document(file_path: str | Path, documento_id: str | None = None) -> 
 
         lineas: list[Linea] = []
         paginas: list[PaginaDocumento] = []
+        tiene_imagen = False
         try:
             for numero, pagina in enumerate(documento, start=1):
+                tiene_imagen = tiene_imagen or bool(pagina.get_images(full=True))
                 digitales = _lineas_digital(pagina, numero)
                 caracteres = sum(len(linea.texto) for linea in digitales)
                 if caracteres >= 20:
@@ -153,6 +155,24 @@ def process_document(file_path: str | Path, documento_id: str | None = None) -> 
             str(pdf),
         )
         anonimizado = anonimizar_con_metadatos(lineas)
+        if tiene_imagen:
+            alertas.append(AlertaSeguridad(
+                tipo="fotografia_o_imagen",
+                severidad="low",
+                pagina=0,
+                linea_id=None,
+                descripcion="El documento contiene una imagen que no se envía al LLM.",
+                accion="registrar_sin_usar_para_evaluacion",
+            ))
+        if "posible_fuga_personal" in anonimizado.alertas:
+            alertas.append(AlertaSeguridad(
+                tipo="posible_fuga_personal",
+                severidad="high",
+                pagina=0,
+                linea_id=None,
+                descripcion="La verificación posterior detectó un posible dato personal sin anonimizar.",
+                accion="bloquear_envio_al_llm",
+            ))
         criticas = [alerta for alerta in alertas if alerta.severidad == "high"]
         return DocumentoProcesado(
             documento_id=documento_id,

@@ -61,6 +61,31 @@ class EvaluacionRequisito(BaseModel):  # salida del LLM, llamada 2
     justificacion: str
     cita_verificada: bool = False      # lo llena Python en el paso 6
 
+
+class ExplicacionEvaluacion(BaseModel):
+    fortalezas: list[str] = Field(default_factory=list)
+    brechas: list[str] = Field(default_factory=list)
+    aspectos_por_verificar: list[str] = Field(default_factory=list)
+
+
+class TrazabilidadEvaluacion(BaseModel):
+    modelo: str
+    version_prompt: str
+    fecha_evaluacion: str
+    candidato_id: str
+    vacante_id: str
+    version_requisitos: int
+
+
+class EvaluacionSalida(BaseModel):
+    evaluacion_id: str
+    candidato_id: str
+    vacante_id: str
+    version_requisitos: int = Field(ge=1)
+    evaluaciones: list[EvaluacionRequisito]
+    explicacion: ExplicacionEvaluacion
+    trazabilidad: TrazabilidadEvaluacion
+
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
     puntaje: float                     # 0-100
@@ -91,12 +116,18 @@ class CVSubido(BaseModel):
     id: str
     nombre_archivo: str
     lineas: list[Linea] = []
+    ficha: Ficha | None = None
     estado: Literal["processed", "needs_review", "failed"] = "processed"
     alertas: list[str] = []
 
 
 class CargaCVsSalida(BaseModel):
     archivos: list[CVSubido]
+
+
+class EvaluacionEntrada(BaseModel):
+    candidato_id: str = Field(..., min_length=1)
+    vacante_id: str = Field(..., min_length=1)
 
 
 class RankingSalida(BaseModel):
