@@ -3,6 +3,9 @@
 El puntaje se recalcula en cada consulta a partir de las evaluaciones guardadas (sin volver a llamar al LLM),
 así que cambiar `peso_obligatorios` reordena al instante. Solo cuentan las evaluaciones hechas con la versión
 vigente de los requisitos; de cada candidato se usa la más reciente.
+
+Los CVs con alerta crítica (`needs_review`) nunca pasan por el LLM: se listan aparte en `en_revision`.
+Por ahora los CVs no están ligados a una vacante, así que `en_revision` incluye todos los que estén en revisión.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -11,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.scoring import PESO_OBLIGATORIOS, alertas_para_puntaje, calcular_resultado, ordenar_ranking
-from app.schemas import EvaluacionRequisito, RankingSalida, Requisito
+from app.schemas import CandidatoEnRevision, EvaluacionRequisito, RankingSalida, Requisito
 
 router = APIRouter(tags=["ranking"])
 
@@ -53,10 +56,18 @@ def obtener_ranking(
         alertas = alertas_para_puntaje(candidato.alertas or []) if candidato else []
         resultados.append(calcular_resultado(evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios))
 
+    en_revision = db.scalars(
+        select(CandidatoDB).where(CandidatoDB.estado == "needs_review").order_by(CandidatoDB.id)
+    ).all()
+
     return RankingSalida(
         vacante_id=vacante.id,
         peso_obligatorios=peso_obligatorios,
         candidatos=ordenar_ranking(resultados),
+        en_revision=[
+            CandidatoEnRevision(candidato_id=c.id, nombre_archivo=c.nombre_archivo, alertas=c.alertas or [])
+            for c in en_revision
+        ],
     )
 
 
