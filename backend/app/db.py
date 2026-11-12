@@ -27,3 +27,10 @@ def get_db() -> Iterator[Session]:
         yield db
     finally:
         db.close()
+
+
+def init_db() -> None:
+    """Crea las tablas declaradas por los modelos de la aplicación."""
+    import app.models  # noqa: F401
+
+    Base.metadata.create_all(bind=engine)

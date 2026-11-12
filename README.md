@@ -30,15 +30,17 @@ docker-compose.yml  db (postgres:16) + backend + web (Caddy)
 
 ## Correr en local
 
-**Backend** (requiere Python 3.12):
+**Backend** (requiere Python 3.12 y LibreOffice para procesar `.docx`):
 
-```bash
+```powershell
+winget install --id TheDocumentFoundation.LibreOffice
 cd backend
-python3.12 -m venv .venv && source .venv/bin/activate
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env          # y pon tu ANTHROPIC_API_KEY
-uvicorn app.main:app --reload # http://localhost:8000/api/health
-pytest                        # pruebas
+Copy-Item .env.example .env  # y pon tu ANTHROPIC_API_KEY
+python -m uvicorn app.main:app --reload
+pytest
 ```
 
 **Frontend** (requiere Node 20+):
@@ -48,6 +50,12 @@ cd frontend
 npm install
 npm run dev                   # http://localhost:5173 (redirige /api a localhost:8000)
 ```
+
+Si el backend no responde en `/api/health`, el frontend entra en **modo demostración**: el botón
+"Ver demo completa" carga una vacante y 60 CVs de ejemplo (`src/data/demo.js`) con los casos difíciles de la demo
+(AWS vs Azure, sin información de idiomas, texto oculto, fechas solapadas, OCR, cita no verificada). El puntaje,
+el estado, la confianza y la recomendación se recalculan en el cliente con las mismas reglas de `scoring.py`
+(`src/lib/scoring.js`), así que cambiar los pesos no vuelve a llamar a la IA.
 
 **Todo con Docker:**
 
@@ -67,7 +75,7 @@ docker compose up --build     # http://localhost
 | `DATABASE_URL` | backend | Por defecto `sqlite:///./data.db`; en Docker `postgresql+psycopg://usuario:clave@db:5432/bd` |
 | `FRONTEND_URL` | backend | Origen permitido por CORS |
 | `MODELO_EXTRACCION` | backend | Modelo para requisitos y extracción (por defecto `claude-haiku-5-5`) |
-| `MODELO_EVALUACION` | backend | Modelo para la evaluación (por defecto `claude-sonnet-5-5`) |
+| `MODELO_EVALUACION` | backend | Modelo para la evaluación (por defecto `claude-haiku-5-5`) |
 | `PROMPT_VERSION` | backend | Versión de prompts a cargar desde `app/prompts/` (por defecto `v1`) |
 | `UPLOADS_DIR` | backend | Carpeta donde se guardan los CVs subidos (por defecto `uploads`) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | Credenciales de la base de datos |

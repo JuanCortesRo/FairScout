@@ -1,7 +1,7 @@
-"""POST /api/cvs: recibe hojas de vida y las guarda en disco.
+"""POST /api/cvs: recibe hojas de vida, las guarda y extrae sus líneas.
 
-Por ahora solo valida la extensión (.pdf/.docx), guarda el archivo en UPLOADS_DIR
-y devuelve un id por archivo. El procesamiento (pipeline) se hará después.
+Los PDF se procesan inmediatamente con PyMuPDF para conservar el texto y las
+coordenadas de cada línea. Los DOCX se convierten primero con LibreOffice.
 """
 import uuid
 from pathlib import Path
@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.config import settings
+from app.pipeline.document_processor import DocumentoNoProcesable, process_document
 from app.schemas import CargaCVsSalida, CVSubido
 
 router = APIRouter(tags=["cvs"])
@@ -32,6 +33,26 @@ async def subir_cvs(archivos: list[UploadFile] = File(...)) -> CargaCVsSalida:
     for archivo in archivos:
         cv_id = uuid.uuid4().hex
         extension = Path(archivo.filename).suffix.lower()
-        (destino / f"{cv_id}{extension}").write_bytes(await archivo.read())
-        subidos.append(CVSubido(id=cv_id, nombre_archivo=archivo.filename))
+        ruta = destino / f"{cv_id}{extension}"
+        ruta.write_bytes(await archivo.read())
+
+        try:
+            documento = process_document(ruta, cv_id)
+        except DocumentoNoProcesable as error:
+            ruta.unlink(missing_ok=True)
+            subidos.append(CVSubido(
+                id=cv_id,
+                nombre_archivo=archivo.filename,
+                estado="failed",
+                alertas=[str(error)],
+            ))
+            continue
+
+        subidos.append(CVSubido(
+            id=cv_id,
+            nombre_archivo=archivo.filename,
+            lineas=documento.lineas_anonimizadas,
+            estado=documento.estado,
+            alertas=[alerta.tipo for alerta in documento.alertas],
+        ))
     return CargaCVsSalida(archivos=subidos)
