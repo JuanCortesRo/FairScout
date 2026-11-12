@@ -55,3 +55,60 @@ def test_no_anonimiza_empresas_tecnologias_ni_fechas_laborales():
         "Universidad Nacional · Python · Java · AWS · Azure",
         "Worked from 2020 to 2024",
     ]
+
+
+def test_anonimiza_variantes_de_nombre_y_contexto_personal():
+    resultado = anonimizar(lineas(
+        "JULIANA MELISSA BOLAÑOS ARAUJO",
+        "maria fernanda lopez",
+        "Mi nombre es Juan Carlos de la Cruz",
+        "Información personal",
+        "Ana-María Rodríguez",
+        "Experiencia profesional en Python y AWS",
+    ))
+
+    textos = [linea.texto for linea in resultado]
+    assert textos[:2] == ["[NOMBRE]", "[NOMBRE]"]
+    assert textos[2] == "Mi nombre es [NOMBRE]"
+    assert textos[4] == "[NOMBRE]"
+    assert textos[5] == "Experiencia profesional en Python y AWS"
+
+
+def test_anonimizacion_detecta_fuga_y_preserva_ids():
+    originales = lineas("Nombre: Ana Pérez", "correo ana@example.com")
+    resultado = anonimizar_con_metadatos(originales)
+
+    assert resultado.alertas == ()
+    assert [linea.id for linea in resultado.lineas_anonimizadas] == ["p1-l1", "p1-l2"]
+
+
+def test_anonimiza_genero_trans_completo_y_no_rompe_documento():
+    resultado = anonimizar(lineas(
+        "Documento: ABC123456",
+        "Género: Mujer trans (travesti)",
+        "Sexo: no binario",
+    ))
+
+    textos = [linea.texto for linea in resultado]
+    assert textos == ["[DOCUMENTO]", "[GENERO]", "[GENERO]"]
+    assert "trans" not in "\n".join(textos).casefold()
+
+
+def test_anonimiza_identidad_de_genero_y_direccion_completa():
+    resultado = anonimizar(lineas(
+        "Nombre: Valeria Andrade Montes",
+        "Identidad de género: Mujer trans (travesti)",
+        "Dirección: Calle 45 #12-38, Bogotá, Colombia",
+        "Teléfono: +57 310 555 7842",
+        "Correo electrónico: valeria.andrade@correoficticio.com",
+        "Licencia de conducir: Vigente",
+    ))
+
+    assert [linea.texto for linea in resultado] == [
+        "Nombre: [NOMBRE]",
+        "[GENERO]",
+        "[DIRECCION]",
+        "Teléfono: [TELEFONO]",
+        "Correo electrónico: [CORREO]",
+        "Licencia de conducir: Vigente",
+    ]

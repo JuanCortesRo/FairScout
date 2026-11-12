@@ -1,6 +1,7 @@
 """Configuración leída de variables de entorno (y de un archivo .env si existe)."""
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,14 @@ class Settings(BaseSettings):
     PROMPT_VERSION: str = "v1"
     UPLOADS_DIR: str = "uploads"
     LIBREOFFICE_PATH: str = ""
+
+    @model_validator(mode="after")
+    def validar_modelos(self) -> "Settings":
+        for nombre in ("MODELO_EXTRACCION", "MODELO_EVALUACION"):
+            valor = getattr(self, nombre)
+            if valor.startswith("sk-"):
+                raise ValueError(f"{nombre} debe contener un ID de modelo, no una API key.")
+        return self
 
 
 @lru_cache
