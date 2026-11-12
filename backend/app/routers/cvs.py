@@ -6,10 +6,17 @@ coordenadas de cada línea. Los DOCX se convierten primero con LibreOffice.
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from anthropic import APIError
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.db import get_db
 from app.pipeline.document_processor import DocumentoNoProcesable, process_document
+from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
+from app.pipeline.postprocess import limpiar_ficha
+from app.llm import LLMNoConfigurado
+from app.models import CandidatoDB
 from app.schemas import CargaCVsSalida, CVSubido
 
 router = APIRouter(tags=["cvs"])
@@ -18,7 +25,10 @@ EXTENSIONES_PERMITIDAS = {".pdf", ".docx"}
 
 
 @router.post("/cvs", response_model=CargaCVsSalida)
-async def subir_cvs(archivos: list[UploadFile] = File(...)) -> CargaCVsSalida:
+async def subir_cvs(
+    archivos: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+) -> CargaCVsSalida:
     invalidos = [a.filename for a in archivos if Path(a.filename or "").suffix.lower() not in EXTENSIONES_PERMITIDAS]
     if invalidos:
         raise HTTPException(
@@ -55,4 +65,64 @@ async def subir_cvs(archivos: list[UploadFile] = File(...)) -> CargaCVsSalida:
             estado=documento.estado,
             alertas=[alerta.tipo for alerta in documento.alertas],
         ))
+        if documento.estado == "needs_review":
+            continue
+        try:
+            ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
+        except (APIError, LLMNoConfigurado, RespuestaLLMInvalida) as error:
+            subidos[-1] = CVSubido(
+                id=cv_id,
+                nombre_archivo=archivo.filename,
+                lineas=documento.lineas_anonimizadas,
+                estado="failed",
+                alertas=[f"extraccion_llm: {error}"],
+            )
+            continue
+        subidos[-1] = CVSubido(
+            id=cv_id,
+            nombre_archivo=archivo.filename,
+            lineas=documento.lineas_anonimizadas,
+            ficha=ficha,
+            estado=documento.estado,
+            alertas=[alerta.tipo for alerta in documento.alertas],
+        )
+        db.merge(CandidatoDB(
+            id=cv_id,
+            documento_id=cv_id,
+            nombre_archivo=archivo.filename,
+            estado=documento.estado,
+            ficha=ficha.model_dump(mode="json"),
+            lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
+            lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
+        ))
+        db.commit()
     return CargaCVsSalida(archivos=subidos)
+
+
+@router.get("/cvs", response_model=CargaCVsSalida)
+def listar_cvs(db: Session = Depends(get_db)) -> CargaCVsSalida:
+    candidatos = db.query(CandidatoDB).order_by(CandidatoDB.id).all()
+    return CargaCVsSalida(archivos=[
+        CVSubido(
+            id=candidato.id,
+            nombre_archivo=candidato.nombre_archivo,
+            lineas=candidato.lineas_anonimizadas,
+            ficha=candidato.ficha,
+            estado=candidato.estado,
+        )
+        for candidato in candidatos
+    ])
+
+
+@router.get("/candidatos/{candidato_id}", response_model=CVSubido)
+def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSubido:
+    candidato = db.get(CandidatoDB, candidato_id)
+    if candidato is None:
+        raise HTTPException(status_code=404, detail="El candidato no existe.")
+    return CVSubido(
+        id=candidato.id,
+        nombre_archivo=candidato.nombre_archivo,
+        lineas=candidato.lineas_anonimizadas,
+        ficha=candidato.ficha,
+        estado=candidato.estado,
+    )
