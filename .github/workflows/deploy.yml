@@ -51,6 +51,16 @@ jobs:
       - name: Construir y levantar
         run: docker compose -p talentscout up -d --build --remove-orphans
       - name: Verificar salud
-        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors http://localhost/api/health
+        # Se consulta el backend dentro de su contenedor: con HTTPS, Caddy responde a http://localhost
+        # con una redirección (308) y curl -f la daría por buena aunque el backend esté caído.
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -p talentscout exec -T backend python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"; then
+              echo "Backend OK"; exit 0
+            fi
+            sleep 3
+          done
+          docker compose -p talentscout logs --tail 100 backend
+          exit 1
       - name: Limpiar imágenes viejas
         run: docker image prune -f

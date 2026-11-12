@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data.db"
     FRONTEND_URL: str = "http://localhost:5173"
     MODELO_EXTRACCION: str = "claude-haiku-5-5"
-    MODELO_EVALUACION: str = "claude-sonnet-5-5"
+    MODELO_EVALUACION: str = "claude-haiku-5-5"
     PROMPT_VERSION: str = "v1"
     UPLOADS_DIR: str = "uploads"
     LIBREOFFICE_PATH: str = ""

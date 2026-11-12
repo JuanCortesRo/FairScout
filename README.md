@@ -75,7 +75,7 @@ docker compose up --build     # http://localhost
 | `DATABASE_URL` | backend | Por defecto `sqlite:///./data.db`; en Docker `postgresql+psycopg://usuario:clave@db:5432/bd` |
 | `FRONTEND_URL` | backend | Origen permitido por CORS |
 | `MODELO_EXTRACCION` | backend | Modelo para requisitos y extracción (por defecto `claude-haiku-5-5`) |
-| `MODELO_EVALUACION` | backend | Modelo para la evaluación (por defecto `claude-sonnet-5-5`) |
+| `MODELO_EVALUACION` | backend | Modelo para la evaluación (por defecto `claude-haiku-5-5`) |
 | `PROMPT_VERSION` | backend | Versión de prompts a cargar desde `app/prompts/` (por defecto `v1`) |
 | `UPLOADS_DIR` | backend | Carpeta donde se guardan los CVs subidos (por defecto `uploads`) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | Credenciales de la base de datos |
