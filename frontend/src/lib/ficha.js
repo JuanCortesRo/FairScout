@@ -8,7 +8,7 @@ const aMes = (texto, hoy) => {
 
 /** Años de experiencia uniendo periodos solapados (dos trabajos a la vez no cuentan doble). */
 export function aniosExperiencia(ficha, hoy = new Date()) {
-  if (ficha?.anios_experiencia != null) return ficha.anios_experiencia;   // datos de ejemplo
+  if (ficha?.anios_experiencia != null) return ficha.anios_experiencia;
   const periodos = (ficha?.experiencias ?? [])
     .map((e) => [aMes(e.inicio, hoy), aMes(e.fin ?? 'actual', hoy)])
     .filter(([i, f]) => i != null && f != null && f >= i)

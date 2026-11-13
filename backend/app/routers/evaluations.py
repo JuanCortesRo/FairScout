@@ -134,6 +134,31 @@ def listar_evaluaciones(vacante_id: str, db: Session = Depends(get_db)) -> list[
     return [EvaluacionSalida.model_validate(f.resultado) for _, f in sorted(vigentes.items())]
 
 
+@router.get(
+    "/vacantes/{vacante_id}/candidatos/{candidato_id}/evaluacion",
+    response_model=EvaluacionSalida,
+)
+def obtener_evaluacion(
+    vacante_id: str,
+    candidato_id: str,
+    db: Session = Depends(get_db),
+) -> EvaluacionSalida:
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+    filas = db.scalars(
+        select(EvaluacionDB).where(
+            EvaluacionDB.vacante_id == vacante_id,
+            EvaluacionDB.candidato_id == candidato_id,
+            EvaluacionDB.version_requisitos == vacante.version_requisitos,
+        )
+    ).all()
+    if not filas:
+        raise HTTPException(status_code=404, detail="El candidato aún no tiene una evaluación vigente.")
+    fila = max(filas, key=_fecha)
+    return EvaluacionSalida.model_validate(fila.resultado)
+
+
 def _fecha(fila: EvaluacionDB) -> str:
     return fila.resultado.get("trazabilidad", {}).get("fecha_evaluacion", "")
 

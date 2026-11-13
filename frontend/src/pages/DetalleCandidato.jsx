@@ -106,7 +106,7 @@ function FilaEvaluacion({ fila, activa, onCita, onCorregir }) {
               : <CircleAlert className="size-3.5 shrink-0 text-warn" aria-label="Cita no encontrada en el CV" />}
           </button>
         ) : <span className="text-xs text-muted-foreground">Sin cita: no hay evidencia en el CV.</span>}
-        <button onClick={onCorregir} className="text-xs font-medium text-muted-foreground hover:text-primary">Corregir</button>
+        {onCorregir && <button onClick={onCorregir} className="text-xs font-medium text-muted-foreground hover:text-primary">Corregir</button>}
       </div>
       {ev.cita && !ev.cita_verificada && (
         <p className="mt-2 text-xs text-warn">La cita no aparece textualmente en el CV. Se marcó como no verificada y bajó la confianza.</p>
@@ -126,8 +126,10 @@ function ListaExplicacion({ icono: Icono, titulo, items, tono, vacio }) {
       {items.length === 0 ? <p className="text-sm text-muted-foreground">{vacio}</p> : (
         <ul className="space-y-2">
           {items.map((it) => (
-            <li key={it.req.id} className="rounded-lg border px-3 py-2 text-sm">
-              <span className="font-medium">{it.req.nombre}.</span> <span className="text-foreground/75">{it.texto}</span>
+            <li key={typeof it === 'string' ? it : it.req.id} className="rounded-lg border px-3 py-2 text-sm">
+              {typeof it === 'string'
+                ? it
+                : <><span className="font-medium">{it.req.nombre}.</span> <span className="text-foreground/75">{it.texto}</span></>}
             </li>
           ))}
         </ul>
@@ -228,17 +230,58 @@ const OPCIONES_CORRECCION = {
 export default function DetalleCandidato() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { ranking, candidatos, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar } = useApp();
+  const {
+    ranking, candidatos, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar,
+    cargarCandidato, enDemo,
+  } = useApp();
   const [pestana, setPestana] = useState('evaluacion');
   const [activas, setActivas] = useState([]);
   const [reqActivo, setReqActivo] = useState(null);
   const [correccion, setCorreccion] = useState(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState('');
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
+  useEffect(() => {
+    if (!id || enDemo) return undefined;
+    let vigente = true;
+    setCargandoDetalle(true);
+    setErrorDetalle('');
+    cargarCandidato(id).catch((e) => {
+      if (vigente) setErrorDetalle(e.message);
+    }).finally(() => {
+      if (vigente) setCargandoDetalle(false);
+    });
+    return () => { vigente = false; };
+  }, [id, enDemo, cargarCandidato]);
 
   const item = ranking.find((r) => r.candidato.candidato_id === id);
-  const exp = useMemo(() => (item ? explicar(item.resultado) : null), [item]);
+  const candidatoActual = item?.candidato ?? candidatos.find((x) => x.candidato_id === id);
+  const necesitaCarga = !enDemo && !!id && !errorDetalle && !candidatoActual?.ficha;
+  const exp = useMemo(() => {
+    if (!item) return null;
+    const explicacion = item.candidato.explicacion;
+    return explicacion
+      ? {
+        fortalezas: explicacion.fortalezas,
+        brechas: explicacion.brechas,
+        porVerificar: explicacion.aspectos_por_verificar,
+      }
+      : explicar(item.resultado);
+  }, [item]);
 
-  const sinEvaluar = !item && candidatos.find((x) => x.candidato_id === id);
+  const sinEvaluar = !item && candidatoActual;
+  if (cargandoDetalle || necesitaCarga) {
+    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV y la evaluación desde el servidor">Las líneas del documento se consultan solo al abrir el detalle.</Alerta>;
+  }
+  if (errorDetalle && !sinEvaluar?.lineas?.length && !item?.candidato.lineas?.length) {
+    return (
+      <Card>
+        <EstadoVacio icono={UserX} titulo="No se pudo cargar este candidato" descripcion={errorDetalle}>
+          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+        </EstadoVacio>
+      </Card>
+    );
+  }
   if (sinEvaluar) return <SinEvaluacion c={sinEvaluar} nombre={nombreVisible(sinEvaluar)} onVolver={() => navigate('/ranking')} />;
 
   if (!item) {
@@ -315,6 +358,11 @@ export default function DetalleCandidato() {
           {c.linea_inyeccion && <>{' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button></>}
         </Alerta>
       )}
+      {!enDemo && (
+        <Alerta tipo="info" icono={CircleAlert} className="mb-6" titulo="Correcciones humanas no disponibles en el backend">
+          El servidor aún no ofrece un endpoint para guardar correcciones. La evidencia y el resultado que ves provienen de la evaluación persistida.
+        </Alerta>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <Card className="overflow-hidden">
@@ -341,7 +389,7 @@ export default function DetalleCandidato() {
                       {g.filas.map((f) => (
                         <FilaEvaluacion key={f.req.id} fila={f} activa={reqActivo === f.req.id}
                           onCita={() => mostrarCita(f)}
-                          onCorregir={() => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' })} />
+                        onCorregir={enDemo ? () => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' }) : null} />
                       ))}
                     </div>
                   </section>

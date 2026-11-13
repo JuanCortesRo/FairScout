@@ -141,7 +141,6 @@ function construirCV(p) {
     habilidades_tecnicas: p.skills,
     competencias_blandas: p.liderazgo ? ['Liderazgo', 'Comunicación'] : ['Trabajo en equipo'],
     anios_experiencia: p.aniosTotal,
-    anios_python: p.aniosPython,
   };
 
   return { lineas, idx, id, buscarClave, ficha };

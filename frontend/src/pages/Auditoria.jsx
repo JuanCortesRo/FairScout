@@ -67,7 +67,7 @@ export default function Auditoria() {
     <>
       <PageHeader
         titulo="Auditoría y gobierno de IA"
-        descripcion="Qué se usó para evaluar, qué decidió una persona y qué pruebas de sesgo pasa el sistema. Todo queda registrado."
+        descripcion="Consulta la trazabilidad de las evaluaciones. El registro de eventos de esta sesión todavía no se persiste en el backend."
         acciones={vacante && (
           <>
             <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
@@ -88,7 +88,9 @@ export default function Auditoria() {
             <Dato etiqueta="Modelo de evaluación" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5 (demo)' : '—')} mono />
             <Dato etiqueta="Versión de prompts" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1 (demo)' : '—')} mono />
             <Dato etiqueta="Última evaluación" valor={trazabilidad ? new Date(trazabilidad.fecha_evaluacion).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
-            <Dato etiqueta="Confirmado" valor={vacante ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
+            <Dato etiqueta="Confirmado" valor={vacante?.confirmada_en
+              ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })
+              : vacante?.requisitos_confirmados ? 'Guardado en el servidor' : '—'} />
           </div>
         </Card>
 
@@ -166,7 +168,9 @@ export default function Auditoria() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader icono={History} titulo="Registro de auditoría" descripcion="Cada decisión y corrección humana, con fecha. Sin texto de los CVs." />
+          <CardHeader icono={History} titulo="Registro de auditoría" descripcion={enDemo
+            ? 'Eventos de ejemplo, sin texto de los CVs.'
+            : 'Eventos de esta sesión; aún no existe una bitácora persistida en el backend.'} />
           <ol className="max-h-[420px] space-y-0 overflow-y-auto px-5 py-3 scrollbar-fino">
             {auditoria.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Todavía no hay eventos registrados.</li>}
             {auditoria.map((e, i) => (

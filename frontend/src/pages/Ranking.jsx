@@ -49,7 +49,7 @@ function AjustePesos() {
             onChange={(e) => setPesos({ obligatorios: Number(e.target.value) })}
             onMouseUp={() => registrar('Pesos ajustados', `Obligatorios ${pesos.obligatorios}% / deseables ${100 - pesos.obligatorios}%`)}
             className="w-full accent-[var(--primary)]" aria-label="Peso de los obligatorios" />
-          <p className="mt-1 text-xs">El ranking se recalcula al instante, sin volver a llamar a la IA.</p>
+          <p className="mt-1 text-xs">El backend recalcula el ranking sin volver a llamar a la IA.</p>
         </div>
         <p className="border-t pt-3 text-xs">El puntaje <b>no</b> es una probabilidad de éxito.</p>
       </div>
@@ -60,7 +60,7 @@ function AjustePesos() {
 export default function Ranking() {
   const {
     vacante, ranking, cargarDemo, nombreVisible, seleccion, toggleSeleccion, backend, enDemo,
-    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor,
+    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor, erroresEvaluacion,
   } = useApp();
   const navigate = useNavigate();
   const [pestana, setPestana] = useState('aptos');
@@ -99,6 +99,17 @@ export default function Ranking() {
       </Alerta>
     )
   );
+  const avisoErrores = erroresEvaluacion.length > 0 && (
+    <Alerta tipo="error" icono={CircleAlert} className="mb-4" titulo={`${erroresEvaluacion.length} CV(s) no pudieron evaluarse`}>
+      <ul className="mt-1 list-disc pl-4">
+        {erroresEvaluacion.map((error) => (
+          <li key={error.candidato_id}>
+            {`Candidato ${error.candidato_id.slice(0, 6).toUpperCase()}: ${error.detalle}`}
+          </li>
+        ))}
+      </ul>
+    </Alerta>
+  );
 
   if (!vacante || (ranking.length === 0 && enRevision.length === 0)) {
     const sinCVs = vacante && pendientes.length === 0 && !evaluando;
@@ -106,6 +117,7 @@ export default function Ranking() {
       <>
         <PageHeader paso="Paso 3 de 3" titulo="Ranking de candidatos" />
         {vacante && avisoEvaluacion}
+        {avisoErrores}
         {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los datos del servidor">{errorServidor}</Alerta>}
         <Card>
           <EstadoVacio
@@ -128,7 +140,7 @@ export default function Ranking() {
       <PageHeader
         paso="Paso 3 de 3"
         titulo="Ranking de candidatos"
-        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado contra la vacante; el orden lo calcula el código, no la IA."
+        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el backend calcula el orden, no la IA."
         acciones={(
           <>
             {!enDemo && (
@@ -144,6 +156,7 @@ export default function Ranking() {
       />
 
       {avisoEvaluacion}
+      {avisoErrores}
       {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

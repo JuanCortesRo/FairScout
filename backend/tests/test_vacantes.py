@@ -122,11 +122,30 @@ def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
 
     assert respuesta.status_code == 200
     assert respuesta.json()["titulo"] == "Senior Python"
+    assert respuesta.json()["version_requisitos"] == 2
+    assert respuesta.json()["requisitos_confirmados"] is True
     with session_factory() as db:
         vacante = db.get(VacanteDB, creada["id"])
         assert vacante.titulo == "Senior Python"
         assert vacante.descripcion.endswith("También usamos Docker.")
         assert vacante.requisitos[0].nombre == "5 años con Python"
+
+
+def test_listar_y_obtener_vacantes_persistidas(monkeypatch, client):
+    falso, _ = _cliente_falso(json.dumps(VALIDA))
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+    creada = client.post("/api/vacantes", json=DESCRIPCION).json()
+
+    lista = client.get("/api/vacantes")
+    detalle = client.get(f"/api/vacantes/{creada['id']}")
+
+    assert lista.status_code == 200
+    assert len(lista.json()) == 1
+    assert lista.json()[0]["id"] == creada["id"]
+    assert detalle.json()["descripcion"] == DESCRIPCION["descripcion"]
+    assert detalle.json()["version_requisitos"] == 1
+    assert detalle.json()["requisitos_confirmados"] is False
+    assert client.get("/api/vacantes/inexistente").status_code == 404
 
 
 CON_PROTEGIDOS = {"titulo": "Recepcionista", "requisitos": [

@@ -149,6 +149,8 @@ def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
     c3 = next(c for c in cuerpo["candidatos"] if c["candidato_id"] == "C3")
     assert c3["confianza"] == "baja"  # texto oculto cuenta como intento de manipulación
     assert c3["motivo_estado"] == "Obligatorio sin información: AWS"
+    assert cuerpo["detalles"]["C3"]["puntaje_obligatorios"] == 0.5
+    assert cuerpo["detalles"]["C3"]["categorias"] == {"tecnica": 0.5, "idioma": 1.0}
 
 
 def test_ranking_recalcula_con_otro_peso_sin_llamar_al_llm(client):
@@ -270,3 +272,17 @@ def test_listar_evaluaciones_devuelve_la_vigente_de_cada_candidato(client, sessi
         db.commit()
     assert client.get("/api/vacantes/V1/evaluaciones").json() == []
     assert client.get("/api/vacantes/NO/evaluaciones").status_code == 404
+
+
+def test_obtener_evaluacion_individual_devuelve_solo_la_vigente(client, session_factory):
+    _evaluar(client, "C1")
+    endpoint = "/api/vacantes/V1/candidatos/C1/evaluacion"
+
+    assert client.get(endpoint).json()["candidato_id"] == "C1"
+    assert client.get("/api/vacantes/V1/candidatos/C4/evaluacion").status_code == 404
+    assert client.get("/api/vacantes/NO/candidatos/C1/evaluacion").status_code == 404
+
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").version_requisitos += 1
+        db.commit()
+    assert client.get(endpoint).status_code == 404

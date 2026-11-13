@@ -41,6 +41,8 @@ class Ficha(BaseModel):          # salida del LLM, llamada 1
     idiomas: list[Idioma]
     habilidades_tecnicas: list[str]
     competencias_blandas: list[str]
+    anios_experiencia: float | None = None
+    inconsistencia_fechas: bool = False
 
 class Requisito(BaseModel):
     id: str
@@ -98,6 +100,15 @@ class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     motivo_estado: str                 # p. ej. "Falta obligatorio: inglés B2"
 
 
+class DetalleRanking(BaseModel):
+    puntaje_obligatorios: float | None
+    puntaje_deseables: float | None
+    cobertura: float
+    motivos_confianza: list[str]
+    categorias: dict[str, float]
+    citas_sin_verificar: int
+
+
 # ── Entrada/salida de la API (no forman parte de la sección 8) ──────────────
 class VacanteEntrada(BaseModel):
     descripcion: str = Field(..., min_length=20, description="Texto libre de la descripción del cargo")
@@ -118,6 +129,9 @@ class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
     id: str | None = None
+    descripcion: str | None = None
+    version_requisitos: int = 1
+    requisitos_confirmados: bool = False
     # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
     requisitos_bloqueados: list[RequisitoBloqueado] = []
 
@@ -133,6 +147,17 @@ class CVSubido(BaseModel):
 
 class CargaCVsSalida(BaseModel):
     archivos: list[CVSubido]
+
+
+class CVResumen(BaseModel):
+    id: str
+    nombre_archivo: str
+    estado: Literal["processed", "needs_review", "failed"]
+    alertas: list[str] = []
+
+
+class ListaCVsSalida(BaseModel):
+    archivos: list[CVResumen]
 
 
 class EvaluacionEntrada(BaseModel):
@@ -163,6 +188,7 @@ class RankingSalida(BaseModel):
     vacante_id: str | None = None
     peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
     candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
+    detalles: dict[str, DetalleRanking] = Field(default_factory=dict)
     en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
 
 

@@ -5,9 +5,9 @@ import {
   TriangleAlert, FileType, ShieldAlert, CloudOff, Sparkles,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardHeader, PageHeader, EstadoVacio, Pestanas, Alerta } from '@/components/ui/kit';
+import { Card, CardHeader, PageHeader, EstadoVacio, Pestanas, Alerta, Pill } from '@/components/ui/kit';
 import { useApp } from '@/store';
-import { ESTADOS_ARCHIVO } from '@/lib/constantes';
+import { ALERTAS, ESTADOS_ARCHIVO } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 
 const EN_PROCESO = ['pendiente', 'procesando'];
@@ -41,8 +41,17 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
           </span>
         </div>
         <p className={cn('text-xs', a.estado === 'error' ? 'text-bad' : ['duplicado', 'revision'].includes(a.estado) ? 'text-warn' : 'text-muted-foreground')}>
-          {a.error ?? `${ESTADOS_ARCHIVO[a.estado] ?? a.estado} · ${tamanoLegible(a.tamano)}`}
+          {a.error ?? `${ESTADOS_ARCHIVO[a.estado] ?? a.estado}${a.tamano != null ? ` · ${tamanoLegible(a.tamano)}` : ''}`}
         </p>
+        {a.alertas?.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {a.alertas.map((alerta) => (
+              <Pill key={alerta} className={cn(ALERTAS[alerta]?.clase ?? 'bg-muted ring-border')} title={ALERTAS[alerta]?.texto ?? alerta}>
+                {ALERTAS[alerta]?.corto ?? alerta}
+              </Pill>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {['listo', 'revision'].includes(a.estado) && a.candidato_id && <Button variant="ghost" size="sm" onClick={onVer}>Ver <ArrowRight /></Button>}

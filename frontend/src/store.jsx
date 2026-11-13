@@ -1,12 +1,19 @@
-// Estado global de la app.
-// Con el backend conectado, todo sale de la API: vacante (POST/PUT /vacantes), CVs (POST/GET /cvs) y
-// evaluaciones (POST /vacantes/{id}/evaluar, GET /vacantes/{id}/evaluaciones). El puntaje, el estado y el
-// ranking se calculan en el cliente con lib/scoring.js, que es idéntico a scoring.py (test de paridad), para
-// que los pesos se ajusten al instante. Sin backend solo queda disponible la demo con datos de ejemplo.
+// Estado global: el backend es la fuente de verdad; localStorage conserva solo preferencias de interfaz.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { rankear } from '@/lib/scoring';
 import { ARCHIVOS_CON_ERROR, VACANTE_EJEMPLO, DESCRIPCION_EJEMPLO, generarLoteDemo } from '@/data/demo';
-import { evaluarLote, listarCVs, listarEvaluaciones, salud, subirCVs } from '@/api';
+import {
+  ErrorAPI,
+  evaluarLote,
+  listarCVs,
+  listarEvaluaciones,
+  listarVacantes,
+  obtenerCandidato as obtenerCandidatoApi,
+  obtenerEvaluacion,
+  obtenerRanking,
+  salud,
+  subirCVs,
+} from '@/api';
 import { ALERTAS } from '@/lib/constantes';
 
 const CLAVE = 'fairscout:v2';
@@ -15,6 +22,7 @@ const Ctx = createContext(null);
 const INICIAL = {
   origen: null,             // 'backend' | 'demo'
   vacante: null,            // { id, titulo, descripcion, requisitos, version, confirmada_en }
+  vacanteDesactivada: false,
   pesos: { obligatorios: 60 },
   candidatos: [],           // solo se guarda en modo demo; con backend se pide a la API
   archivos: [],             // estado de cada carga: { id, nombre, tamano, estado, error, candidato_id }
@@ -26,18 +34,19 @@ const INICIAL = {
   lote: null,               // { inicio, fin, total }
 };
 
-const EN_CURSO = ['pendiente', 'procesando'];
-
 function cargar() {
   try {
     const raw = localStorage.getItem(CLAVE);
     if (!raw) return INICIAL;
-    const s = { ...INICIAL, ...JSON.parse(raw) };
-    // Una carga interrumpida al recargar la página queda en error con opción de volver a subir el archivo.
-    s.archivos = s.archivos.map((a) => (EN_CURSO.includes(a.estado)
-      ? { ...a, estado: 'error', error: 'La carga se interrumpió. Vuelve a subir el archivo.', reintentable: false }
-      : a));
-    return s;
+    const preferencias = JSON.parse(raw);
+    return {
+      ...INICIAL,
+      modoCiego: preferencias.modoCiego ?? INICIAL.modoCiego,
+      pesos: preferencias.pesos ?? INICIAL.pesos,
+      seleccion: preferencias.seleccion ?? INICIAL.seleccion,
+      vacante: preferencias.vacanteId ? { id: preferencias.vacanteId } : null,
+      vacanteDesactivada: preferencias.vacanteDesactivada ?? false,
+    };
   } catch {
     return INICIAL;
   }
@@ -67,10 +76,56 @@ function desdeApi(cv, evaluacion) {
     estado_documento: cv.estado,            // processed | needs_review
     alertas: cv.alertas ?? [],
     lineas: cv.lineas ?? [],
-    ficha: cv.ficha,
+    ficha: cv.ficha ?? null,
     evaluaciones: evaluacion?.evaluaciones ?? null,
+    explicacion: evaluacion?.explicacion ?? null,
     trazabilidad: evaluacion?.trazabilidad ?? null,
   };
+}
+
+function desdeVacante(vacante) {
+  return {
+    ...vacante,
+    version: vacante.version_requisitos,
+    confirmada_en: null,
+  };
+}
+
+function desdeRanking(respuesta, candidatos, requisitos) {
+  const porId = new Map(candidatos.map((c) => [c.candidato_id, c]));
+  return respuesta.candidatos.flatMap((resultado, indice) => {
+    const candidato = porId.get(resultado.candidato_id);
+    if (!candidato) return [];
+    const detalle = respuesta.detalles?.[resultado.candidato_id] ?? {};
+    const porRequisito = new Map((candidato.evaluaciones ?? []).map((e) => [e.requisito_id, e]));
+    const filas = requisitos.map((req) => ({
+      req,
+      ev: porRequisito.get(req.id) ?? {
+        requisito_id: req.id,
+        resultado: 'sin_informacion',
+        cita: null,
+        lineas: [],
+        justificacion: 'No evaluado.',
+        cita_verificada: false,
+      },
+    }));
+    return [{
+      candidato,
+      resultado: {
+        ...resultado,
+        detalle: {
+          ...detalle,
+          puntajeObligatorios: detalle.puntaje_obligatorios,
+          puntajeDeseables: detalle.puntaje_deseables,
+          motivosConfianza: detalle.motivos_confianza ?? [],
+          citasSinVerificar: detalle.citas_sin_verificar ?? 0,
+          categorias: detalle.categorias ?? {},
+          filas,
+        },
+      },
+      posicion: indice + 1,
+    }];
+  });
 }
 
 /** Aplica las correcciones humanas sobre la evaluación de la IA. */
@@ -96,22 +151,31 @@ function conCorrecciones(c, correcciones) {
 export function AppProvider({ children }) {
   const [estado, setEstado] = useState(cargar);
   const [backend, setBackend] = useState('verificando'); // verificando | conectado | desconectado
-  const [servidor, setServidor] = useState({ candidatos: [], cargando: false, error: null });
+  const [servidor, setServidor] = useState({
+    candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [],
+  });
   const [evaluando, setEvaluando] = useState(false);
+  const [erroresEvaluacion, setErroresEvaluacion] = useState([]);
   const [avisos, setAvisos] = useState([]);
   const archivosRef = useRef(new Map());   // File originales para reintentar en esta sesión
   const ref = useRef(estado);
   ref.current = estado;
   const servidorRef = useRef([]);
   servidorRef.current = servidor.candidatos;
+  const rankingSeq = useRef(0);
 
   const enDemo = estado.origen === 'demo';
 
   useEffect(() => {
-    // Con backend los candidatos viven en el servidor: no se guardan en el navegador.
-    const guardar = estado.origen === 'demo' ? estado : { ...estado, candidatos: [] };
-    try { localStorage.setItem(CLAVE, JSON.stringify(guardar)); } catch { /* sin almacenamiento: la app sigue funcionando */ }
-  }, [estado]);
+    const preferencias = {
+      modoCiego: estado.modoCiego,
+      pesos: estado.pesos,
+      seleccion: estado.seleccion,
+      vacanteId: estado.origen === 'demo' ? null : estado.vacante?.id ?? null,
+      vacanteDesactivada: estado.vacanteDesactivada,
+    };
+    try { localStorage.setItem(CLAVE, JSON.stringify(preferencias)); } catch { /* Las preferencias son opcionales. */ }
+  }, [estado.modoCiego, estado.pesos, estado.seleccion, estado.origen, estado.vacante?.id, estado.vacanteDesactivada]);
 
   const set = useCallback((fn) => setEstado((s) => ({ ...s, ...fn(s) })), []);
 
@@ -126,20 +190,72 @@ export function AppProvider({ children }) {
   }, [set]);
 
   // ── Datos del servidor ─────────────────────────────────────────────────────
-  const refrescar = useCallback(async () => {
+  const refrescar = useCallback(async (vacanteIdPreferida) => {
     if (ref.current.origen === 'demo') return;
+    const solicitud = ++rankingSeq.current;
     setServidor((s) => ({ ...s, cargando: true, error: null }));
     try {
-      const vacanteId = ref.current.vacante?.id;
-      const [cvs, evaluaciones] = await Promise.all([
+      const vacantes = await listarVacantes();
+      const idPreferido = vacanteIdPreferida ?? ref.current.vacante?.id;
+      const vacanteRespuesta = idPreferido
+        ? vacantes.find((v) => v.id === idPreferido) ?? vacantes[0] ?? null
+        : ref.current.vacanteDesactivada ? null : vacantes[0] ?? null;
+      const vacante = vacanteRespuesta ? desdeVacante(vacanteRespuesta) : null;
+      const [cvs, evaluaciones, respuestaRanking] = await Promise.all([
         listarCVs(),
-        vacanteId ? listarEvaluaciones(vacanteId) : Promise.resolve([]),
+        vacante?.id ? listarEvaluaciones(vacante.id) : Promise.resolve([]),
+        vacante?.id ? obtenerRanking(vacante.id, ref.current.pesos.obligatorios) : Promise.resolve({ candidatos: [], en_revision: [] }),
       ]);
+      if (solicitud !== rankingSeq.current) return;
       const porCandidato = new Map(evaluaciones.map((e) => [e.candidato_id, e]));
-      setServidor({ candidatos: cvs.archivos.map((cv) => desdeApi(cv, porCandidato.get(cv.id))), cargando: false, error: null });
+      const candidatos = cvs.archivos.map((cv) => desdeApi(cv, porCandidato.get(cv.id)));
+      const ranking = desdeRanking(respuestaRanking, candidatos, vacante?.requisitos ?? []);
+      setEstado((s) => ({ ...s, origen: 'backend', vacante, vacanteDesactivada: !vacante }));
+      setServidor({
+        candidatos,
+        ranking,
+        enRevision: respuestaRanking.en_revision ?? [],
+        cargando: false,
+        error: null,
+        erroresEvaluacion: [],
+      });
+      set((s) => ({
+        archivos: cvs.archivos.map((cv) => ({
+          id: cv.id,
+          candidato_id: cv.id,
+          nombre: cv.nombre_archivo,
+          tamano: null,
+          estado: cv.estado === 'needs_review' ? 'revision' : cv.estado === 'failed' ? 'error' : 'listo',
+          alertas: cv.alertas ?? [],
+          error: cv.estado === 'needs_review' ? motivoRevision(cv.alertas ?? []) : null,
+        })),
+      }));
     } catch (e) {
+      if (solicitud !== rankingSeq.current) return;
       setServidor((s) => ({ ...s, cargando: false, error: e.message }));
     }
+  }, [set]);
+
+  const cargarCandidato = useCallback(async (id) => {
+    const vacanteId = ref.current.vacante?.id;
+    const [cv, evaluacion] = await Promise.all([
+      obtenerCandidatoApi(id),
+      vacanteId
+        ? obtenerEvaluacion(vacanteId, id).catch((e) => {
+          if (e instanceof ErrorAPI && e.status === 404) return null;
+          throw e;
+        })
+        : Promise.resolve(null),
+    ]);
+    const candidato = desdeApi(cv, evaluacion);
+    setServidor((s) => ({
+      ...s,
+      candidatos: [...s.candidatos.filter((c) => c.candidato_id !== id), candidato],
+      ranking: s.ranking.map((fila) => (
+        fila.candidato.candidato_id === id ? { ...fila, candidato } : fila
+      )),
+    }));
+    return candidato;
   }, []);
 
   useEffect(() => {
@@ -156,15 +272,17 @@ export function AppProvider({ children }) {
   }, [refrescar, set]);
 
   /** Evalúa con la IA los CVs procesados que no tienen evaluación vigente (o todos, si `reevaluar`). */
-  const evaluar = useCallback(async ({ reevaluar = false } = {}) => {
-    const vacanteId = ref.current.vacante?.id;
+  const evaluar = useCallback(async ({ reevaluar = false, vacanteId: vacanteIdPreferida } = {}) => {
+    const vacanteId = vacanteIdPreferida ?? ref.current.vacante?.id;
     if (!vacanteId || ref.current.origen === 'demo') return;
     setEvaluando(true);
+    setErroresEvaluacion([]);
     try {
       const r = await evaluarLote(vacanteId, reevaluar);
+      setErroresEvaluacion(r.errores);
       if (r.evaluados) registrar('Evaluación con IA', `${r.evaluados} CV(s) evaluados contra los requisitos v${ref.current.vacante.version}`);
       if (r.errores.length) {
-        notificar(`${r.errores.length} CV(s) no se pudieron evaluar: ${r.errores[0].detalle}`, 'error');
+        notificar(`${r.errores.length} CV(s) no se pudieron evaluar. Revisa el detalle en el ranking.`, 'error');
         registrar('Error de evaluación', r.errores.map((e) => `${e.candidato_id.slice(0, 6).toUpperCase()}: ${e.detalle}`).join(' · '));
       } else if (r.evaluados) {
         notificar(`${r.evaluados} CV(s) evaluados.`, 'ok');
@@ -180,19 +298,41 @@ export function AppProvider({ children }) {
   // ── Vacante ────────────────────────────────────────────────────────────────
   const confirmarVacante = useCallback((vacante) => {
     const anterior = ref.current.vacante;
-    const version = anterior?.id === vacante.id ? anterior.version + 1 : 1;
+    const version = vacante.version_requisitos
+      ?? (anterior?.id === vacante.id ? anterior.version + 1 : 1);
     // Requisitos nuevos ⇒ evaluaciones nuevas: las correcciones hechas sobre la versión anterior ya no aplican.
-    set(() => ({ vacante: { ...vacante, version, confirmada_en: new Date().toISOString() }, correcciones: {} }));
+    set(() => ({
+      vacante: { ...vacante, version, confirmada_en: new Date().toISOString() },
+      vacanteDesactivada: false,
+      correcciones: {},
+    }));
     registrar('Requisitos confirmados', `Versión ${version} · ${vacante.requisitos.length} requisitos para "${vacante.titulo}"`);
-    if (ref.current.origen !== 'demo' && servidorRef.current.some((c) => c.estado_documento === 'processed')) {
-      // Requisitos nuevos ⇒ las evaluaciones anteriores dejan de ser vigentes.
-      setTimeout(() => evaluar(), 0);
-    } else {
-      setTimeout(() => refrescar(), 0);
-    }
-  }, [set, registrar, evaluar, refrescar]);
+    setTimeout(() => {
+      void (async () => {
+        await refrescar(vacante.id);
+        await evaluar({ vacanteId: vacante.id });
+      })();
+    }, 0);
+  }, [set, registrar, refrescar, evaluar]);
 
-  const setPesos = useCallback((pesos) => set(() => ({ pesos })), [set]);
+  const setPesos = useCallback((pesos) => {
+    set(() => ({ pesos }));
+    const vacanteId = ref.current.vacante?.id;
+    if (!vacanteId || ref.current.origen === 'demo') return;
+    const solicitud = ++rankingSeq.current;
+    obtenerRanking(vacanteId, pesos.obligatorios).then((respuesta) => {
+      if (solicitud !== rankingSeq.current) return;
+      setServidor((s) => ({
+        ...s,
+        ranking: desdeRanking(respuesta, servidorRef.current, ref.current.vacante?.requisitos ?? []),
+        enRevision: respuesta.en_revision ?? [],
+        error: null,
+      }));
+    }).catch((e) => {
+      if (solicitud !== rankingSeq.current) return;
+      setServidor((s) => ({ ...s, error: e.message }));
+    });
+  }, [set]);
 
   // ── Carga de archivos ──────────────────────────────────────────────────────
   const actualizarArchivo = useCallback((id, cambios) => {
@@ -207,9 +347,15 @@ export function AppProvider({ children }) {
       if (!r || r.estado === 'failed') {
         // Un documento ilegible falla igual al reintentar; un fallo de la IA sí puede resolverse reintentando.
         const causa = r?.alertas?.[0];
-        actualizarArchivo(archivo.id, { estado: 'error', error: mensajeError(causa), candidato_id: null, reintentable: !!causa?.startsWith('extraccion_llm') });
+        actualizarArchivo(archivo.id, {
+          estado: 'error',
+          error: mensajeError(causa),
+          candidato_id: null,
+          alertas: r?.alertas ?? [],
+          reintentable: !!causa?.startsWith('extraccion_llm'),
+        });
       } else if (r.estado === 'needs_review') {
-        actualizarArchivo(archivo.id, { estado: 'revision', error: motivoRevision(r.alertas ?? []), candidato_id: r.id });
+        actualizarArchivo(archivo.id, { estado: 'revision', error: motivoRevision(r.alertas ?? []), candidato_id: r.id, alertas: r.alertas ?? [] });
       } else {
         actualizarArchivo(archivo.id, { estado: 'listo', candidato_id: r.id, alertas: r.alertas ?? [] });
       }
@@ -292,7 +438,14 @@ export function AppProvider({ children }) {
       ...INICIAL,
       origen: 'demo',
       modoCiego: s.modoCiego,
-      vacante: { ...VACANTE_EJEMPLO, descripcion: DESCRIPCION_EJEMPLO, version: 1, confirmada_en: new Date().toISOString() },
+      vacanteDesactivada: false,
+      vacante: {
+        ...VACANTE_EJEMPLO,
+        descripcion: DESCRIPCION_EJEMPLO,
+        version: 1,
+        requisitos_confirmados: true,
+        confirmada_en: new Date().toISOString(),
+      },
       candidatos,
       archivos,
       lote: { inicio: ahora - 6 * 60 * 1000 - 42000, fin: ahora, total: archivos.length },
@@ -308,8 +461,13 @@ export function AppProvider({ children }) {
   /** Vuelve a un estado limpio. Con backend, los CVs y evaluaciones siguen guardados en el servidor. */
   const reiniciar = useCallback(() => {
     archivosRef.current.clear();
-    setEstado((s) => ({ ...INICIAL, origen: backend === 'conectado' ? 'backend' : null, modoCiego: s.modoCiego }));
-    setServidor({ candidatos: [], cargando: false, error: null });
+    setEstado((s) => ({
+      ...INICIAL,
+      origen: backend === 'conectado' ? 'backend' : null,
+      modoCiego: s.modoCiego,
+      vacanteDesactivada: backend === 'conectado',
+    }));
+    setServidor({ candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [] });
     if (backend === 'conectado') setTimeout(() => refrescar(), 0);
   }, [backend, refrescar]);
 
@@ -337,6 +495,10 @@ export function AppProvider({ children }) {
 
   /** Corrección humana de un resultado: queda registrada en la auditoría (sección 12, trazabilidad). */
   const corregirEvaluacion = useCallback((candidatoId, requisitoId, resultado, motivo) => {
+    if (!enDemo) {
+      notificar('Las correcciones humanas aún no se pueden guardar en el servidor.', 'error');
+      return;
+    }
     const c = todos.find((x) => x.candidato_id === candidatoId);
     const ev = c?.evaluaciones?.find((e) => e.requisito_id === requisitoId);
     const anterior = ev?.resultado_ia ?? ev?.resultado;
@@ -344,16 +506,13 @@ export function AppProvider({ children }) {
       correcciones: { ...s.correcciones, [candidatoId]: { ...s.correcciones[candidatoId], [requisitoId]: { resultado, motivo } } },
     }));
     registrar('Corrección humana', `Candidato ${c?.alias ?? candidatoId} · ${requisitoId}: ${anterior ?? '—'} → ${resultado}${motivo ? ` · "${motivo}"` : ''}`);
-  }, [todos, set, registrar]);
+  }, [enDemo, todos, set, registrar, notificar]);
 
   const evaluados = useMemo(() => todos.filter((c) => c.evaluaciones), [todos]);
   const pendientes = useMemo(() => todos.filter((c) => !c.evaluaciones && c.estado_documento === 'processed'), [todos]);
   const enRevision = useMemo(() => todos.filter((c) => c.estado_documento === 'needs_review'), [todos]);
 
-  const ranking = useMemo(
-    () => (estado.vacante ? rankear(evaluados, estado.vacante.requisitos, estado.pesos) : []),
-    [evaluados, estado.vacante, estado.pesos],
-  );
+  const ranking = enDemo ? rankear(evaluados, estado.vacante?.requisitos ?? [], estado.pesos) : servidor.ranking;
 
   const trazabilidad = useMemo(() => evaluados.find((c) => c.trazabilidad)?.trazabilidad ?? null, [evaluados]);
 
@@ -366,9 +525,9 @@ export function AppProvider({ children }) {
 
   const valor = {
     ...estado,
-    candidatos: todos, backend, enDemo, avisos, ranking, pendientes, enRevision, trazabilidad, evaluando,
+    candidatos: todos, backend, enDemo, avisos, ranking, pendientes, enRevision, trazabilidad, evaluando, erroresEvaluacion,
     cargandoServidor: servidor.cargando, errorServidor: servidor.error,
-    confirmarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar,
+    confirmarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar, cargarCandidato,
     cargarDemo, reiniciar, toggleCiego, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
   };
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;

@@ -147,3 +147,5 @@ def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_pat
     assert subido["archivos"][0]["estado"] == "needs_review"
     assert listado["archivos"][0]["estado"] == "needs_review"
     assert "prompt_injection" in listado["archivos"][0]["alertas"]
+    assert "lineas" not in listado["archivos"][0]
+    assert "ficha" not in listado["archivos"][0]
