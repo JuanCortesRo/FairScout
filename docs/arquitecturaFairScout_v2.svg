@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1530" viewBox="0 0 1200 1530" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs>
+<rect width="1200" height="1530" fill="#131313"/>
+<text x="600" y="44" text-anchor="middle" fill="#ffffff" font-size="24" font-weight="700">FairScout — Arquitectura del sistema (v2)</text>
+<text x="600" y="68" text-anchor="middle" fill="#cfcfcf" font-size="13">Estado actual del repositorio: pipeline completo, correcciones, exportación y agente entrevistador</text>
+<rect x="40" y="92" width="780" height="86" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="121.0" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">Frontend React 19 (Vite) — build estático servido por Caddy</text>
+<text x="430.0" y="140.0" text-anchor="middle" fill="#cfcfcf" font-size="13">Vacantes · Nueva vacante y confirmación de requisitos · Carga de CVs (PDF / DOCX)</text>
+<text x="430.0" y="159.0" text-anchor="middle" fill="#cfcfcf" font-size="13">store.jsx + api.js · modo demo con 60 CVs si /api/health no responde</text>
+<rect x="860" y="92" width="300" height="86" rx="12" fill="#1a2433" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="1010.0" y="121.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Claude API (Anthropic)</text>
+<text x="1010.0" y="140.0" text-anchor="middle" fill="#cfcfcf" font-size="13">Haiku 5.5 por defecto · prompts en app/prompts/</text>
+<text x="1010.0" y="159.0" text-anchor="middle" fill="#cfcfcf" font-size="13">JSON validado con Pydantic + 1 reintento</text>
+<rect x="40" y="228" width="780" height="1050" rx="18" fill="#2a1f0c" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="800" y="254" text-anchor="end" fill="#ececec" font-size="14" font-weight="700">Backend FastAPI · Python 3.12 · Docker Compose</text>
+<rect x="230" y="272" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="295.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">1. Vacante → requisitos</text>
+<text x="430.0" y="314.5" text-anchor="middle" fill="#cfcfcf" font-size="13">POST /api/vacantes · filtro de datos protegidos</text>
+<rect x="230" y="347" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="370.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">2. Confirmación del reclutador</text>
+<text x="430.0" y="389.5" text-anchor="middle" fill="#cfcfcf" font-size="13">PUT /api/vacantes/{id} · nueva versión de requisitos</text>
+<rect x="230" y="422" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="445.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">3. Carga y lectura</text>
+<text x="430.0" y="464.5" text-anchor="middle" fill="#cfcfcf" font-size="13">POST /api/vacantes/{id}/cvs · DOCX→PDF · PyMuPDF · OCR</text>
+<rect x="230" y="497" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="520.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">4. Anonimización y seguridad</text>
+<text x="430.0" y="539.5" text-anchor="middle" fill="#cfcfcf" font-size="13">regex · contacto aparte · prompt injection · texto oculto</text>
+<rect x="230" y="572" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="595.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">5. Duplicados</text>
+<text x="430.0" y="614.5" text-anchor="middle" fill="#cfcfcf" font-size="13">rapidfuzz · mismo contenido o contacto en la vacante</text>
+<rect x="230" y="647" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="670.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">6. Extracción de la ficha</text>
+<text x="430.0" y="689.5" text-anchor="middle" fill="#cfcfcf" font-size="13">1 llamada por CV · líneas "p{n}-l{n}" anonimizadas</text>
+<rect x="230" y="722" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="745.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">7. Limpieza de la ficha</text>
+<text x="430.0" y="764.5" text-anchor="middle" fill="#cfcfcf" font-size="13">fechas · años de experiencia · habilidades · idiomas A1–C2</text>
+<rect x="230" y="812" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="835.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">8. Evaluación por requisito</text>
+<text x="430.0" y="854.5" text-anchor="middle" fill="#cfcfcf" font-size="13">POST /api/vacantes/{id}/evaluar · 1 llamada por CV</text>
+<rect x="230" y="887" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="910.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">9. Verificación de citas</text>
+<text x="430.0" y="929.5" text-anchor="middle" fill="#cfcfcf" font-size="13">rapidfuzz contra las líneas citadas del CV</text>
+<rect x="230" y="962" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="985.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">10. Puntaje · estado · confianza</text>
+<text x="430.0" y="1004.5" text-anchor="middle" fill="#cfcfcf" font-size="13">solo código · 60/40 · obligatorios y descalificantes</text>
+<rect x="230" y="1037" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="1060.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">11. Explicaciones</text>
+<text x="430.0" y="1079.5" text-anchor="middle" fill="#cfcfcf" font-size="13">plantillas en código · fortalezas · brechas · por verificar</text>
+<rect x="230" y="1112" width="400" height="56" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="1135.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">12. Ranking y exportación</text>
+<text x="430.0" y="1154.5" text-anchor="middle" fill="#cfcfcf" font-size="13">GET /api/ranking · correcciones del reclutador · XLSX</text>
+<rect x="230" y="1197" width="400" height="56" rx="12" fill="#24183a" stroke="#b58cf0" stroke-width="1.5"/>
+<text x="430.0" y="1220.5" text-anchor="middle" fill="#ececec" font-size="14" font-weight="700">13. Agente entrevistador</text>
+<text x="430.0" y="1239.5" text-anchor="middle" fill="#cfcfcf" font-size="13">POST /api/entrevistas · plan → turnos → informe</text>
+<path d="M430 328 V347" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 403 V422" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 478 V497" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 553 V572" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 628 V647" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 703 V722" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 778 V812" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 868 V887" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 943 V962" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 1018 V1037" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 1093 V1112" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M430 1168 V1197" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M200 272 H190 V403 H200" fill="none" stroke="#2fb5a9" stroke-width="1.2"/>
+<text x="170" y="337.5" text-anchor="middle" fill="#cfcfcf" font-size="12" font-weight="700" transform="rotate(-90 170 337.5)">VACANTE</text>
+<path d="M200 422 H190 V778 H200" fill="none" stroke="#2fb5a9" stroke-width="1.2"/>
+<text x="170" y="600.0" text-anchor="middle" fill="#cfcfcf" font-size="12" font-weight="700" transform="rotate(-90 170 600.0)">CARGA · por CV, al subir</text>
+<path d="M200 812 H190 V1168 H200" fill="none" stroke="#2fb5a9" stroke-width="1.2"/>
+<text x="170" y="990.0" text-anchor="middle" fill="#cfcfcf" font-size="12" font-weight="700" transform="rotate(-90 170 990.0)">EVALUACIÓN · lote, 5 en paralelo</text>
+<path d="M200 1197 H190 V1253 H200" fill="none" stroke="#2fb5a9" stroke-width="1.2"/>
+<text x="170" y="1225.0" text-anchor="middle" fill="#cfcfcf" font-size="12" font-weight="700" transform="rotate(-90 170 1225.0)">BONUS</text>
+<path d="M430 178 V272" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="321.7" y="198" width="216.6" height="19" rx="4" fill="#131313"/>
+<text x="430" y="212" text-anchor="middle" fill="#cfcfcf" font-size="12">HTTP /api · Caddy reverse proxy</text>
+<rect x="860" y="264.0" width="300" height="72" rx="12" fill="#1a2433" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="1010.0" y="286.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Claude API · requisitos</text>
+<text x="1010.0" y="305.0" text-anchor="middle" fill="#cfcfcf" font-size="13">requisitos_v1.md</text>
+<text x="1010.0" y="324.0" text-anchor="middle" fill="#cfcfcf" font-size="13">obligatorio · deseable · descalificante</text>
+<path d="M630 300 H860" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="860" y="639.0" width="300" height="72" rx="12" fill="#1a2433" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="1010.0" y="661.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Claude API · extracción</text>
+<text x="1010.0" y="680.0" text-anchor="middle" fill="#cfcfcf" font-size="13">extraccion_v1.md</text>
+<text x="1010.0" y="699.0" text-anchor="middle" fill="#cfcfcf" font-size="13">experiencia · formación · idiomas…</text>
+<path d="M630 675 H860" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="860" y="804.0" width="300" height="72" rx="12" fill="#1a2433" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="1010.0" y="826.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Claude API · evaluación</text>
+<text x="1010.0" y="845.0" text-anchor="middle" fill="#cfcfcf" font-size="13">evaluation_v1.md</text>
+<text x="1010.0" y="864.0" text-anchor="middle" fill="#cfcfcf" font-size="13">cumple · parcial · no cumple · sin info</text>
+<path d="M630 840 H860" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="860" y="1189.0" width="300" height="72" rx="12" fill="#24183a" stroke="#b58cf0" stroke-width="1.5"/>
+<text x="1010.0" y="1211.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Claude API · entrevista</text>
+<text x="1010.0" y="1230.0" text-anchor="middle" fill="#cfcfcf" font-size="13">entrevista_v1.md</text>
+<text x="1010.0" y="1249.0" text-anchor="middle" fill="#cfcfcf" font-size="13">preguntas · evaluación de respuestas</text>
+<path d="M630 1225 H860" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="652" y="892" width="152" height="222" rx="12" fill="#1d2a2a" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="728" y="918" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">PostgreSQL</text>
+<text x="728" y="934" text-anchor="middle" fill="#cfcfcf" font-size="11">SQLite en local</text>
+<text x="728" y="956" text-anchor="middle" fill="#cfcfcf" font-size="12">vacantes</text>
+<text x="728" y="975" text-anchor="middle" fill="#cfcfcf" font-size="12">requisitos</text>
+<text x="728" y="994" text-anchor="middle" fill="#cfcfcf" font-size="12">candidatos</text>
+<text x="728" y="1013" text-anchor="middle" fill="#cfcfcf" font-size="12">contactos_candidato</text>
+<text x="728" y="1032" text-anchor="middle" fill="#cfcfcf" font-size="12">evaluaciones</text>
+<text x="728" y="1051" text-anchor="middle" fill="#cfcfcf" font-size="12">correcciones</text>
+<text x="728" y="1070" text-anchor="middle" fill="#cfcfcf" font-size="12">entrevistas</text>
+<text x="728" y="1089" text-anchor="middle" fill="#cfcfcf" font-size="12">exportaciones</text>
+<path d="M652 990 H630" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)" stroke-dasharray="6 5"/>
+<path d="M230 1140 H80 V1318" fill="none" stroke="#f0897a" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="101.0" y="1117" width="78.0" height="19" rx="4" fill="#131313"/>
+<text x="140" y="1131" text-anchor="middle" fill="#cfcfcf" font-size="12">resultados</text>
+<path d="M900 1318 V1296 H600 V1253" fill="none" stroke="#b58cf0" stroke-width="1.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="645.0" y="1286" width="210.0" height="19" rx="4" fill="#131313"/>
+<text x="750" y="1300" text-anchor="middle" fill="#cfcfcf" font-size="12">responde por el enlace público</text>
+<rect x="40" y="1318" width="780" height="92" rx="12" fill="#3a2a0f" stroke="#2fb5a9" stroke-width="1.5"/>
+<text x="430.0" y="1350.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Frontend React — resultados</text>
+<text x="430.0" y="1369.0" text-anchor="middle" fill="#cfcfcf" font-size="13">Ranking · detalle con evidencia resaltada en el CV · comparador · auditoría</text>
+<text x="430.0" y="1388.0" text-anchor="middle" fill="#cfcfcf" font-size="13">Corregir un requisito · exportar XLSX · generar entrevista y ver el informe</text>
+<rect x="860" y="1318" width="300" height="92" rx="12" fill="#24183a" stroke="#b58cf0" stroke-width="1.5"/>
+<text x="1010.0" y="1350.0" text-anchor="middle" fill="#ececec" font-size="15" font-weight="700">Persona candidata</text>
+<text x="1010.0" y="1369.0" text-anchor="middle" fill="#cfcfcf" font-size="13">Enlace público /entrevista/:token</text>
+<text x="1010.0" y="1388.0" text-anchor="middle" fill="#cfcfcf" font-size="13">72 h · sin cuenta · límite de solicitudes</text>
+<text x="40" y="1450" text-anchor="start" fill="#cfcfcf" font-size="13">Despliegue: PR → GitHub Actions en ubuntu-latest (pytest · npm run build · build de imágenes); push a main → runner self-hosted → docker compose up.</text>
+<text x="40" y="1474" text-anchor="start" fill="#cfcfcf" font-size="13">Caddy sirve el frontend y redirige /api/* a backend:8000 (:80 o HTTPS con &lt;ip&gt;.sslip.io). Volúmenes: db (postgres:16) y uploads; el CV original se borra al procesarlo.</text>
+<text x="40" y="1498" text-anchor="start" fill="#cfcfcf" font-size="13">Claude propone requisitos, extrae, evalúa y conduce la entrevista sobre texto anonimizado. Puntaje, estado, confianza, explicaciones y ranking los calcula el código.</text>
+</svg>

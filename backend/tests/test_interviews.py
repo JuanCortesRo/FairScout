@@ -416,3 +416,21 @@ def test_informe_vacio_o_con_evaluacion_nula_no_falla():
     assert agent.construir_informe([])["recomendacion"] == "revisar"
     informe = agent.construir_informe([{"evaluacion": None}, {}])
     assert informe["total_respuestas"] == 2 and informe["respuestas_suficientes"] == 0
+
+def test_informe_resume_cada_requisito_con_la_frase_del_candidato():
+    historial = [
+        {"pregunta": {"id": "P1", "requisito_id": "R1", "texto": "¿Python?"},
+         "evaluacion": {"calificacion": "debil", "evidencia_respuesta": ""}},
+        {"pregunta": {"id": "P2", "requisito_id": "R1", "texto": "Cuéntame más de Python"},
+         "evaluacion": {"calificacion": "solida", "evidencia_respuesta": "migré el servicio de pagos a Python"}},
+        {"pregunta": {"id": "R2", "texto": "¿AWS?"},   # el id de la pregunta es el del requisito (respaldo)
+         "evaluacion": {"calificacion": "aceptable", "evidencia_respuesta": ""}},
+        {"pregunta": {"id": "G1", "texto": "Pregunta general"}, "evaluacion": {"calificacion": "solida"}},
+    ]
+    informe = agent.construir_informe(historial, [_req(1), _req(2), _req(3)])
+    por_id = {r["requisito_id"]: r for r in informe["requisitos"]}
+    assert set(por_id) == {"R1", "R2"}
+    assert por_id["R1"]["verificado"] and por_id["R1"]["evidencia"] == "migré el servicio de pagos a Python"
+    assert not por_id["R2"]["verificado"]   # sin frase textual no se da por verificado
+    assert informe["fortalezas"] == ['Habilidad1: "migré el servicio de pagos a Python"']
+    assert informe["justificacion"]

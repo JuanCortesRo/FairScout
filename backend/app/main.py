@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db
-from app.routers import cvs, evaluations, exportaciones, health, interviews, ranking, vacantes
+from app.routers import correcciones, cvs, evaluations, exportaciones, health, interviews, ranking, vacantes
 
 
 @asynccontextmanager
@@ -35,5 +35,5 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],   # nombre del archivo del ranking exportado
 )
 
-for modulo in (health, vacantes, cvs, evaluations, interviews, ranking, exportaciones):
+for modulo in (health, vacantes, cvs, evaluations, interviews, ranking, exportaciones, correcciones):
     app.include_router(modulo.router, prefix="/api")

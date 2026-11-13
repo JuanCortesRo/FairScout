@@ -53,6 +53,8 @@ def _resumen(fila: EntrevistaDB) -> EntrevistaPrivadaResumen:
         estado=fila.estado, expira_at=_iso(fila.expira_at),
         consent_at=_iso(fila.consent_at), started_at=_iso(fila.started_at),
         finished_at=_iso(fila.finished_at),
+        recomendacion=(fila.informe or {}).get("recomendacion"), informe=fila.informe,
+        respondidas=len(fila.historial or []),
     )
 
 
@@ -92,6 +94,11 @@ def _obtener_publica(token: str, db: Session) -> EntrevistaDB:
         db.commit()
         raise HTTPException(status_code=404, detail=_INVALID_LINK)
     return fila
+
+
+def _requisitos_de_fila(db: Session, fila: EntrevistaDB) -> list[Requisito]:
+    vacante = db.get(VacanteDB, fila.vacante_id)
+    return _requisitos(vacante) if vacante else []
 
 
 def _requisitos(vacante: VacanteDB) -> list[Requisito]:
@@ -279,7 +286,7 @@ async def responder_entrevista_publica(
     ):
         fila.estado = "finalizada"
         fila.finished_at = _utcnow()
-        fila.informe = construir_informe(fila.historial)
+        fila.informe = construir_informe(fila.historial, _requisitos_de_fila(db, fila))
         fila.pregunta_actual = None
     else:
         fila.pregunta_actual = siguiente.model_dump() if siguiente else fila.plan[indice]
@@ -316,7 +323,7 @@ async def responder_entrevista(entrevista_id: str, entrada: RespuestaEntrevistaE
     # Nunca se termina antes de cinco respuestas, aunque el modelo lo sugiera.
     if (terminar and len(historial) >= 5) or max_preguntas or (siguiente is None and len(historial) >= 5):
         fila.estado = "finalizada"
-        fila.informe = construir_informe(historial)
+        fila.informe = construir_informe(historial, _requisitos_de_fila(db, fila))
         fila.pregunta_actual = None
         fila.mensajes = [*fila.mensajes, {"rol": "agente", "texto": "Gracias por tu tiempo. La entrevista terminó."}]
     else:
@@ -345,7 +352,7 @@ def finalizar_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> E
     if fila.estado == "en_curso" and len(fila.historial) < 5:
         raise HTTPException(status_code=409, detail="La entrevista requiere al menos cinco respuestas.")
     fila.estado = "finalizada"
-    fila.informe = construir_informe(fila.historial)
+    fila.informe = construir_informe(fila.historial, _requisitos_de_fila(db, fila))
     fila.pregunta_actual = None
     db.commit()
     return _respuesta(fila)

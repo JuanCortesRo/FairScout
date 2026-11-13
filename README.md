@@ -24,9 +24,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-pytest
-
+```
 
 Edita `backend/.env` y agrega tu `ANTHROPIC_API_KEY`. El ejemplo usa SQLite local (`sqlite:///./data.db`).
 
@@ -42,7 +40,7 @@ npm ci
 npm run dev
 ```
 
-Abre <http://localhost:5173>. La documentación interactiva de la API está en <http://localhost:8000/docs>. El servidor Vite redirige `/api` a `localhost:8000`.
+Abre <http://localhost:5173>. La documentación interactiva de la API (Swagger UI) está en <http://localhost:8000/docs>. El servidor Vite redirige `/api` a `localhost:8000`.
 
 ### Ejecución con Docker Compose
 
@@ -72,6 +70,10 @@ La aplicación queda en <http://localhost> y la API en <http://localhost/api>. D
 Consulta la [guía de uso](docs/guia-de-uso.md) para el significado de estados y recomendaciones.
 
 ## Documentación
+
+La documentación oficial del proyecto está en la carpeta [`docs/`](docs/README.md); este README solo resume cómo empezar. Si algo de este archivo no coincide con `docs/`, prevalece `docs/`.
+
+La API también se documenta sola con **Swagger UI**: con el backend corriendo en local, abre <http://localhost:8000/docs> para ver y probar cada endpoint (ReDoc en <http://localhost:8000/redoc> y el esquema OpenAPI en <http://localhost:8000/openapi.json>). Con Docker Compose, Caddy solo expone `/api/*`, así que Swagger no queda publicado; úsalo desde la ejecución local.
 
 - [Índice de documentación](docs/README.md)
 - [Guía de uso](docs/guia-de-uso.md)
@@ -120,7 +122,7 @@ El backend carga su configuración desde variables de entorno o `backend/.env`. 
 
 - El puntaje, estado, recomendación y orden se calculan en código en backend y frontend. Las implementaciones se mantienen sincronizadas con fixtures de paridad.
 - El modo demo usa datos estáticos del frontend y no representa resultados de una ejecución real.
-- Las correcciones humanas y parte del registro de actividad son estado de interfaz; no equivalen a una bitácora persistente.
+- Las correcciones humanas se guardan en el servidor y se aplican al ranking y a la exportación. El registro de actividad de la vista de auditoría sigue siendo estado de interfaz; no equivale a una bitácora persistente.
 - La API administrativa no implementa autenticación de usuarios. No la expongas directamente a Internet sin controles de acceso en la infraestructura.
 - La entrevista interna y las invitaciones públicas usan el agente del backend; la entrevista no toma decisiones de contratación.
 

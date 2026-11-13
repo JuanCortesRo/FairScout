@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Briefcase, FolderKanban, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X,
+  Briefcase, FolderKanban, FileUp, Trophy, Columns3, MessagesSquare, Menu, X,
   CircleCheck, CircleX, Info, Check, Sparkles, Scale, Moon, Sun,
 } from 'lucide-react';
 import { useApp } from '@/store';
@@ -17,7 +17,6 @@ const FLUJO = [
 const ANALISIS = [
   { to: '/comparador', label: 'Comparador', icono: Columns3 },
   { to: '/entrevista', label: 'Entrevistas', icono: MessagesSquare },
-  { to: '/auditoria', label: 'Auditoría', icono: ShieldCheck },
 ];
 
 function ItemNav({ item, completado, onNavigate }) {
@@ -167,7 +166,6 @@ function Pie() {
           <span className="text-muted-foreground">Preselección justa, explicable y basada en evidencia.</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-          <NavLink to="/auditoria" className="inline-flex items-center gap-1.5 hover:text-foreground"><ShieldCheck className="size-3.5" /> Ficha del sistema</NavLink>
           <span>Desarrollado por <b className="font-semibold text-foreground">Backpropagation</b></span>
           <span>© {new Date().getFullYear()} FairScout</span>
         </div>

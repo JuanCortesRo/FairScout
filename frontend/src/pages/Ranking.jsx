@@ -11,6 +11,7 @@ import {
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
 import ExportarRanking from '@/components/ExportarRanking';
+import { EntrevistaBadge } from '@/components/ResultadoEntrevista';
 import { cn } from '@/lib/utils';
 
 function MiniCategorias({ categorias }) {
@@ -133,7 +134,7 @@ function AjustePesos() {
 export default function Ranking() {
   const {
     vacante, ranking, cargarDemo, nombreVisible, seleccion, toggleSeleccion, backend, enDemo,
-    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor, erroresEvaluacion,
+    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor, erroresEvaluacion, entrevistaDe,
   } = useApp();
   const navigate = useNavigate();
   const [pestana, setPestana] = useState('aptos');
@@ -343,7 +344,7 @@ export default function Ranking() {
                     <td className="py-3"><EstadoBadge estado={r.estado} /></td>
                     <td className="py-3"><Confianza nivel={r.confianza} /></td>
                     <td className="py-3">
-                      {r.recomendado_entrevista
+                      {entrevistaDe(c.candidato_id) ? <EntrevistaBadge entrevista={entrevistaDe(c.candidato_id)} /> : r.recomendado_entrevista
                         ? <span className="inline-flex items-center gap-1 text-xs font-medium text-info"><ThumbsUp className="size-3.5" /> Recomendado</span>
                         : <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Minus className="size-3.5" /> No</span>}
                     </td>

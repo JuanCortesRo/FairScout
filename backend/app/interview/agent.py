@@ -461,7 +461,41 @@ async def evaluar_respuesta(candidato: Candidato | None, pregunta: PreguntaEntre
     return _aplicar_limites(contestadas, evaluacion, siguiente, _a_bool(data.get("terminar", False)))
 
 
-def construir_informe(historial: list[dict[str, Any]]) -> dict[str, Any]:
+_ORDEN_CALIFICACION = {"debil": 0, "aceptable": 1, "solida": 2}
+
+
+def _requisitos_en_entrevista(historial: list[dict[str, Any]],
+                              requisitos: list[Requisito]) -> list[dict[str, Any]]:
+    """Qué dijo la entrevista de cada requisito preguntado: la mejor respuesta y su frase textual.
+
+    "verificado" exige una respuesta aceptable o sólida CON cita textual: la misma regla de evidencia del CV.
+    """
+    nombres = {r.id: r.nombre for r in requisitos}
+    tipos = {r.id: r.tipo for r in requisitos}
+    mejores: dict[str, dict[str, Any]] = {}
+    for turno in historial:
+        pregunta = turno.get("pregunta") or {}
+        requisito_id = pregunta.get("requisito_id") or (pregunta.get("id") if pregunta.get("id") in nombres else None)
+        if not requisito_id or requisito_id not in nombres:
+            continue
+        evaluacion = turno.get("evaluacion") or {}
+        calificacion = evaluacion.get("calificacion") or "debil"
+        evidencia = (evaluacion.get("evidencia_respuesta") or "").strip()
+        actual = mejores.get(requisito_id)
+        clave = (_ORDEN_CALIFICACION.get(calificacion, 0), bool(evidencia))
+        if actual and (_ORDEN_CALIFICACION.get(actual["calificacion"], 0), bool(actual["evidencia"])) >= clave:
+            continue
+        mejores[requisito_id] = {
+            "requisito_id": requisito_id, "nombre": nombres[requisito_id], "tipo": tipos[requisito_id],
+            "calificacion": calificacion, "evidencia": evidencia or None,
+            "pregunta": pregunta.get("texto"), "comentario": evaluacion.get("comentario") or None,
+            "verificado": calificacion in ("aceptable", "solida") and bool(evidencia),
+        }
+    return [mejores[r.id] for r in requisitos if r.id in mejores]
+
+
+def construir_informe(historial: list[dict[str, Any]],
+                      requisitos: list[Requisito] | None = None) -> dict[str, Any]:
     evaluaciones = [h.get("evaluacion") or {} for h in historial]
     inconsistencias = [x for e in evaluaciones for x in e.get("inconsistencias", [])]
     con_evidencia = sum(bool((e.get("evidencia_respuesta") or "").strip()) for e in evaluaciones)
@@ -469,19 +503,35 @@ def construir_informe(historial: list[dict[str, Any]]) -> dict[str, Any]:
     buenas = sum(e.get("calificacion") in ("aceptable", "solida") for e in evaluaciones)
     debiles = sum(e.get("calificacion") == "debil" for e in evaluaciones)
     total = len(evaluaciones)
+    por_requisito = _requisitos_en_entrevista(historial, requisitos or [])
+    verificados = [r for r in por_requisito if r["verificado"]]
+    recomendacion = (
+        "avanzar" if total >= MIN_TURNOS and not inconsistencias
+        and buenas / total >= 0.6
+        and con_evidencia / total >= 0.5
+        else "revisar"
+    )
+    if recomendacion == "avanzar":
+        justificacion = (f"{buenas} de {total} respuestas con ejemplos concretos y sin contradicciones con el CV.")
+    elif inconsistencias:
+        justificacion = ("Se detectó una contradicción con el CV que conviene aclarar." if len(inconsistencias) == 1
+                         else f"Se detectaron {len(inconsistencias)} contradicciones con el CV que conviene aclarar.")
+    elif total < MIN_TURNOS:
+        justificacion = f"La entrevista terminó con {total} respuestas; se necesitan al menos {MIN_TURNOS}."
+    else:
+        justificacion = (f"Solo {buenas} de {total} respuestas dieron ejemplos concretos con evidencia; "
+                         "conviene una conversación adicional.")
     return {
+        "requisitos": por_requisito,
+        "fortalezas": [f'{r["nombre"]}: "{r["evidencia"]}"' for r in verificados],
+        "justificacion": justificacion,
         "inconsistencias": inconsistencias,
         "respuestas_suficientes": buenas,
         "respuestas_debiles": debiles,
         "con_evidencia_textual": con_evidencia,
         "cumplen_criterio": cumplen,
         "total_respuestas": total,
-        "recomendacion": (
-            "avanzar" if total >= MIN_TURNOS and not inconsistencias
-            and buenas / total >= 0.6
-            and con_evidencia / total >= 0.5
-            else "revisar"
-        ),
+        "recomendacion": recomendacion,
     }
 
 

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     MODELO_EXTRACCION: str = "claude-haiku-5-5"
     MODELO_EVALUACION: str = "claude-haiku-5-5"
+    # Una sola llamada por vacante y de ella dependen todas las evaluaciones: aquí vale la pena el modelo más capaz.
+    MODELO_REQUISITOS: str = "claude-opus-5-5"
     PROMPT_VERSION: str = "v1"
     LLM_TIMEOUT_SECONDS: float = 60.0
     UPLOADS_DIR: str = "uploads"
@@ -24,7 +26,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validar_modelos(self) -> "Settings":
         """Impide que un campo de modelo se use accidentalmente para almacenar una API key."""
-        for nombre in ("MODELO_EXTRACCION", "MODELO_EVALUACION"):
+        for nombre in ("MODELO_EXTRACCION", "MODELO_EVALUACION", "MODELO_REQUISITOS"):
             valor = getattr(self, nombre)
             if valor.startswith("sk-"):
                 raise ValueError(f"{nombre} debe contener un ID de modelo, no una API key.")

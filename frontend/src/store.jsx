@@ -7,7 +7,11 @@ import {
   eliminarCandidato as eliminarCandidatoApi,
   eliminarVacante as eliminarVacanteApi,
   evaluarLote,
+  borrarCorreccion,
+  guardarCorreccion,
+  listarCorrecciones,
   listarCVs,
+  listarEntrevistasVacante,
   listarEvaluaciones,
   listarVacantes,
   obtenerCandidato as obtenerCandidatoApi,
@@ -56,7 +60,30 @@ function cargar() {
 
 // Lo que pertenece a una vacante y se descarta al cambiar de vacante.
 const ESTADO_POR_VACANTE = { archivos: [], seleccion: [], correcciones: {}, entrevistas: {}, lote: null };
-const SERVIDOR_VACIO = { candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [] };
+const SERVIDOR_VACIO = {
+  candidatos: [], ranking: [], enRevision: [], correcciones: {}, entrevistas: {}, cargando: false, error: null, erroresEvaluacion: [],
+};
+
+/** {candidato_id: {requisito_id: corrección}} a partir de la lista del servidor. */
+function porCandidatoYRequisito(lista) {
+  const mapa = {};
+  for (const c of lista) (mapa[c.candidato_id] ??= {})[c.requisito_id] = c;
+  return mapa;
+}
+
+/** La entrevista más útil de cada candidato: la finalizada más reciente o, si no hay, la última iniciada. */
+function entrevistaPorCandidato(lista) {
+  const prioridad = (e) => (e.estado === 'finalizada' ? 2 : e.estado === 'en_curso' ? 1 : 0);
+  const mapa = {};
+  for (const e of lista) {
+    const actual = mapa[e.candidato_id];
+    const fecha = (x) => x.finished_at ?? x.started_at ?? '';
+    if (!actual || prioridad(e) > prioridad(actual) || (prioridad(e) === prioridad(actual) && fecha(e) > fecha(actual))) {
+      mapa[e.candidato_id] = e;
+    }
+  }
+  return mapa;
+}
 
 const EXTENSIONES = ['.pdf', '.docx'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -143,12 +170,18 @@ function conCorrecciones(c, correcciones) {
     evaluaciones: c.evaluaciones.map((e) => {
       const corr = propias[e.requisito_id];
       if (!corr) return e;
+      const deEntrevista = corr.origen === 'entrevista';
+      const motivo = corr.motivo || (corr.evidencia ? `“${corr.evidencia}”` : '');
       return {
         ...e,
         resultado: corr.resultado,
-        resultado_ia: e.resultado,
+        resultado_ia: corr.resultado_ia ?? e.resultado,
         corregido_por_humano: true,
-        justificacion: corr.motivo ? `${corr.motivo} (corrección humana)` : e.justificacion,
+        origen_correccion: corr.origen ?? 'manual',
+        evidencia_entrevista: corr.evidencia ?? null,
+        justificacion: motivo
+          ? `${motivo} (${deEntrevista ? 'verificado en entrevista' : 'corrección humana'})`
+          : e.justificacion,
       };
     }),
   };
@@ -168,6 +201,8 @@ export function AppProvider({ children }) {
   ref.current = estado;
   const servidorRef = useRef([]);
   servidorRef.current = servidor.candidatos;
+  const correccionesRef = useRef({});
+  correccionesRef.current = servidor.correcciones;
   const rankingSeq = useRef(0);
 
   const enDemo = estado.origen === 'demo';
@@ -209,17 +244,20 @@ export function AppProvider({ children }) {
         ? lista.find((v) => v.id === idPreferido) ?? lista[0] ?? null
         : ref.current.vacanteDesactivada ? null : lista[0] ?? null;
       const vacante = vacanteRespuesta ? desdeVacante(vacanteRespuesta) : null;
-      const [cvs, evaluaciones, respuestaRanking] = await Promise.all([
+      const [cvs, evaluaciones, respuestaRanking, listaCorrecciones, listaEntrevistas] = await Promise.all([
         vacante?.id ? listarCVs(vacante.id) : Promise.resolve({ archivos: [] }),
         vacante?.id ? listarEvaluaciones(vacante.id) : Promise.resolve([]),
         vacante?.id ? obtenerRanking(vacante.id, ref.current.pesos.obligatorios) : Promise.resolve({ candidatos: [], en_revision: [] }),
+        vacante?.id ? listarCorrecciones(vacante.id).catch(() => []) : Promise.resolve([]),
+        vacante?.id ? listarEntrevistasVacante(vacante.id).catch(() => []) : Promise.resolve([]),
       ]);
+      const correcciones = porCandidatoYRequisito(listaCorrecciones);
       if (solicitud !== rankingSeq.current) return;
       const porCandidato = new Map(evaluaciones.map((e) => [e.candidato_id, e]));
       // La lista trae solo el resumen de cada CV: se conservan las líneas y la ficha ya cargadas en el detalle.
       const cargados = new Map(servidorRef.current.filter((c) => c.ficha).map((c) => [c.candidato_id, c]));
       const candidatos = cvs.archivos.map((cv) => {
-        const candidato = desdeApi(cv, porCandidato.get(cv.id));
+        const candidato = conCorrecciones(desdeApi(cv, porCandidato.get(cv.id)), correcciones);
         const previo = cargados.get(cv.id);
         return previo ? { ...candidato, lineas: previo.lineas, ficha: previo.ficha } : candidato;
       });
@@ -229,6 +267,8 @@ export function AppProvider({ children }) {
         candidatos,
         ranking,
         enRevision: respuestaRanking.en_revision ?? [],
+        correcciones,
+        entrevistas: entrevistaPorCandidato(listaEntrevistas),
         cargando: false,
         error: null,
         erroresEvaluacion: [],
@@ -267,7 +307,7 @@ export function AppProvider({ children }) {
         })
         : Promise.resolve(null),
     ]);
-    const candidato = desdeApi(cv, evaluacion);
+    const candidato = conCorrecciones(desdeApi(cv, evaluacion), correccionesRef.current);
     setServidor((s) => ({
       ...s,
       candidatos: [...s.candidatos.filter((c) => c.candidato_id !== id), candidato],
@@ -594,24 +634,57 @@ export function AppProvider({ children }) {
   // ── Datos derivados ────────────────────────────────────────────────────────
 
   const todos = useMemo(() => {
-    const base = enDemo ? estado.candidatos : servidor.candidatos;
-    return base.map((c) => conCorrecciones(c, estado.correcciones));
+    // En el servidor las correcciones ya vienen aplicadas (también al ranking y a la exportación).
+    return enDemo ? estado.candidatos.map((c) => conCorrecciones(c, estado.correcciones)) : servidor.candidatos;
   }, [enDemo, estado.candidatos, servidor.candidatos, estado.correcciones]);
 
   /** Corrección humana de un resultado: queda registrada en la auditoría (sección 12, trazabilidad). */
-  const corregirEvaluacion = useCallback((candidatoId, requisitoId, resultado, motivo) => {
-    if (!enDemo) {
-      notificar('Todavía no es posible guardar correcciones en esta vacante.', 'error');
-      return;
-    }
+  const corregirEvaluacion = useCallback(async (candidatoId, requisitoId, resultado, motivo, extra = {}) => {
     const c = todos.find((x) => x.candidato_id === candidatoId);
     const ev = c?.evaluaciones?.find((e) => e.requisito_id === requisitoId);
     const anterior = ev?.resultado_ia ?? ev?.resultado;
-    set((s) => ({
-      correcciones: { ...s.correcciones, [candidatoId]: { ...s.correcciones[candidatoId], [requisitoId]: { resultado, motivo } } },
-    }));
-    registrar('Corrección humana', `Candidato ${c?.alias ?? candidatoId} · ${requisitoId}: ${anterior ?? '—'} → ${resultado}${motivo ? ` · "${motivo}"` : ''}`);
-  }, [enDemo, todos, set, registrar, notificar]);
+    const correccion = { resultado, motivo, resultado_ia: anterior ?? null, origen: 'manual', ...extra };
+    if (enDemo) {
+      set((s) => ({
+        correcciones: { ...s.correcciones, [candidatoId]: { ...s.correcciones[candidatoId], [requisitoId]: correccion } },
+      }));
+    } else {
+      try {
+        await guardarCorreccion(ref.current.vacante?.id, candidatoId, requisitoId, correccion);
+      } catch (e) {
+        notificar(e.message, 'error');
+        return false;
+      }
+      await refrescar();
+    }
+    const accion = correccion.origen === 'entrevista' ? 'Verificación aceptada de la entrevista' : 'Corrección humana';
+    registrar(accion, `Candidato ${c?.alias ?? candidatoId} · ${requisitoId}: ${anterior ?? '—'} → ${resultado}${motivo ? ` · "${motivo}"` : ''}`);
+    return true;
+  }, [enDemo, todos, set, registrar, notificar, refrescar]);
+
+  /** Devuelve el requisito al resultado de la IA. */
+  const deshacerCorreccion = useCallback(async (candidatoId, requisitoId) => {
+    if (enDemo) {
+      set((s) => {
+        const propias = { ...s.correcciones[candidatoId] };
+        delete propias[requisitoId];
+        return { correcciones: { ...s.correcciones, [candidatoId]: propias } };
+      });
+    } else {
+      try {
+        await borrarCorreccion(ref.current.vacante?.id, candidatoId, requisitoId);
+      } catch (e) {
+        notificar(e.message, 'error');
+        return;
+      }
+      await refrescar();
+    }
+    registrar('Corrección deshecha', `Candidato ${candidatoId.slice(0, 6).toUpperCase()} · ${requisitoId}: vuelve al resultado de la IA`);
+  }, [enDemo, set, registrar, notificar, refrescar]);
+
+  /** Resumen de la entrevista guardada de un candidato (solo con el servidor). */
+  const entrevistaDe = useCallback((candidatoId) => (enDemo ? null : servidor.entrevistas[candidatoId] ?? null),
+    [enDemo, servidor.entrevistas]);
 
   const evaluados = useMemo(() => todos.filter((c) => c.evaluaciones), [todos]);
   const pendientes = useMemo(() => todos.filter((c) => !c.evaluaciones && c.estado_documento === 'processed'), [todos]);
@@ -630,6 +703,7 @@ export function AppProvider({ children }) {
     cargandoServidor: servidor.cargando, errorServidor: servidor.error,
     confirmarVacante, abrirVacante, nuevaVacante, eliminarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar, cargarCandidato,
     cargarDemo, reiniciar, eliminarCandidato, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
+    deshacerCorreccion, entrevistaDe,
   };
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
