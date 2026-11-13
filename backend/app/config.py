@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     PROMPT_VERSION: str = "v1"
     UPLOADS_DIR: str = "uploads"
     LIBREOFFICE_PATH: str = ""
+    EVALUACIONES_CONCURRENTES: int = 5   # llamadas al LLM en paralelo al evaluar un lote
 
     @model_validator(mode="after")
     def validar_modelos(self) -> "Settings":

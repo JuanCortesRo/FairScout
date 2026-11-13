@@ -17,11 +17,19 @@ from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB
-from app.schemas import CargaCVsSalida, CVSubido
+from app.schemas import CargaCVsSalida, CVSubido, Ficha
 
 router = APIRouter(tags=["cvs"])
 
 EXTENSIONES_PERMITIDAS = {".pdf", ".docx"}
+
+
+def _tipos_de_alerta(documento) -> list[str]:
+    """Tipos de alerta sin repetir; agrega "ocr" si alguna línea salió de OCR (baja la confianza del puntaje)."""
+    tipos = [alerta.tipo for alerta in documento.alertas]
+    if any(linea.origen == "ocr" for linea in documento.lineas_originales):
+        tipos.append("ocr")
+    return list(dict.fromkeys(tipos))
 
 
 @router.post("/cvs", response_model=CargaCVsSalida)
@@ -58,14 +66,17 @@ async def subir_cvs(
             ))
             continue
 
+        alertas = _tipos_de_alerta(documento)
         subidos.append(CVSubido(
             id=cv_id,
             nombre_archivo=archivo.filename,
             lineas=documento.lineas_anonimizadas,
             estado=documento.estado,
-            alertas=[alerta.tipo for alerta in documento.alertas],
+            alertas=alertas,
         ))
-        if documento.estado == "needs_review":
+        if not documento.puede_enviarse_al_llm:
+            # Alerta crítica: no va al LLM, pero se guarda para que aparezca "en revisión" en el ranking.
+            _guardar_candidato(db, cv_id, archivo.filename, documento, _FICHA_VACIA, alertas)
             continue
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
@@ -84,19 +95,30 @@ async def subir_cvs(
             lineas=documento.lineas_anonimizadas,
             ficha=ficha,
             estado=documento.estado,
-            alertas=[alerta.tipo for alerta in documento.alertas],
+            alertas=alertas,
         )
-        db.merge(CandidatoDB(
-            id=cv_id,
-            documento_id=cv_id,
-            nombre_archivo=archivo.filename,
-            estado=documento.estado,
-            ficha=ficha.model_dump(mode="json"),
-            lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
-            lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
-        ))
-        db.commit()
+        _guardar_candidato(db, cv_id, archivo.filename, documento, ficha, alertas)
     return CargaCVsSalida(archivos=subidos)
+
+
+_FICHA_VACIA = Ficha(
+    experiencias=[], formacion=[], certificaciones=[], idiomas=[],
+    habilidades_tecnicas=[], competencias_blandas=[],
+)
+
+
+def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, ficha: Ficha, alertas: list[str]) -> None:
+    db.merge(CandidatoDB(
+        id=cv_id,
+        documento_id=cv_id,
+        nombre_archivo=nombre_archivo,
+        estado=documento.estado,
+        ficha=ficha.model_dump(mode="json"),
+        lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
+        lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
+        alertas=alertas,
+    ))
+    db.commit()
 
 
 @router.get("/cvs", response_model=CargaCVsSalida)
@@ -109,6 +131,7 @@ def listar_cvs(db: Session = Depends(get_db)) -> CargaCVsSalida:
             lineas=candidato.lineas_anonimizadas,
             ficha=candidato.ficha,
             estado=candidato.estado,
+            alertas=candidato.alertas or [],
         )
         for candidato in candidatos
     ])
@@ -125,4 +148,5 @@ def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSub
         lineas=candidato.lineas_anonimizadas,
         ficha=candidato.ficha,
         estado=candidato.estado,
+        alertas=candidato.alertas or [],
     )

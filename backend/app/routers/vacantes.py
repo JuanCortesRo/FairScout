@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.llm import LLMNoConfigurado
 from app.models import RequisitoDB, VacanteDB
+from app.pipeline.datos_protegidos import motivo_bloqueo, separar_requisitos
 from app.pipeline.requirements import RespuestaLLMInvalida, proponer_requisitos
-from app.schemas import VacanteActualizacion, VacanteEntrada, VacanteSalida
+from app.schemas import RequisitoBloqueado, VacanteActualizacion, VacanteEntrada, VacanteSalida
 
 router = APIRouter(tags=["vacantes"])
 log = logging.getLogger(__name__)
@@ -41,6 +42,9 @@ async def crear_vacante(
                    "Verifica el ID del modelo y los permisos de la API key.",
         )
 
+    # Aunque el prompt lo prohíbe, si el LLM propone un requisito con un dato protegido se descarta aquí.
+    requisitos, bloqueados = separar_requisitos(propuesta.requisitos)
+
     vacante_id = uuid.uuid4().hex
     vacante = VacanteDB(
         id=vacante_id,
@@ -55,7 +59,7 @@ async def crear_vacante(
                 categoria=requisito.categoria,
                 peso=requisito.peso,
             )
-            for requisito in propuesta.requisitos
+            for requisito in requisitos
         ],
     )
     db.add(vacante)
@@ -64,7 +68,8 @@ async def crear_vacante(
     return VacanteSalida(
         id=vacante_id,
         titulo=propuesta.titulo,
-        requisitos=propuesta.requisitos,
+        requisitos=requisitos,
+        requisitos_bloqueados=[RequisitoBloqueado(requisito=r, motivo=m) for r, m in bloqueados],
     )
 
 
@@ -77,6 +82,9 @@ def actualizar_vacante(
     vacante = db.get(VacanteDB, vacante_id)
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
+    motivos = [m for m in map(motivo_bloqueo, entrada.requisitos) if m]
+    if motivos:
+        raise HTTPException(status_code=422, detail=" ".join(motivos))
 
     vacante.titulo = entrada.titulo
     vacante.descripcion = entrada.descripcion

@@ -85,6 +85,9 @@ class EvaluacionSalida(BaseModel):
     evaluaciones: list[EvaluacionRequisito]
     explicacion: ExplicacionEvaluacion
     trazabilidad: TrazabilidadEvaluacion
+    # Calculado en código por pipeline/scoring.py, nunca por el LLM.
+    resultado: "ResultadoCandidato"
+    motivos_confianza: list[str] = Field(default_factory=list)
 
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
@@ -106,10 +109,17 @@ class VacanteActualizacion(BaseModel):
     requisitos: list[Requisito]
 
 
+class RequisitoBloqueado(BaseModel):
+    requisito: Requisito
+    motivo: str
+
+
 class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
     id: str | None = None
+    # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
+    requisitos_bloqueados: list[RequisitoBloqueado] = []
 
 
 class CVSubido(BaseModel):
@@ -130,9 +140,30 @@ class EvaluacionEntrada(BaseModel):
     vacante_id: str = Field(..., min_length=1)
 
 
+class ErrorEvaluacion(BaseModel):
+    candidato_id: str
+    detalle: str
+
+
+class EvaluacionLoteSalida(BaseModel):
+    vacante_id: str
+    evaluados: int
+    omitidos: int                      # ya tenían evaluación con la versión vigente de los requisitos
+    errores: list[ErrorEvaluacion] = []
+
+
+class CandidatoEnRevision(BaseModel):
+    """CV que no se envió al LLM por una alerta crítica (prompt injection, posible dato personal)."""
+    candidato_id: str
+    nombre_archivo: str
+    alertas: list[str]
+
+
 class RankingSalida(BaseModel):
     vacante_id: str | None = None
-    candidatos: list[ResultadoCandidato]
+    peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
+    candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
+    en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
 
 
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.

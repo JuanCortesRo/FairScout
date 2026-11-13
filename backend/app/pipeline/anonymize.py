@@ -20,9 +20,13 @@ _DATE_OF_BIRTH = re.compile(
     r"(?i)\b(?:fecha\s+de\s+nacimiento|nacimiento|date\s+of\s+birth|dob)\s*[:#-]?\s*"
     r"(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|(?:19|20)\d{2}[/-]\d{1,2}[/-]\d{1,2})"
 )
+# Solo números que son una edad. "N años" a secas NO se toca: casi siempre es experiencia ("5 años en Python",
+# "10 years of experience", "amortized over 10 years") y borrarlo deja al evaluador sin evidencia.
 _AGE = re.compile(
     r"(?i)\b(?:edad|age)\s*[:#-]?\s*\d{1,3}(?=\s*(?:años|anos|years?)?\b)|"
-    r"\b\d{1,3}(?=\s*(?:años|anos|years?)\b)"
+    r"\b\d{1,3}(?=\s*(?:años|anos|years?)\s+(?:de\s+edad|old|of\s+age)\b)|"
+    r"(?<=tengo )\d{1,3}(?=\s*(?:años|anos)\b)|"
+    r"(?<=, )(?:1[6-9]|[2-7]\d)(?=\s*(?:años|anos)\s*$)"   # encabezado tipo "Colombiana, 28 años"
 )
 _ADDRESS = re.compile(
     r"(?i)\b(?:dirección|direccion|address|domicilio)\s*[:#-]?\s*[^\n|;]{5,100}"
