@@ -95,7 +95,7 @@ def _libro(vacante: VacanteDB, filas: list[FilaRanking], contactos: dict, peso: 
     for posicion, fila in enumerate(filas, start=1):
         r = fila.resultado
         guardada = fila.evaluacion.resultado
-        por_requisito = {e["requisito_id"]: e for e in guardada.get("evaluaciones", [])}
+        por_requisito = {e.requisito_id: e.model_dump() for e in fila.evaluaciones}   # con correcciones humanas
         explicacion = guardada.get("explicacion", {})
         contacto = contactos.get(r.candidato_id)
         alias = f"Candidato {r.candidato_id[:6].upper()}"

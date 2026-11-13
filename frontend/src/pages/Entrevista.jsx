@@ -12,6 +12,7 @@ import {
   finalizarEntrevista, reiniciarEntrevista,
 } from '@/api';
 import { AVISO_DECISION } from '@/lib/constantes';
+import ResultadoEntrevista, { EntrevistaBadge } from '@/components/ResultadoEntrevista';
 import { cn } from '@/lib/utils';
 
 const CALIF = {
@@ -71,13 +72,20 @@ function resumenDesdeApi(estado, resultado) {
 }
 
 function Selector() {
-  const { ranking, nombreVisible, entrevistas } = useApp();
+  const { ranking, nombreVisible, entrevistas, entrevistaDe, enDemo, refrescar } = useApp();
   const navigate = useNavigate();
-  const recomendados = ranking.filter((r) => r.resultado.recomendado_entrevista);
+  useEffect(() => { if (!enDemo) void refrescar(); }, [enDemo, refrescar]);
+  // Primero quienes ya tienen entrevista (con resultado arriba) y luego los recomendados sin entrevista.
+  const conEntrevista = ranking.filter((r) => entrevistaDe(r.candidato.candidato_id));
+  const recomendados = [
+    ...conEntrevista.sort((a, b) => (entrevistaDe(b.candidato.candidato_id).estado === 'finalizada')
+      - (entrevistaDe(a.candidato.candidato_id).estado === 'finalizada')),
+    ...ranking.filter((r) => r.resultado.recomendado_entrevista && !entrevistaDe(r.candidato.candidato_id)),
+  ];
   return (
     <>
       <PageHeader titulo="Entrevistas"
-        descripcion="Crea invitaciones públicas desde el detalle de cada candidato." />
+        descripcion="Invita desde el detalle de cada candidato. Cuando termine, abre su detalle para ver qué requisitos verificó y aceptar los ajustes." />
       {ranking.length === 0 ? (
         <Card>
           <EstadoVacio icono={MessagesSquare} titulo="Aún no hay candidatos" descripcion="Las invitaciones se crean desde un candidato evaluado.">
@@ -86,10 +94,12 @@ function Selector() {
         </Card>
       ) : (
         <Card>
-          <CardHeader icono={ListChecks} titulo="Candidatos recomendados para entrevista" descripcion={`${recomendados.length} candidatos. También puedes iniciarla desde el detalle de cualquier candidato.`} />
+          <CardHeader icono={ListChecks} titulo="Entrevistas y candidatos recomendados"
+            descripcion={`${conEntrevista.length} con entrevista · ${recomendados.length - conEntrevista.length} recomendados sin entrevista.`} />
           <ul className="divide-y">
             {recomendados.map(({ candidato: c, resultado: r, posicion }) => {
               const e = entrevistas[c.candidato_id];
+              const guardada = entrevistaDe(c.candidato_id);
               return (
                 <li key={c.candidato_id}>
                   <button onClick={() => navigate(`/candidato/${c.candidato_id}`)} className="group flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent/50">
@@ -99,9 +109,11 @@ function Selector() {
                       <p className="truncate text-xs text-muted-foreground">{r.motivo_estado}</p>
                     </div>
                     <EstadoBadge estado={r.estado} />
-                    <span className={cn('hidden w-28 text-xs sm:block', e?.terminada ? 'text-ok' : e ? 'text-info' : 'text-muted-foreground')}>
-                      {e?.terminada ? 'Entrevista lista' : e ? 'En curso' : 'Sin entrevista'}
-                    </span>
+                    {guardada ? <span className="hidden sm:block"><EntrevistaBadge entrevista={guardada} /></span> : (
+                      <span className={cn('hidden w-28 text-xs sm:block', e?.terminada ? 'text-ok' : e ? 'text-info' : 'text-muted-foreground')}>
+                        {e?.terminada ? 'Entrevista lista' : e ? 'En curso' : 'Sin entrevista'}
+                      </span>
+                    )}
                     <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                   </button>
                 </li>
@@ -117,7 +129,7 @@ function Selector() {
 /** Gestiona entrevistas internas y permite seguir sus preguntas, respuestas e informe. */
 export default function Entrevista() {
   const { id } = useParams();
-  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo, vacante, backend } = useApp();
+  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo, vacante, backend, corregirEvaluacion } = useApp();
   const navigate = useNavigate();
   const item = ranking.find((r) => r.candidato.candidato_id === id);
   const [texto, setTexto] = useState('');
@@ -379,6 +391,10 @@ export default function Entrevista() {
               </div>
               <div className="space-y-3 px-5 py-4 text-sm">
                 <p>{resumen.justificacion}</p>
+                {!enDemo && estado.informe && (
+                  <ResultadoEntrevista informe={estado.informe} evaluaciones={c.evaluaciones} entrevistaId={estado.id}
+                    onAceptar={(requisitoId, resultado, extra) => corregirEvaluacion(c.candidato_id, requisitoId, resultado, '', extra)} />
+                )}
                 <div className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2">
                   <span className="text-muted-foreground">Confianza actualizada</span>
                   <span className="flex items-center gap-2"><Confianza nivel={r.confianza} mostrarTexto={false} /> → <Confianza nivel={resumen.confianza} /></span>

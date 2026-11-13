@@ -432,3 +432,48 @@ def test_una_respuesta_mal_formada_no_corta_el_lote(client, monkeypatch):
 
     assert lote["ia_no_disponible"] is False
     assert (lote["evaluados"], len(lote["errores"])) == (2, 1)
+
+
+# --------------------------------------------------------------------------- correcciones humanas
+
+def _corregir(client, candidato_id, requisito_id, **datos):
+    return client.put(f"/api/vacantes/V1/candidatos/{candidato_id}/correcciones/{requisito_id}", json=datos)
+
+
+def test_correccion_de_la_entrevista_cambia_el_estado_en_el_ranking_y_en_el_xlsx(client):
+    for cid in ("C1", "C2"):
+        _evaluar(client, cid)
+    respuesta = _corregir(client, "C2", "R2", resultado="cumple", resultado_ia="no_cumple", origen="entrevista",
+                          entrevista_id="E1", evidencia="desplegué en EC2 y S3 durante dos años")
+    assert respuesta.status_code == 200, respuesta.text
+
+    estados = {c["candidato_id"]: c["estado"]
+               for c in client.get("/api/ranking", params={"vacante_id": "V1"}).json()["candidatos"]}
+    assert estados["C2"] == "cumple"
+    guardadas = client.get("/api/vacantes/V1/correcciones").json()
+    assert [(c["candidato_id"], c["requisito_id"], c["resultado_ia"], c["origen"]) for c in guardadas] == [
+        ("C2", "R2", "no_cumple", "entrevista")]
+
+    libro = _libro_exportado(client.get("/api/vacantes/V1/exportar"))
+    evidencia = [fila for fila in libro["Evidencia"].iter_rows(values_only=True) if fila[2] == "R2 · AWS"]
+    assert any("verificado en entrevista" in (fila[6] or "") for fila in evidencia)
+
+
+def test_correccion_se_puede_deshacer_y_valida_el_resultado(client):
+    _evaluar(client, "C2")
+    assert _corregir(client, "C2", "R2", resultado="presente").status_code == 422   # no aplica a obligatorios
+    assert _corregir(client, "C9", "R2", resultado="cumple").status_code == 404      # CV de otra vacante
+    assert _corregir(client, "C2", "R9", resultado="cumple").status_code == 404      # requisito inexistente
+    assert _corregir(client, "C2", "R2", resultado="cumple").status_code == 200
+    assert client.delete("/api/vacantes/V1/candidatos/C2/correcciones/R2").status_code == 204
+    estado = client.get("/api/ranking", params={"vacante_id": "V1"}).json()["candidatos"][0]["estado"]
+    assert estado == "no_cumple"
+
+
+def test_correccion_no_aplica_si_cambian_los_requisitos(client, session_factory):
+    _evaluar(client, "C2")
+    _corregir(client, "C2", "R2", resultado="cumple")
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").version_requisitos += 1
+        db.commit()
+    assert client.get("/api/vacantes/V1/correcciones").json() == []

@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import CandidatoDB, EvaluacionDB, VacanteDB
+from app.models import CandidatoDB, CorreccionDB, EvaluacionDB, VacanteDB
 from app.pipeline.scoring import (
     PESO_OBLIGATORIOS,
     Desglose,
@@ -21,6 +21,7 @@ from app.pipeline.scoring import (
     calcular_con_desglose,
     ordenar_ranking,
 )
+from app.routers.correcciones import correcciones_vigentes
 from app.schemas import (
     CandidatoEnRevision,
     DetalleRanking,
@@ -82,6 +83,7 @@ class FilaRanking:
     resultado: ResultadoCandidato
     desglose: Desglose
     evaluacion: EvaluacionDB      # la evaluación vigente guardada (citas, justificaciones y explicación)
+    evaluaciones: list[EvaluacionRequisito]   # resultado por requisito con las correcciones humanas aplicadas
 
 
 def requisitos_de(vacante: VacanteDB) -> list[Requisito]:
@@ -109,16 +111,40 @@ def calcular_ranking(db: Session, vacante: VacanteDB, peso_obligatorios: float) 
         if actual is None or _fecha(fila) > _fecha(actual):
             vigentes[fila.candidato_id] = fila
 
+    correcciones = correcciones_vigentes(db, vacante)
     filas: dict[str, FilaRanking] = {}
     for candidato_id, fila in vigentes.items():
         candidato = db.get(CandidatoDB, candidato_id)
-        evaluaciones = [EvaluacionRequisito.model_validate(e) for e in fila.resultado["evaluaciones"]]
+        evaluaciones = aplicar_correcciones(
+            [EvaluacionRequisito.model_validate(e) for e in fila.resultado["evaluaciones"]],
+            correcciones.get(candidato_id, {}),
+        )
         alertas = alertas_para_puntaje(candidato.alertas or []) if candidato else []
         resultado, desglose = calcular_con_desglose(
             evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios
         )
-        filas[candidato_id] = FilaRanking(resultado, desglose, fila)
+        filas[candidato_id] = FilaRanking(resultado, desglose, fila, evaluaciones)
     return [filas[r.candidato_id] for r in ordenar_ranking([f.resultado for f in filas.values()])]
+
+
+def aplicar_correcciones(evaluaciones: list[EvaluacionRequisito],
+                         correcciones: dict[str, CorreccionDB]) -> list[EvaluacionRequisito]:
+    """Reemplaza el resultado de la IA por el de la persona; la cita del CV se conserva."""
+    if not correcciones:
+        return evaluaciones
+    corregidas = []
+    for e in evaluaciones:
+        c = correcciones.get(e.requisito_id)
+        if c is None:
+            corregidas.append(e)
+            continue
+        origen = "verificado en entrevista" if c.origen == "entrevista" else "corrección humana"
+        motivo = c.motivo or (f'"{c.evidencia}"' if c.evidencia else "")
+        corregidas.append(e.model_copy(update={
+            "resultado": c.resultado,
+            "justificacion": f"{motivo} ({origen})" if motivo else f"Resultado ajustado ({origen}).",
+        }))
+    return corregidas
 
 
 def _fecha(fila: EvaluacionDB) -> str:

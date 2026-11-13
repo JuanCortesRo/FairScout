@@ -133,3 +133,13 @@ export const iniciarEntrevistaPublica = (token, aceptaPrivacidad) =>
   request(`/publico/entrevistas/${encodeURIComponent(token)}/iniciar`, json('POST', { consentimiento: aceptaPrivacidad }));
 export const responderEntrevistaPublica = (token, texto) =>
   request(`/publico/entrevistas/${encodeURIComponent(token)}/responder`, json('POST', { texto }));
+
+/** Entrevistas de una vacante con su informe (recomendación y evidencia por requisito). */
+export const listarEntrevistasVacante = (vacanteId) => request(`/vacantes/${vacanteId}/entrevistas`);
+
+/** Correcciones humanas: reemplazan el resultado de la IA en el ranking y en la exportación. */
+export const listarCorrecciones = (vacanteId) => request(`/vacantes/${vacanteId}/correcciones`);
+export const guardarCorreccion = (vacanteId, candidatoId, requisitoId, datos) =>
+  request(`/vacantes/${vacanteId}/candidatos/${candidatoId}/correcciones/${requisitoId}`, json('PUT', datos));
+export const borrarCorreccion = (vacanteId, candidatoId, requisitoId) =>
+  request(`/vacantes/${vacanteId}/candidatos/${candidatoId}/correcciones/${requisitoId}`, { method: 'DELETE' });

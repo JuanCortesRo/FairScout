@@ -1,7 +1,7 @@
 """Modelos SQLAlchemy para vacantes, candidatos y evaluaciones."""
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -109,6 +109,34 @@ class ExportacionDB(Base):
     top: Mapped[int | None] = mapped_column(Integer, nullable=True)       # None = todos
     peso_obligatorios: Mapped[float] = mapped_column(nullable=False)
     candidatos: Mapped[list] = mapped_column(JSON, nullable=False, default=list)   # ids incluidos, en orden
+
+
+class CorreccionDB(Base):
+    """Corrección humana del resultado de un requisito. Se aplica en el ranking y en la exportación.
+
+    Vale solo para la versión de requisitos con la que se hizo: si los requisitos cambian, la IA vuelve a evaluar
+    y la corrección deja de aplicarse (queda en la tabla como registro).
+    """
+
+    __tablename__ = "correcciones"
+    __table_args__ = (UniqueConstraint("candidato_id", "requisito_id", "version_requisitos"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    vacante_id: Mapped[str] = mapped_column(
+        ForeignKey("vacantes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    candidato_id: Mapped[str] = mapped_column(
+        ForeignKey("candidatos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    requisito_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    version_requisitos: Mapped[int] = mapped_column(Integer, nullable=False)
+    resultado: Mapped[str] = mapped_column(String(30), nullable=False)
+    resultado_ia: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    motivo: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    origen: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")   # manual | entrevista
+    entrevista_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evidencia: Mapped[str | None] = mapped_column(Text, nullable=True)   # frase del candidato en la entrevista
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_ahora)
 
 
 class EntrevistaDB(Base):

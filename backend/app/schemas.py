@@ -230,6 +230,9 @@ class EntrevistaPrivadaResumen(BaseModel):
     consent_at: str | None = None
     started_at: str | None = None
     finished_at: str | None = None
+    recomendacion: str | None = None
+    informe: dict | None = None
+    respondidas: int = 0
 
 
 class ConsentimientoEntrevistaEntrada(BaseModel):

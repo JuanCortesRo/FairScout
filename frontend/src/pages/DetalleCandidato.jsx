@@ -14,6 +14,7 @@ import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constante
 import { cn } from '@/lib/utils';
 import { aniosExperiencia, formatearExperiencia, nombreCertificacion } from '@/lib/ficha';
 import { crearInvitacionEntrevista, revocarInvitacionEntrevista } from '@/api';
+import ResultadoEntrevista, { EntrevistaBadge } from '@/components/ResultadoEntrevista';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
 function VisorCV({ candidato, activas, citadas, alClicLinea }) {
@@ -90,7 +91,12 @@ function FilaEvaluacion({ fila, activa, onCita, onCorregir }) {
           <p className="mt-0.5 text-xs text-muted-foreground">{CATEGORIAS[req.categoria]}{req.tipo === 'deseable' && ` · peso ${req.peso}`}</p>
         </div>
         <div className="flex items-center gap-1.5">
-          {ev.corregido_por_humano && <Pill className="bg-muted ring-border" icono={PenLine} title={`La IA había dicho: ${RESULTADOS[ev.resultado_ia]?.texto}`}>Corregido</Pill>}
+          {ev.corregido_por_humano && (
+            <Pill className="bg-muted ring-border" icono={ev.origen_correccion === 'entrevista' ? MessagesSquare : PenLine}
+              title={`La IA había dicho: ${RESULTADOS[ev.resultado_ia]?.texto ?? '—'}`}>
+              {ev.origen_correccion === 'entrevista' ? 'Verificado en entrevista' : 'Corregido'}
+            </Pill>
+          )}
           <ResultadoBadge resultado={ev.resultado} />
         </div>
       </div>
@@ -267,7 +273,7 @@ export default function DetalleCandidato() {
   const navigate = useNavigate();
   const {
     ranking, candidatos, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar,
-    cargarCandidato, enDemo,
+    cargarCandidato, enDemo, entrevistaDe, deshacerCorreccion, refrescar,
   } = useApp();
   const [pestana, setPestana] = useState('evaluacion');
   const [activas, setActivas] = useState([]);
@@ -279,6 +285,8 @@ export default function DetalleCandidato() {
   const [copiado, setCopiado] = useState(false);
   const [creandoInvitacion, setCreandoInvitacion] = useState(false);
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
+  // Trae entrevistas que el candidato pudo terminar desde su enlace mientras la app estaba abierta.
+  useEffect(() => { if (!enDemo) void refrescar(); }, [id, enDemo, refrescar]);
   useEffect(() => {
     if (!id || enDemo) return undefined;
     let vigente = true;
@@ -334,6 +342,7 @@ export default function DetalleCandidato() {
   }
 
   const { candidato: c, resultado: r, posicion } = item;
+  const entrevista = entrevistaDe(c.candidato_id);
   const { filas } = r.detalle;
   const citadas = new Set(filas.flatMap((f) => f.ev.lineas));
   const mostrarCita = (f) => { setActivas([...f.ev.lineas]); setReqActivo(f.req.id); };
@@ -429,6 +438,27 @@ export default function DetalleCandidato() {
       </Card>
 
       <AvisoSimilares similares={c.similares} />
+      {entrevista && (
+        <Card className="mb-6 overflow-hidden">
+          <CardHeader icono={MessagesSquare} titulo="Resultado de la entrevista"
+            descripcion={entrevista.estado === 'finalizada'
+              ? `${entrevista.respondidas} respuestas. Cada requisito lleva la frase del candidato como evidencia.`
+              : 'Cuando el candidato termine, aquí verás qué requisitos quedaron verificados.'}
+            accion={<EntrevistaBadge entrevista={entrevista} />} />
+          <div className="p-4 sm:p-5">
+            {entrevista.estado === 'finalizada' && entrevista.informe ? (
+              <>
+                {entrevista.informe.justificacion && <p className="mb-3 text-sm text-foreground/80">{entrevista.informe.justificacion}</p>}
+                <ResultadoEntrevista informe={entrevista.informe} evaluaciones={c.evaluaciones} entrevistaId={entrevista.id}
+                  onAceptar={(requisitoId, resultado, extra) => corregirEvaluacion(c.candidato_id, requisitoId, resultado, '', extra)}
+                  onDeshacer={(requisitoId) => deshacerCorreccion(c.candidato_id, requisitoId)} />
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">{entrevista.respondidas} respuestas hasta ahora.</p>
+            )}
+          </div>
+        </Card>
+      )}
       {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
           Se encontró una instrucción escrita en blanco y en tamaño mínimo. La IA ignora cualquier instrucción escrita dentro del CV, así que no tuvo efecto.
@@ -461,7 +491,7 @@ export default function DetalleCandidato() {
                       {g.filas.map((f) => (
                         <FilaEvaluacion key={f.req.id} fila={f} activa={reqActivo === f.req.id}
                           onCita={() => mostrarCita(f)}
-                        onCorregir={enDemo ? () => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' }) : null} />
+                        onCorregir={() => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' })} />
                       ))}
                     </div>
                   </section>
