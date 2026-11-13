@@ -65,7 +65,7 @@ const CARGAS_EN_PARALELO = 3;
 function mensajeError(texto) {
   if (!texto) return 'No se pudo procesar el CV.';
   if (texto === 'documento_sin_texto_legible') return 'No encontramos texto en el documento. Si es una imagen escaneada, prueba con una versión más nítida.';
-  if (texto.startsWith('extraccion_llm:')) return 'La IA no pudo leer este CV. Puedes reintentarlo.';
+  if (texto.startsWith('extraccion_llm')) return 'La IA no pudo leer este CV. Puedes reintentarlo.';
   return texto;
 }
 
@@ -295,6 +295,12 @@ export function AppProvider({ children }) {
     setErroresEvaluacion([]);
     try {
       const r = await evaluarLote(vacanteId, reevaluar);
+      if (r.ia_no_disponible) {
+        // Un solo aviso en vez de un error por CV: quedan pendientes y se pueden evaluar cuando la IA vuelva.
+        notificar(`El servicio de IA no está disponible. ${r.errores.length} CV(s) quedaron sin evaluar; inténtalo de nuevo más tarde.`, 'error');
+        registrar('Evaluación interrumpida', `La IA no respondió; ${r.errores.length} CV(s) quedaron sin evaluar`);
+        return;
+      }
       setErroresEvaluacion(r.errores);
       if (r.evaluados) registrar('Evaluación con IA', `${r.evaluados} CV(s) evaluados contra los requisitos v${ref.current.vacante.version}`);
       if (r.errores.length) {

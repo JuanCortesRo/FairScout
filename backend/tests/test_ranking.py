@@ -206,7 +206,7 @@ def test_alertas_para_puntaje():
 def test_lote_evalua_todos_los_procesados_y_no_los_que_estan_en_revision(client):
     cuerpo = client.post("/api/vacantes/V1/evaluar").json()
 
-    assert cuerpo == {"vacante_id": "V1", "evaluados": 3, "omitidos": 0, "errores": []}
+    assert cuerpo == {"vacante_id": "V1", "evaluados": 3, "omitidos": 0, "errores": [], "ia_no_disponible": False}
     assert sorted(client.llamadas) == ["C1", "C2", "C3"]   # C4 (prompt injection) nunca llega al LLM
     ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
     assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3", "C2"]
@@ -399,3 +399,36 @@ def test_confirmar_los_requisitos_sin_cambios_no_vuelve_a_llamar_a_la_ia(client)
     assert actualizada["version_requisitos"] == 1
     assert (lote["evaluados"], lote["omitidos"]) == (0, 3)
     assert len(client.llamadas) == llamadas
+
+
+def test_el_lote_se_corta_si_la_ia_no_esta_disponible(client, monkeypatch):
+    import anthropic
+    import httpx
+
+    llamadas = []
+
+    async def ia_caida(ficha, requisitos, lineas):
+        llamadas.append(1)
+        raise anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+
+    monkeypatch.setattr("app.routers.evaluations.evaluar", ia_caida)
+    monkeypatch.setattr("app.routers.evaluations.FALLAS_PARA_CORTAR", 1)
+    monkeypatch.setattr("app.routers.evaluations.settings.EVALUACIONES_CONCURRENTES", 1)
+
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert lote["ia_no_disponible"] is True
+    assert (lote["evaluados"], len(lote["errores"])) == (0, 3)
+    assert len(llamadas) == 1                                   # tras la falla, el resto no se intenta
+    assert all("no está disponible" in e["detalle"] for e in lote["errores"])
+    assert client.get("/api/ranking", params={"vacante_id": "V1"}).json()["candidatos"] == []
+
+
+def test_una_respuesta_mal_formada_no_corta_el_lote(client, monkeypatch):
+    monkeypatch.setattr("app.routers.evaluations.FALLAS_PARA_CORTAR", 1)
+    FALLAN.add("C1")
+
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert lote["ia_no_disponible"] is False
+    assert (lote["evaluados"], len(lote["errores"])) == (2, 1)

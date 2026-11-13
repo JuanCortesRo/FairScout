@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.llm import LLMNoConfigurado
-from app.mensajes import ERROR_INESPERADO, error_de_ia
+from app.mensajes import ERROR_INESPERADO, IA_NO_DISPONIBLE, error_de_ia, es_falla_del_servicio
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.datos_protegidos import motivo_bloqueo
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida, evaluar
@@ -36,6 +36,10 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["evaluations"])
+# Tras estas fallas del servicio de IA el lote se corta: si la IA no responde, cada llamada puede tardar minutos
+# en fallar (espera y reintentos) y el reclutador esperaría por todo el lote para nada.
+FALLAS_PARA_CORTAR = 3
+NO_EVALUADO = "No se evaluó: " + IA_NO_DISPONIBLE[0].lower() + IA_NO_DISPONIBLE[1:]
 log = logging.getLogger(__name__)
 
 
@@ -95,12 +99,19 @@ async def evaluar_todos(
 
     semaforo = asyncio.Semaphore(settings.EVALUACIONES_CONCURRENTES)
     errores: list[ErrorEvaluacion] = []
+    fallas_del_servicio = 0
 
     async def procesar(candidato: CandidatoDB) -> None:
+        nonlocal fallas_del_servicio
         async with semaforo:
+            if fallas_del_servicio >= FALLAS_PARA_CORTAR:
+                errores.append(ErrorEvaluacion(candidato_id=candidato.id, detalle=NO_EVALUADO))
+                return
             try:
                 resultado = await _evaluar_candidato(candidato, vacante, requisitos)
-            except Exception as error:  # un CV que falla no detiene el lote
+            except Exception as error:  # un CV que falla no detiene el lote (salvo que la IA no esté disponible)
+                if es_falla_del_servicio(error):
+                    fallas_del_servicio += 1
                 errores.append(ErrorEvaluacion(candidato_id=candidato.id, detalle=_error_http(error).detail))
                 return
         # Se guarda apenas termina: si el lote se corta, lo evaluado no se pierde.
@@ -111,6 +122,7 @@ async def evaluar_todos(
     return EvaluacionLoteSalida(
         vacante_id=vacante.id,
         evaluados=len(pendientes) - len(errores),
+        ia_no_disponible=fallas_del_servicio >= FALLAS_PARA_CORTAR,
         omitidos=len(candidatos) - len(pendientes),
         errores=errores,
     )

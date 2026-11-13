@@ -187,6 +187,7 @@ class EvaluacionLoteSalida(BaseModel):
     evaluados: int
     omitidos: int                      # ya tenían evaluación con la versión vigente de los requisitos
     errores: list[ErrorEvaluacion] = []
+    ia_no_disponible: bool = False     # el lote se cortó porque la IA no respondía; se puede reintentar más tarde
 
 
 class CandidatoEnRevision(BaseModel):

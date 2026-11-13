@@ -18,6 +18,15 @@ ARCHIVO_ILEGIBLE = "No pudimos leer este archivo. Prueba subirlo en PDF."
 PDF_ILEGIBLE = "No pudimos abrir este PDF. Puede estar dañado o protegido con contraseña."
 
 
+def es_falla_del_servicio(error: Exception) -> bool:
+    """La IA no está disponible (sin llave, sin conexión, saturada o caída), a diferencia de una respuesta mal formada
+    para un CV puntual. Si el servicio falla, los demás CVs del lote también fallarán."""
+    if isinstance(error, (LLMNoConfigurado, anthropic.AuthenticationError, anthropic.PermissionDeniedError,
+                          anthropic.NotFoundError, anthropic.RateLimitError, anthropic.APIConnectionError)):
+        return True
+    return isinstance(error, anthropic.APIStatusError) and error.status_code >= 500
+
+
 def error_de_ia(error: Exception, accion: str) -> HTTPException:
     """Traduce un error al llamar a la IA. `accion` completa la frase "La IA no pudo ...", p. ej. "evaluar este CV"."""
     if isinstance(error, (LLMNoConfigurado, anthropic.AuthenticationError, anthropic.PermissionDeniedError,
