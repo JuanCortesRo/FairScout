@@ -6,7 +6,6 @@ import CargaCVs from './pages/CargaCVs.jsx';
 import Ranking from './pages/Ranking.jsx';
 import DetalleCandidato from './pages/DetalleCandidato.jsx';
 import Comparador from './pages/Comparador.jsx';
-import Auditoria from './pages/Auditoria.jsx';
 import Entrevista from './pages/Entrevista.jsx';
 import EntrevistaPublica from './pages/EntrevistaPublica.jsx';
 import { EstadoVacio } from './components/ui/kit.jsx';
@@ -27,7 +26,6 @@ export default function App() {
         <Route path="candidato/:id" element={<DetalleCandidato />} />
         <Route path="comparador" element={<Comparador />} />
         <Route path="entrevista" element={<Entrevista />} />
-        <Route path="auditoria" element={<Auditoria />} />
         <Route path="*" element={(
           <EstadoVacio icono={Compass} titulo="Página no encontrada" descripcion="La dirección no existe. Vuelve al inicio del flujo.">
             <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Ir a las vacantes</Link>

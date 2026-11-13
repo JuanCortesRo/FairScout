@@ -355,6 +355,7 @@ export default function DetalleCandidato() {
     setCreandoInvitacion(true);
     try {
       setInvitacion(await crearInvitacionEntrevista(vacante.id, c.candidato_id));
+      void refrescar();   // el candidato pasa a "Invitación enviada" y el botón deja de ofrecer otra invitación
     } catch (error) {
       notificar(error.message, 'error');
     } finally {
@@ -365,6 +366,7 @@ export default function DetalleCandidato() {
     try {
       await revocarInvitacionEntrevista(invitacion.id);
       setInvitacion({ ...invitacion, estado: 'revocada' });
+      void refrescar();
       notificar('La invitación fue revocada.', 'ok');
     } catch (error) {
       notificar(error.message, 'error');
@@ -414,9 +416,17 @@ export default function DetalleCandidato() {
               {r.recomendado_entrevista ? <ThumbsUp className="size-5" /> : <ThumbsDown className="size-5" />}
             </span>
             <div className="min-w-0">
-              <p className="font-semibold">{r.recomendado_entrevista ? 'Recomendado para entrevista' : 'No recomendado para entrevista'}</p>
+              <p className="font-semibold">
+                {entrevista?.estado === 'finalizada' ? 'Entrevista realizada'
+                  : ['pending', 'en_curso'].includes(entrevista?.estado) ? 'Invitado a entrevista'
+                    : r.recomendado_entrevista ? 'Recomendado para entrevista' : 'No recomendado para entrevista'}
+              </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {r.recomendado_entrevista
+                {entrevista?.estado === 'finalizada'
+                  ? 'Revisa abajo qué requisitos verificó y acepta los ajustes que correspondan.'
+                  : ['pending', 'en_curso'].includes(entrevista?.estado)
+                    ? 'Esperando a que el candidato responda desde su enlace.'
+                    : r.recomendado_entrevista
                   ? (r.estado === 'cumple' ? 'Cumple todos los obligatorios.' : 'Falta información de requisitos obligatorios que puede verificarse en entrevista.')
                   : r.estado === 'no_cumple'
                     ? 'Hay evidencia de que no cumple un obligatorio o de un descalificante presente.'
@@ -425,9 +435,14 @@ export default function DetalleCandidato() {
                       : 'Hay evidencia parcial sobre uno o más requisitos obligatorios.'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={invitar} disabled={enDemo || creandoInvitacion}>
-                  <MessagesSquare /> {creandoInvitacion ? 'Creando enlace…' : 'Invitar a entrevista'}
-                </Button>
+                {/* Con una invitación vigente o una entrevista hecha no se ofrece otra; sí tras vencer o revocarse. */}
+                {entrevista && !['expirada', 'revocada'].includes(entrevista.estado) ? (
+                  <span className="inline-flex items-center"><EntrevistaBadge entrevista={entrevista} /></span>
+                ) : (
+                  <Button size="sm" onClick={invitar} disabled={enDemo || creandoInvitacion}>
+                    <MessagesSquare /> {creandoInvitacion ? 'Creando enlace…' : 'Invitar a entrevista'}
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => { if (!seleccion.includes(c.candidato_id)) toggleSeleccion(c.candidato_id); navigate('/comparador'); }}>
                   <Columns3 /> Comparar
                 </Button>
