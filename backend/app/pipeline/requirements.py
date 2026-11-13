@@ -33,7 +33,7 @@ async def proponer_requisitos(descripcion: str) -> VacanteSalida:
 
     for intento in range(2):
         message = await client.messages.create(
-            model=settings.MODELO_EXTRACCION,
+            model=settings.MODELO_REQUISITOS,
             max_tokens=16000,
             output_config={"effort": "low"},
             system=cargar_prompt("requisitos"),
