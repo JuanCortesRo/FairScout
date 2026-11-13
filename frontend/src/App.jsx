@@ -13,6 +13,7 @@ import { EstadoVacio } from './components/ui/kit.jsx';
 import { buttonVariants } from './components/ui/button.jsx';
 import { Compass } from 'lucide-react';
 
+/** Declara las rutas de la aplicación y separa el enlace público del marco privado. */
 export default function App() {
   return (
     <Routes>

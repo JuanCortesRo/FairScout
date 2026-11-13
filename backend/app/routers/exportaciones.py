@@ -49,6 +49,7 @@ def exportar_ranking(
     peso_obligatorios: float = Query(PESO_OBLIGATORIOS, ge=0, le=100),
     db: Session = Depends(get_db),
 ) -> Response:
+    """Genera y registra un XLSX con evidencia y contactos, el único endpoint que los exporta."""
     vacante = db.get(VacanteDB, vacante_id)
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
@@ -76,6 +77,7 @@ def exportar_ranking(
 
 
 def _libro(vacante: VacanteDB, filas: list[FilaRanking], contactos: dict, peso: float, fecha: datetime) -> bytes:
+    """Construye en memoria las hojas Ranking, Evidencia e Información y devuelve sus bytes."""
     requisitos = requisitos_de(vacante)
     libro = Workbook()
 

@@ -104,6 +104,7 @@ function Resumen({ vacante, onEditar }) {
   );
 }
 
+/** Crea una vacante desde su descripción y permite revisar/confirmar los requisitos sugeridos. */
 export default function NuevaVacante() {
   const { vacante, confirmarVacante, backend, enDemo, cargarDemo, registrar, notificar, cargandoServidor } = useApp();
   const navigate = useNavigate();

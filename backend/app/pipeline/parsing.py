@@ -1,3 +1,5 @@
+"""Conversión DOCX a PDF y extracción de texto digital con referencias de página y línea."""
+
 from pathlib import Path
 import shutil
 import subprocess

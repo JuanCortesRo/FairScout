@@ -151,6 +151,7 @@ class RespuestaAgenteInvalida(RuntimeError):
 # --------------------------------------------------------------------------- utilidades
 
 def _permitida(pregunta: PreguntaEntrevista) -> bool:
+    """Rechaza preguntas que mencionen un dato protegido, aunque las genere el modelo."""
     return detectar_dato_protegido(f"{pregunta.tema} {pregunta.texto}") is None
 
 

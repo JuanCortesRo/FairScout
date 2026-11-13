@@ -17,6 +17,7 @@ class LLMNoConfigurado(RuntimeError):
 
 @lru_cache
 def get_client() -> AsyncAnthropic:
+    """Devuelve el cliente asíncrono compartido; falla pronto si falta la clave."""
     if not settings.ANTHROPIC_API_KEY:
         raise LLMNoConfigurado("Falta configurar ANTHROPIC_API_KEY en el archivo .env del backend.")
     return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=settings.LLM_TIMEOUT_SECONDS)
@@ -35,6 +36,7 @@ def texto_de_respuesta(message) -> str:
 
 # Conservado del main.py original.
 def extract_json(raw_text: str) -> dict:
+    """Extrae un objeto JSON de texto plano, un bloque cercado o texto envolvente."""
     text = raw_text.strip()
     try:
         return json.loads(text)

@@ -42,6 +42,11 @@ async def subir_cvs(
     archivos: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
 ) -> CargaCVsSalida:
+    """Procesa los archivos de la vacante y persiste solo texto anonimizado y contacto separado.
+
+    El original se elimina tras el procesamiento; documentos con alertas críticas quedan para revisión
+    y no se envían a extracción.
+    """
     _vacante_o_404(db, vacante_id)
     invalidos = [a.filename for a in archivos if Path(a.filename or "").suffix.lower() not in EXTENSIONES_PERMITIDAS]
     if invalidos:
@@ -129,6 +134,7 @@ def _vacante_o_404(db: Session, vacante_id: str) -> VacanteDB:
 
 
 def _cvs_de_la_vacante(db: Session, vacante_id: str) -> list[CVExistente]:
+    """Prepara el texto y contacto de los candidatos existentes para comprobar duplicados."""
     candidatos = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == vacante_id).all()
     contactos = {
         c.candidato_id: Contacto(nombre=c.nombre, correo=c.correo, telefono=c.telefono)
@@ -147,6 +153,7 @@ def _con_similares(alertas: list[str], similares: list) -> list[str]:
 def _guardar_candidato(
     db: Session, cv_id: str, vacante_id: str, documento, ficha: Ficha, alertas: list[str], similares: list[dict]
 ) -> None:
+    """Guarda la ficha y las líneas anónimas; mantiene el contacto en su tabla aislada."""
     db.merge(CandidatoDB(
         id=cv_id,
         vacante_id=vacante_id,
@@ -168,6 +175,7 @@ def _guardar_candidato(
 
 @router.get("/vacantes/{vacante_id}/cvs", response_model=ListaCVsSalida)
 def listar_cvs(vacante_id: str, db: Session = Depends(get_db)) -> ListaCVsSalida:
+    """Lista metadatos de CV y calcula relaciones similares vigentes entre candidatos."""
     _vacante_o_404(db, vacante_id)
     candidatos = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == vacante_id).order_by(
         CandidatoDB.fecha_creacion.desc().nulls_last(), CandidatoDB.id

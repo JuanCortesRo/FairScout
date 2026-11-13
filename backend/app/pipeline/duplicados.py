@@ -51,6 +51,7 @@ def _mismo_contacto(a: Contacto | None, b: Contacto | None) -> bool:
 
 
 def buscar_coincidencias(texto: str, contacto: Contacto, existentes: list[CVExistente]) -> Coincidencias:
+    """Detecta duplicados exactos y candidatos similares por texto o datos de contacto."""
     resultado = Coincidencias()
     for cv in existentes:
         if texto == cv.texto:

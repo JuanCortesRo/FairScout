@@ -25,6 +25,7 @@ class AlertaSeguridad:
 
 
 def detect_prompt_injection(text: str, pagina: int = 0, linea_id: str | None = None) -> list[AlertaSeguridad]:
+    """Busca patrones conocidos de instrucciones manipuladoras y los marca como contenido no confiable."""
     alertas: list[AlertaSeguridad] = []
     for patron, severidad in _PATTERNS:
         if patron.search(text):
@@ -69,6 +70,7 @@ def analizar_spans(pagina: pymupdf.Page, numero_pagina: int) -> list[AlertaSegur
 
 
 def analizar_texto_y_pdf(textos: list[tuple[int, str, str | None]], pdf_path: str) -> list[AlertaSeguridad]:
+    """Combina alertas del texto extraído con anomalías visuales halladas en cada página del PDF."""
     alertas: list[AlertaSeguridad] = []
     for pagina, texto, linea_id in textos:
         alertas.extend(detect_prompt_injection(texto, pagina, linea_id))

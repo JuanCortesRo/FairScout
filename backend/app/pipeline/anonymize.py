@@ -1,4 +1,8 @@
-"""Anonimización determinista de líneas de CV antes de usar un LLM."""
+"""Anonimización determinista de líneas de CV y extracción aislada de datos de contacto.
+
+El texto anonimizado se conserva para evaluación; nombre, correo y teléfono solo se devuelven
+por separado para el flujo de exportación y nunca se mezclan con el contenido enviado al LLM.
+"""
 from dataclasses import dataclass
 import re
 import unicodedata
@@ -245,7 +249,10 @@ def _anonimizar_texto(
 
 
 def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
-    """Anonimiza líneas y devuelve solo la versión segura más metadatos."""
+    """Anonimiza líneas y devuelve categorías, alertas y contacto sin alterar IDs ni coordenadas.
+
+    También marca posibles fugas residuales para que el orquestador pueda bloquear el envío al LLM.
+    """
     anonimizadas: list[Linea] = []
     categorias: set[str] = set()
     alertas: list[str] = []
@@ -282,5 +289,5 @@ def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
 
 
 def anonimizar(lineas: list[Linea]) -> list[Linea]:
-    """Paso 2: devuelve líneas anonimizadas conservando IDs y coordenadas."""
+    """Paso 2: devuelve líneas anonimizadas conservando IDs y coordenadas, sin exponer metadatos."""
     return anonimizar_con_metadatos(deepcopy(lineas)).lineas_anonimizadas

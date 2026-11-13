@@ -33,6 +33,7 @@ function Dato({ etiqueta, valor, mono }) {
   );
 }
 
+/** Presenta trazabilidad, cambios manuales y pruebas de sesgo de la vacante activa. */
 export default function Auditoria() {
   const { vacante, pesos, ranking, candidatos, archivos, auditoria, lote, reiniciar, nombreVisible, trazabilidad, enDemo } = useApp();
   const navigate = useNavigate();

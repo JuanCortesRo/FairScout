@@ -1,5 +1,6 @@
 // Utilidades sobre la ficha del candidato (salida de extract.py + postprocess.py).
 
+/** Convierte una fecha `AAAA-MM` o `actual` a un índice mensual comparable. */
 const aMes = (texto, hoy) => {
   if (texto === 'actual') return hoy.getFullYear() * 12 + hoy.getMonth();
   const m = /^(\d{4})-(\d{2})$/.exec(texto ?? '');

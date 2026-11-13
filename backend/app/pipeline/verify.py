@@ -1,3 +1,5 @@
+"""Verificación local de citas frente al texto anonimizado del CV."""
+
 import re
 import unicodedata
 
