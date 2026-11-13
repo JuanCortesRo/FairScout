@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Configuración validada que se carga desde el entorno y `.env`."""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     ANTHROPIC_API_KEY: str = ""
@@ -21,6 +23,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validar_modelos(self) -> "Settings":
+        """Impide que un campo de modelo se use accidentalmente para almacenar una API key."""
         for nombre in ("MODELO_EXTRACCION", "MODELO_EVALUACION"):
             valor = getattr(self, nombre)
             if valor.startswith("sk-"):
@@ -30,6 +33,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Construye la configuración una sola vez para reutilizarla en toda la aplicación."""
     return Settings()
 
 

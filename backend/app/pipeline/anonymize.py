@@ -1,4 +1,8 @@
-"""Anonimización determinista de líneas de CV antes de usar un LLM."""
+"""Anonimización determinista de líneas de CV y extracción aislada de datos de contacto.
+
+El texto anonimizado se conserva para evaluación; nombre, correo y teléfono solo se devuelven
+por separado para el flujo de exportación y nunca se mezclan con el contenido enviado al LLM.
+"""
 from dataclasses import dataclass
 import re
 import unicodedata
@@ -92,12 +96,22 @@ _PROFESSIONAL_WORDS = {
     "senior", "junior", "sr", "jr", "team", "office", "business", "customer", "human", "resources", "hr",
     "teacher", "nurse", "agent", "advisor", "auditor", "bookkeeper", "cashier", "controller", "owner",
     "partner", "member", "volunteer", "trainee", "student", "graduate", "general", "regional", "national",
+    # palabras de nombres de empresa
+    "grupo", "group", "banco", "bank", "consultores", "consulting", "servicios", "soluciones", "solutions",
+    "industrias", "industries", "holding", "inversiones", "asociados", "associates", "partners", "labs",
 }
 _NAME_TOKEN = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[-'][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)?$")
 _CONECTORES_NOMBRE = {"de", "del", "la", "las", "los", "y", "da", "dos", "van", "von"}
 # Un encabezado suele escribirse "Nombre | correo | teléfono" o "Nombre - Cargo": se revisa cada segmento.
 _SEPARADORES = re.compile(r"\s*(?:\||·|•|–|—|\s-\s|,|/)\s*")
 _ZONA_ENCABEZADO = 6   # primeras líneas con texto donde suele estar el nombre
+# El nombre va antes de la primera sección del CV: desde ahí, una línea con forma de nombre es otra cosa
+# (p. ej. la empresa en "Analista Contable · Grupo Éxito").
+_TITULO_SECCION = re.compile(
+    r"(?i)^\s*(?:perfil|profile|resumen|summary|objetivo|objective|experiencia|experience|work history|employment|"
+    r"historial laboral|formaci[oó]n|educaci[oó]n|education|estudios|habilidades|skills|competencias|"
+    r"certificaciones|certifications|idiomas|languages|logros|accomplishments|highlights|qualifications)\b"
+)
 _GENTILICIO_SUELTO = re.compile(
     r"(?i)^(?:" + RAICES_GENTILICIOS + r")(?:o|a|os|as|e|es|ian|ean)?$"
 )
@@ -235,7 +249,10 @@ def _anonimizar_texto(
 
 
 def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
-    """Anonimiza líneas y devuelve solo la versión segura más metadatos."""
+    """Anonimiza líneas y devuelve categorías, alertas y contacto sin alterar IDs ni coordenadas.
+
+    También marca posibles fugas residuales para que el orquestador pueda bloquear el envío al LLM.
+    """
     anonimizadas: list[Linea] = []
     categorias: set[str] = set()
     alertas: list[str] = []
@@ -248,6 +265,8 @@ def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
         if _PERSONAL_LABEL.search(linea.texto):
             contexto_personal_restante = 3
         contexto_personal = contexto_personal_restante > 0
+        if _TITULO_SECCION.match(linea.texto):
+            lineas_con_texto = _ZONA_ENCABEZADO   # terminó el encabezado
         en_encabezado = bool(linea.texto.strip()) and lineas_con_texto < _ZONA_ENCABEZADO
         lineas_con_texto += bool(linea.texto.strip())
         texto = _anonimizar_texto(linea.texto, categorias, alertas, en_encabezado, contexto_personal, valores)
@@ -270,5 +289,5 @@ def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
 
 
 def anonimizar(lineas: list[Linea]) -> list[Linea]:
-    """Paso 2: devuelve líneas anonimizadas conservando IDs y coordenadas."""
+    """Paso 2: devuelve líneas anonimizadas conservando IDs y coordenadas, sin exponer metadatos."""
     return anonimizar_con_metadatos(deepcopy(lineas)).lineas_anonimizadas

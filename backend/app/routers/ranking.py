@@ -39,6 +39,7 @@ def obtener_ranking(
     peso_obligatorios: float = Query(PESO_OBLIGATORIOS, ge=0, le=100),
     db: Session = Depends(get_db),
 ) -> RankingSalida:
+    """Devuelve resultados recalculados para el peso solicitado y candidatos en revisión aparte."""
     if vacante_id is None:
         return RankingSalida(vacante_id=None, peso_obligatorios=peso_obligatorios, candidatos=[])
     vacante = db.get(VacanteDB, vacante_id)
@@ -84,6 +85,7 @@ class FilaRanking:
 
 
 def requisitos_de(vacante: VacanteDB) -> list[Requisito]:
+    """Convierte los requisitos persistidos al contrato usado por las reglas de puntuación."""
     return [
         Requisito(id=r.id, nombre=r.nombre, tipo=r.tipo, categoria=r.categoria, peso=r.peso)
         for r in vacante.requisitos
@@ -91,7 +93,7 @@ def requisitos_de(vacante: VacanteDB) -> list[Requisito]:
 
 
 def calcular_ranking(db: Session, vacante: VacanteDB, peso_obligatorios: float) -> list[FilaRanking]:
-    """Candidatos evaluados con la versión vigente de los requisitos, ya ordenados como en el ranking."""
+    """Obtiene la evaluación más reciente vigente y calcula el ranking sin invocar al LLM."""
     requisitos = requisitos_de(vacante)
     evaluaciones_db = db.scalars(
         select(EvaluacionDB).where(

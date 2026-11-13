@@ -52,6 +52,7 @@ class DocumentoProcesado:
 
 
 def _extraer_ocr(pagina: pymupdf.Page, numero: int) -> tuple[list[Linea], float]:
+    """Reconoce texto de una página escaneada y devuelve líneas con coordenadas y confianza media."""
     try:
         import pytesseract
         from PIL import Image
@@ -114,6 +115,10 @@ def _lineas_digital(pagina: pymupdf.Page, numero: int) -> list[Linea]:
 
 
 def process_document(file_path: str | Path, documento_id: str | None = None) -> DocumentoProcesado:
+    """Procesa un PDF/DOCX: extrae texto, detecta alertas y anonimiza.
+
+    Devuelve metadatos y texto anonimizado; las alertas críticas bloquean el envío al LLM.
+    """
     ruta = Path(file_path)
     if not ruta.is_file() or ruta.stat().st_size == 0:
         raise DocumentoNoProcesable("El documento no existe o está vacío.")

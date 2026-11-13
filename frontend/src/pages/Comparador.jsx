@@ -9,6 +9,7 @@ import { useApp } from '@/store';
 import { AVISO_DECISION } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 
+/** Compara hasta tres candidatos en paralelo por resultado y evidencia de cada requisito. */
 export default function Comparador() {
   const { ranking, seleccion, toggleSeleccion, nombreVisible, vacante } = useApp();
   const navigate = useNavigate();

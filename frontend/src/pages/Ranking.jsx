@@ -129,6 +129,7 @@ function AjustePesos() {
   );
 }
 
+/** Presenta el ranking vigente, filtros, pesos y acceso al detalle de cada candidato. */
 export default function Ranking() {
   const {
     vacante, ranking, cargarDemo, nombreVisible, seleccion, toggleSeleccion, backend, enDemo,

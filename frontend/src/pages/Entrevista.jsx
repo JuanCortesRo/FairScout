@@ -114,6 +114,7 @@ function Selector() {
   );
 }
 
+/** Gestiona entrevistas internas y permite seguir sus preguntas, respuestas e informe. */
 export default function Entrevista() {
   const { id } = useParams();
   const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo, vacante, backend } = useApp();
@@ -218,7 +219,6 @@ export default function Entrevista() {
   };
 
   const enviar = async (ev) => {
-    ev?.preventDefault();
     const respuesta = texto.trim();
     if (!respuesta || escribiendo || estado.terminada) return;
     setTexto('');
@@ -340,17 +340,30 @@ export default function Entrevista() {
             <div ref={fin} />
           </div>
 
-          <form onSubmit={enviar} className="flex items-end gap-2 border-t bg-card p-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              enviar();
+            }}
+            className="flex items-end gap-2 border-t bg-card p-3"
+          >
             <textarea
               rows={2}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) enviar(e); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault(); // evita el salto de línea
+                  enviar();           // envía sin pasar el evento
+                }
+              }}
               disabled={estado.terminada}
-              placeholder={estado.terminada ? 'La entrevista terminó.' : 'Escribe la respuesta del candidato… (Enter para enviar)'}
+              placeholder={estado.terminada ? 'La entrevista terminó.' : 'Escribe la respuesta del candidato… (Enter para enviar, Shift+Enter para salto de línea)'}
               className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm focus:border-ring focus:outline-none disabled:opacity-60"
             />
-            <Button type="submit" size="icon-lg" disabled={!texto.trim() || escribiendo || estado.terminada} aria-label="Enviar respuesta"><Send /></Button>
+            <Button type="submit" size="icon-lg" disabled={!texto.trim() || escribiendo || estado.terminada} aria-label="Enviar respuesta">
+              <Send />
+            </Button>
           </form>
         </Card>
 

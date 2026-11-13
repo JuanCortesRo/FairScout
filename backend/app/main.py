@@ -11,6 +11,7 @@ from app.routers import cvs, evaluations, exportaciones, health, interviews, ran
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Inicializa las tablas antes de servir solicitudes."""
     init_db()
     yield
 

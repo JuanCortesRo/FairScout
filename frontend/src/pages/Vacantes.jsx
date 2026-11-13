@@ -14,6 +14,7 @@ function fecha(valor) {
   return Number.isNaN(d.getTime()) ? 'Sin fecha' : formatoFecha.format(d);
 }
 
+/** Lista las vacantes guardadas y dirige a su edición o al flujo de carga de CVs. */
 export default function Vacantes() {
   const { vacantes, vacante, backend, enDemo, abrirVacante, nuevaVacante, eliminarVacante, refrescar, cargandoServidor } = useApp();
   const navigate = useNavigate();

@@ -261,6 +261,7 @@ const OPCIONES_CORRECCION = {
   descalificante: ['presente', 'ausente', 'sin_informacion'],
 };
 
+/** Muestra la ficha anonimizada, citas verificables, evaluación y acciones sobre el candidato. */
 export default function DetalleCandidato() {
   const { id } = useParams();
   const navigate = useNavigate();

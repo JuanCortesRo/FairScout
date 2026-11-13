@@ -175,3 +175,19 @@ def test_el_nombre_se_borra_donde_se_repite_y_se_guarda_el_contacto():
 def test_anonimizar_dos_veces_no_cambia_el_resultado():
     primera = anonimizar(lineas("JUAN PÉREZ | juan@example.com", "Juan Pérez - Desarrollador Backend", "Python"))
     assert [l.texto for l in anonimizar(primera)] == [l.texto for l in primera]
+
+
+def test_tras_el_primer_titulo_de_seccion_una_empresa_no_es_un_nombre():
+    resultado = anonimizar(lineas(
+        "CAROLINA RESTREPO",
+        "PERFIL PROFESIONAL",
+        "Contadora pública",
+        "EXPERIENCIA LABORAL",
+        "Analista Contable Senior - Grupo Éxito",
+        "Auxiliar Contable - Banco Popular",
+    ))
+
+    assert [l.texto for l in resultado] == [
+        "[NOMBRE]", "PERFIL PROFESIONAL", "Contadora pública", "EXPERIENCIA LABORAL",
+        "Analista Contable Senior - Grupo Éxito", "Auxiliar Contable - Banco Popular",
+    ]

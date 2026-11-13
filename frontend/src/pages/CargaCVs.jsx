@@ -72,6 +72,7 @@ function FilaArchivo({ a, onReintentar, onQuitar, onEliminar, onVer }) {
   );
 }
 
+/** Permite subir CVs, revisar su estado y abrir o reintentar cada archivo. */
 export default function CargaCVs() {
   const {
     vacante, archivos, agregarArchivos, reintentar, quitarArchivo, eliminarCandidato, cargarDemo, lote, notificar, backend, enDemo, evaluando, pendientes, ranking,

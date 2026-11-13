@@ -48,6 +48,7 @@ async def crear_evaluacion(
     entrada: EvaluacionEntrada,
     db: Session = Depends(get_db),
 ) -> EvaluacionSalida:
+    """Evalúa un candidato listo frente a los requisitos confirmados y guarda el resultado trazable."""
     candidato = db.get(CandidatoDB, entrada.candidato_id)
     vacante = db.get(VacanteDB, entrada.vacante_id)
     if candidato is None:
@@ -160,6 +161,7 @@ def obtener_evaluacion(
     candidato_id: str,
     db: Session = Depends(get_db),
 ) -> EvaluacionSalida:
+    """Devuelve la evaluación vigente de un candidato o un 404 si todavía no existe."""
     vacante = db.get(VacanteDB, vacante_id)
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
@@ -181,6 +183,7 @@ def _fecha(fila: EvaluacionDB) -> str:
 
 
 def _requisitos_evaluables(vacante: VacanteDB) -> list[Requisito]:
+    """Valida confirmación, contenido y ausencia de criterios basados en datos protegidos."""
     if not vacante.requisitos_confirmados:
         raise HTTPException(status_code=409, detail="Los requisitos de la vacante aún no están confirmados.")
     if not vacante.requisitos:
@@ -201,6 +204,7 @@ async def _evaluar_candidato(
     vacante: VacanteDB,
     requisitos: list[Requisito],
 ) -> EvaluacionSalida:
+    """Ejecuta evaluación, verificación de citas, cálculo determinista y explicación del candidato."""
     ficha = Ficha.model_validate(candidato.ficha)
     lineas = [Linea.model_validate(linea) for linea in candidato.lineas_anonimizadas]
     evaluaciones = await evaluar(ficha, requisitos, lineas)
@@ -229,6 +233,7 @@ async def _evaluar_candidato(
 
 
 def _guardar(db: Session, resultado: EvaluacionSalida) -> None:
+    """Persiste una copia JSON de la evaluación, incluida su versión y trazabilidad."""
     db.add(EvaluacionDB(
         id=resultado.evaluacion_id,
         candidato_id=resultado.candidato_id,

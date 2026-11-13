@@ -194,6 +194,7 @@ function Avisos() {
   );
 }
 
+/** Marco de navegación de las vistas privadas, estado de conexión y preferencias visuales. */
 export default function Layout() {
   const [menu, setMenu] = useState(false);
   const { pathname } = useLocation();
