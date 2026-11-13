@@ -85,8 +85,8 @@ def session_factory(tmp_path):
         )
         for cid, vacante_id, estado, alertas in candidatos:
             db.add(CandidatoDB(
-                id=cid, vacante_id=vacante_id, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado=estado,
-                ficha=_ficha(cid), lineas_anonimizadas=LINEAS, lineas_originales=LINEAS, alertas=alertas,
+                id=cid, vacante_id=vacante_id, documento_id=cid, estado=estado,
+                ficha=_ficha(cid), lineas_anonimizadas=LINEAS, alertas=alertas,
             ))
         db.commit()
     yield factory
@@ -211,7 +211,7 @@ def test_lote_evalua_todos_los_procesados_y_no_los_que_estan_en_revision(client)
     ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
     assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3", "C2"]
     assert ranking["en_revision"] == [
-        {"candidato_id": "C4", "nombre_archivo": "C4.pdf", "alertas": ["prompt_injection"]}
+        {"candidato_id": "C4", "alertas": ["prompt_injection"]}
     ]
 
 

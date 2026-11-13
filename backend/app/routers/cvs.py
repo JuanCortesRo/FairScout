@@ -16,7 +16,7 @@ from app.pipeline.document_processor import DocumentoNoProcesable, process_docum
 from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
-from app.models import CandidatoDB, VacanteDB
+from app.models import CandidatoDB, ContactoCandidatoDB, VacanteDB
 from app.schemas import CargaCVsSalida, CVResumen, CVSubido, Ficha, ListaCVsSalida
 
 router = APIRouter(tags=["cvs"])
@@ -59,33 +59,28 @@ async def subir_cvs(
         try:
             documento = process_document(ruta, cv_id)
         except DocumentoNoProcesable as error:
-            ruta.unlink(missing_ok=True)
-            subidos.append(CVSubido(
-                id=cv_id,
-                nombre_archivo=archivo.filename,
-                estado="failed",
-                alertas=[str(error)],
-            ))
+            subidos.append(CVSubido(id=cv_id, estado="failed", alertas=[str(error)]))
             continue
+        finally:
+            # El archivo original (con nombre, foto y datos de contacto) no se conserva: basta el texto anonimizado.
+            ruta.unlink(missing_ok=True)
 
         alertas = _tipos_de_alerta(documento)
         subidos.append(CVSubido(
             id=cv_id,
-            nombre_archivo=archivo.filename,
             lineas=documento.lineas_anonimizadas,
             estado=documento.estado,
             alertas=alertas,
         ))
         if not documento.puede_enviarse_al_llm:
             # Alerta crítica: no va al LLM, pero se guarda para que aparezca "en revisión" en el ranking.
-            _guardar_candidato(db, cv_id, vacante_id, archivo.filename, documento, _FICHA_VACIA, alertas)
+            _guardar_candidato(db, cv_id, vacante_id, documento, _FICHA_VACIA, alertas)
             continue
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
         except (APIError, LLMNoConfigurado, RespuestaLLMInvalida) as error:
             subidos[-1] = CVSubido(
                 id=cv_id,
-                nombre_archivo=archivo.filename,
                 lineas=documento.lineas_anonimizadas,
                 estado="failed",
                 alertas=[f"extraccion_llm: {error}"],
@@ -95,13 +90,12 @@ async def subir_cvs(
             alertas = list(dict.fromkeys([*alertas, "inconsistencia_fechas"]))
         subidos[-1] = CVSubido(
             id=cv_id,
-            nombre_archivo=archivo.filename,
             lineas=documento.lineas_anonimizadas,
             ficha=ficha,
             estado=documento.estado,
             alertas=alertas,
         )
-        _guardar_candidato(db, cv_id, vacante_id, archivo.filename, documento, ficha, alertas)
+        _guardar_candidato(db, cv_id, vacante_id, documento, ficha, alertas)
     return CargaCVsSalida(archivos=subidos)
 
 
@@ -118,20 +112,22 @@ def _vacante_o_404(db: Session, vacante_id: str) -> VacanteDB:
     return vacante
 
 
-def _guardar_candidato(
-    db: Session, cv_id: str, vacante_id: str, nombre_archivo: str, documento, ficha: Ficha, alertas: list[str]
-) -> None:
+def _guardar_candidato(db: Session, cv_id: str, vacante_id: str, documento, ficha: Ficha, alertas: list[str]) -> None:
     db.merge(CandidatoDB(
         id=cv_id,
         vacante_id=vacante_id,
         documento_id=cv_id,
-        nombre_archivo=nombre_archivo,
         estado=documento.estado,
         ficha=ficha.model_dump(mode="json"),
         lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
-        lineas_originales=[linea.model_dump(mode="json") for linea in documento.lineas_originales],
         alertas=alertas,
     ))
+    db.flush()  # el contacto referencia al candidato
+    contacto = documento.contacto
+    if contacto.nombre or contacto.correo or contacto.telefono:
+        db.merge(ContactoCandidatoDB(
+            candidato_id=cv_id, nombre=contacto.nombre, correo=contacto.correo, telefono=contacto.telefono,
+        ))
     db.commit()
 
 
@@ -144,13 +140,22 @@ def listar_cvs(vacante_id: str, db: Session = Depends(get_db)) -> ListaCVsSalida
     return ListaCVsSalida(archivos=[
         CVResumen(
             id=candidato.id,
-            nombre_archivo=candidato.nombre_archivo,
             estado=candidato.estado,
             alertas=candidato.alertas or [],
             fecha_creacion=candidato.fecha_creacion,
         )
         for candidato in candidatos
     ])
+
+
+@router.delete("/candidatos/{candidato_id}", status_code=204)
+def eliminar_candidato(candidato_id: str, db: Session = Depends(get_db)) -> None:
+    """Borra el CV con su contacto, evaluaciones y entrevistas (llaves foráneas en cascada)."""
+    candidato = db.get(CandidatoDB, candidato_id)
+    if candidato is None:
+        raise HTTPException(status_code=404, detail="El candidato no existe.")
+    db.delete(candidato)
+    db.commit()
 
 
 @router.get("/candidatos/{candidato_id}", response_model=CVSubido)
@@ -161,7 +166,6 @@ def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSub
     return CVSubido(
         id=candidato.id,
         vacante_id=candidato.vacante_id,
-        nombre_archivo=candidato.nombre_archivo,
         lineas=candidato.lineas_anonimizadas,
         ficha=candidato.ficha,
         estado=candidato.estado,

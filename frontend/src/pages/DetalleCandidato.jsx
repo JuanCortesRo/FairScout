@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, MessagesSquare, Columns3, BadgeCheck, CircleAlert, FileText, ListChecks, Lightbulb, IdCard, ThumbsUp, ThumbsDown,
-  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX,
+  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX, EyeOff,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -150,7 +150,7 @@ function Ficha({ ficha, onLinea }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia</p></div>
         <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.experiencias.length}</p><p className="text-xs text-muted-foreground">cargos registrados</p></div>
       </div>
       <Seccion icono={Briefcase} titulo="Experiencia">
@@ -193,6 +193,18 @@ function Ficha({ ficha, onLinea }) {
   );
 }
 
+/** Explica por qué el candidato aparece con un código y no con su nombre. */
+function IdentidadOculta() {
+  return (
+    <span tabIndex={0} aria-label="Por qué no se muestra el nombre" className="group relative inline-flex shrink-0 rounded-md p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+      <EyeOff className="size-4" />
+      <span role="tooltip" className="pointer-events-none absolute top-full left-0 z-40 mt-2 w-72 rounded-xl border bg-popover p-3 text-xs leading-relaxed font-normal text-popover-foreground opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        La identidad se oculta durante la evaluación para evitar sesgos. Los datos de contacto solo se incluyen al exportar el ranking.
+      </span>
+    </span>
+  );
+}
+
 /** CV en revisión humana (no se envió a la IA) o procesado pero todavía sin evaluar. */
 function SinEvaluacion({ c, nombre, onVolver }) {
   const revision = c.estado_documento === 'needs_review';
@@ -202,8 +214,10 @@ function SinEvaluacion({ c, nombre, onVolver }) {
         <ArrowLeft className="size-4" /> Volver al ranking
       </button>
       <Card className="mb-6 p-5">
-        <p className="text-xs font-medium text-muted-foreground">{c.nombre_archivo}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+          <IdentidadOculta />
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
         </div>
@@ -352,7 +366,10 @@ export default function DetalleCandidato() {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Posición #{posicion} de {ranking.length}</p>
-              <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
+                <IdentidadOculta />
+              </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <EstadoBadge estado={r.estado} />
                 <Confianza nivel={r.confianza} />

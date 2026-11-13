@@ -91,7 +91,7 @@ def obtener_ranking(
         candidatos=ordenar_ranking(resultados),
         detalles=detalles,
         en_revision=[
-            CandidatoEnRevision(candidato_id=c.id, nombre_archivo=c.nombre_archivo, alertas=c.alertas or [])
+            CandidatoEnRevision(candidato_id=c.id, alertas=c.alertas or [])
             for c in en_revision
         ],
     )

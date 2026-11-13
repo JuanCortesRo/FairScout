@@ -140,7 +140,6 @@ class VacanteSalida(BaseModel):
 class CVSubido(BaseModel):
     id: str
     vacante_id: str | None = None
-    nombre_archivo: str
     lineas: list[Linea] = []
     ficha: Ficha | None = None
     estado: Literal["processed", "needs_review", "failed"] = "processed"
@@ -153,7 +152,6 @@ class CargaCVsSalida(BaseModel):
 
 class CVResumen(BaseModel):
     id: str
-    nombre_archivo: str
     estado: Literal["processed", "needs_review", "failed"]
     alertas: list[str] = []
     fecha_creacion: datetime | None = None
@@ -183,7 +181,6 @@ class EvaluacionLoteSalida(BaseModel):
 class CandidatoEnRevision(BaseModel):
     """CV que no se envió al LLM por una alerta crítica (prompt injection, posible dato personal)."""
     candidato_id: str
-    nombre_archivo: str
     alertas: list[str]
 
 

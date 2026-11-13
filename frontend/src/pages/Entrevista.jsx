@@ -76,7 +76,7 @@ function Selector() {
   const recomendados = ranking.filter((r) => r.resultado.recomendado_entrevista);
   return (
     <>
-      <PageHeader titulo="Entrevistas" paso="Bonus"
+      <PageHeader titulo="Entrevistas"
         descripcion="Crea invitaciones públicas desde el detalle de cada candidato." />
       {ranking.length === 0 ? (
         <Card>

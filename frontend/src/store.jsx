@@ -4,6 +4,7 @@ import { rankear } from '@/lib/scoring';
 import { ARCHIVOS_CON_ERROR, VACANTE_EJEMPLO, DESCRIPCION_EJEMPLO, generarLoteDemo } from '@/data/demo';
 import {
   ErrorAPI,
+  eliminarCandidato as eliminarCandidatoApi,
   eliminarVacante as eliminarVacanteApi,
   evaluarLote,
   listarCVs,
@@ -29,7 +30,6 @@ const INICIAL = {
   candidatos: [],           // solo se guarda en modo demo; con backend se pide a la API
   archivos: [],             // estado de cada carga: { id, nombre, tamano, estado, error, candidato_id }
   correcciones: {},         // { [candidato_id]: { [requisito_id]: { resultado, motivo } } }
-  modoCiego: true,
   auditoria: [],            // { fecha, accion, detalle }
   seleccion: [],            // ids para el comparador
   entrevistas: {},          // { [candidato_id]: estado de la entrevista }
@@ -43,7 +43,6 @@ function cargar() {
     const preferencias = JSON.parse(raw);
     return {
       ...INICIAL,
-      modoCiego: preferencias.modoCiego ?? INICIAL.modoCiego,
       pesos: preferencias.pesos ?? INICIAL.pesos,
       seleccion: preferencias.seleccion ?? INICIAL.seleccion,
       vacanteIdGuardada: preferencias.vacanteId ?? null,
@@ -78,7 +77,6 @@ function desdeApi(cv, evaluacion) {
   return {
     candidato_id: cv.id,
     alias: cv.id.slice(0, 6).toUpperCase(),
-    nombre_archivo: cv.nombre_archivo,
     estado_documento: cv.estado,            // processed | needs_review
     alertas: cv.alertas ?? [],
     lineas: cv.lineas ?? [],
@@ -173,14 +171,13 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const preferencias = {
-      modoCiego: estado.modoCiego,
       pesos: estado.pesos,
       seleccion: estado.seleccion,
       vacanteId: estado.origen === 'demo' ? null : estado.vacante?.id ?? estado.vacanteIdGuardada ?? null,
       vacanteDesactivada: estado.vacanteDesactivada,
     };
     try { localStorage.setItem(CLAVE, JSON.stringify(preferencias)); } catch { /* Las preferencias son opcionales. */ }
-  }, [estado.modoCiego, estado.pesos, estado.seleccion, estado.origen, estado.vacante?.id, estado.vacanteIdGuardada, estado.vacanteDesactivada]);
+  }, [estado.pesos, estado.seleccion, estado.origen, estado.vacante?.id, estado.vacanteIdGuardada, estado.vacanteDesactivada]);
 
   const set = useCallback((fn) => setEstado((s) => ({ ...s, ...fn(s) })), []);
 
@@ -215,7 +212,13 @@ export function AppProvider({ children }) {
       ]);
       if (solicitud !== rankingSeq.current) return;
       const porCandidato = new Map(evaluaciones.map((e) => [e.candidato_id, e]));
-      const candidatos = cvs.archivos.map((cv) => desdeApi(cv, porCandidato.get(cv.id)));
+      // La lista trae solo el resumen de cada CV: se conservan las líneas y la ficha ya cargadas en el detalle.
+      const cargados = new Map(servidorRef.current.filter((c) => c.ficha).map((c) => [c.candidato_id, c]));
+      const candidatos = cvs.archivos.map((cv) => {
+        const candidato = desdeApi(cv, porCandidato.get(cv.id));
+        const previo = cargados.get(cv.id);
+        return previo ? { ...candidato, lineas: previo.lineas, ficha: previo.ficha } : candidato;
+      });
       const ranking = desdeRanking(respuestaRanking, candidatos, vacante?.requisitos ?? []);
       setEstado((s) => ({ ...s, origen: 'backend', vacante, vacanteIdGuardada: null, vacanteDesactivada: !vacante }));
       setServidor({
@@ -230,7 +233,7 @@ export function AppProvider({ children }) {
         archivos: cvs.archivos.map((cv) => ({
           id: cv.id,
           candidato_id: cv.id,
-          nombre: cv.nombre_archivo,
+          nombre: `CV ${cv.id.slice(0, 6).toUpperCase()}`,   // el nombre del archivo no se guarda
           tamano: null,
           estado: cv.estado === 'needs_review' ? 'revision' : cv.estado === 'failed' ? 'error' : 'listo',
           alertas: cv.alertas ?? [],
@@ -485,6 +488,21 @@ export function AppProvider({ children }) {
     return true;
   }, [nuevaVacante, refrescar, registrar, notificar]);
 
+  /** Borra en el servidor un CV con sus datos de contacto, evaluaciones y entrevistas. */
+  const eliminarCandidato = useCallback(async (candidatoId) => {
+    try {
+      await eliminarCandidatoApi(candidatoId);
+    } catch (e) {
+      notificar(`No se pudo eliminar el CV: ${e.message}`, 'error');
+      return false;
+    }
+    set((s) => ({ seleccion: s.seleccion.filter((id) => id !== candidatoId) }));
+    registrar('CV eliminado', `Candidato ${candidatoId.slice(0, 6).toUpperCase()} con su contacto y evaluaciones`);
+    notificar('Se eliminó el CV.', 'ok');
+    await refrescar();
+    return true;
+  }, [set, refrescar, registrar, notificar]);
+
   // ── Demo ───────────────────────────────────────────────────────────────────
   const cargarDemo = useCallback(() => {
     const candidatos = generarLoteDemo(60);
@@ -496,7 +514,6 @@ export function AppProvider({ children }) {
     setEstado((s) => ({
       ...INICIAL,
       origen: 'demo',
-      modoCiego: s.modoCiego,
       vacanteDesactivada: false,
       vacante: {
         ...VACANTE_EJEMPLO,
@@ -523,7 +540,6 @@ export function AppProvider({ children }) {
     setEstado((s) => ({
       ...INICIAL,
       origen: backend === 'conectado' ? 'backend' : null,
-      modoCiego: s.modoCiego,
       vacanteDesactivada: backend === 'conectado',
     }));
     setServidor(SERVIDOR_VACIO);
@@ -531,7 +547,6 @@ export function AppProvider({ children }) {
   }, [backend, refrescar]);
 
   // ── Otras acciones ─────────────────────────────────────────────────────────
-  const toggleCiego = useCallback(() => set((s) => ({ modoCiego: !s.modoCiego })), [set]);
 
   const toggleSeleccion = useCallback((id) => {
     set((s) => {
@@ -575,19 +590,15 @@ export function AppProvider({ children }) {
 
   const trazabilidad = useMemo(() => evaluados.find((c) => c.trazabilidad)?.trazabilidad ?? null, [evaluados]);
 
-  const nombreVisible = useCallback((c) => {
-    if (!c) return '';
-    const alias = c.alias ?? c.candidato_id;
-    if (estado.modoCiego) return `Candidato ${alias}`;
-    return c.nombre_real ? `${c.nombre_real} · ${alias}` : `${c.nombre_archivo} · ${alias}`;
-  }, [estado.modoCiego]);
+  // La identidad nunca se muestra en la app: los datos de contacto solo salen en el ranking exportado.
+  const nombreVisible = useCallback((c) => (c ? `Candidato ${c.alias ?? c.candidato_id}` : ''), []);
 
   const valor = {
     ...estado,
     candidatos: todos, vacantes, backend, enDemo, avisos, ranking, pendientes, enRevision, trazabilidad, evaluando, erroresEvaluacion,
     cargandoServidor: servidor.cargando, errorServidor: servidor.error,
     confirmarVacante, abrirVacante, nuevaVacante, eliminarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar, cargarCandidato,
-    cargarDemo, reiniciar, toggleCiego, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
+    cargarDemo, reiniciar, eliminarCandidato, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
   };
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }

@@ -256,11 +256,11 @@ export default function Ranking() {
             ...(enRevision.length ? [{ valor: 'revision', etiqueta: 'En revisión', contador: enRevision.length }] : []),
           ]} />
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative">
+            {/* <label className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar candidato"
                 className="h-8 w-44 rounded-lg border border-input bg-background pr-2 pl-8 text-sm focus:border-ring focus:outline-none" />
-            </label>
+            </label> */}
             <select value={confianza} onChange={(e) => setConfianza(e.target.value)} aria-label="Filtrar por confianza"
               className="h-8 rounded-lg border border-input bg-background px-2 text-sm focus:border-ring focus:outline-none">
               <option value="todas">Toda confianza</option>
@@ -269,7 +269,6 @@ export default function Ranking() {
               <option value="baja">Confianza baja</option>
             </select>
             <Interruptor activo={soloRecomendados} onChange={setSoloRecomendados} etiqueta="Solo recomendados" />
-            <AjustePesos />
           </div>
         </div>
 

@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 import pymupdf
 
 from app.config import settings
-from app.pipeline.anonymize import anonimizar_con_metadatos
+from app.pipeline.anonymize import Contacto, anonimizar_con_metadatos
 from app.pipeline.parsing import (
     ConversionDocxError,
     LibreOfficeNoEncontrado,
@@ -44,6 +44,7 @@ class DocumentoProcesado:
     alertas: list[AlertaSeguridad]
     categorias_anonimizadas: tuple[str, ...]
     puede_enviarse_al_llm: bool
+    contacto: Contacto = Contacto()
 
 
 def _extraer_ocr(pagina: pymupdf.Page, numero: int) -> tuple[list[Linea], float]:
@@ -187,4 +188,5 @@ def process_document(file_path: str | Path, documento_id: str | None = None) -> 
             alertas=alertas,
             categorias_anonimizadas=anonimizado.categorias,
             puede_enviarse_al_llm=not criticas,
+            contacto=anonimizado.contacto,
         )

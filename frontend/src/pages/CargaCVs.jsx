@@ -5,7 +5,7 @@ import {
   TriangleAlert, FileType, ShieldAlert, CloudOff, Sparkles,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardHeader, PageHeader, EstadoVacio, Pestanas, Alerta, Pill } from '@/components/ui/kit';
+import { Card, CardHeader, PageHeader, EstadoVacio, Pestanas, Alerta, Pill, Modal } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, ESTADOS_ARCHIVO } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ function IconoEstado({ estado }) {
   return <Loader2 className="size-5 animate-spin text-primary" />;
 }
 
-function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
+function FilaArchivo({ a, onReintentar, onQuitar, onEliminar, onVer }) {
   const procesando = EN_PROCESO.includes(a.estado);
   return (
     <li className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/40">
@@ -36,9 +36,11 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium">{a.nombre}</p>
-          <span className="shrink-0 rounded bg-muted px-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
-            {a.nombre.split('.').pop()}
-          </span>
+          {a.nombre.includes('.') && (
+            <span className="shrink-0 rounded bg-muted px-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
+              {a.nombre.split('.').pop()}
+            </span>
+          )}
         </div>
         <p className={cn('text-xs', a.estado === 'error' ? 'text-bad' : ['duplicado', 'revision'].includes(a.estado) ? 'text-warn' : 'text-muted-foreground')}>
           {a.error ?? `${ESTADOS_ARCHIVO[a.estado] ?? a.estado}${a.tamano != null ? ` · ${tamanoLegible(a.tamano)}` : ''}`}
@@ -56,11 +58,15 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
       <div className="flex shrink-0 items-center gap-1">
         {['listo', 'revision'].includes(a.estado) && a.candidato_id && <Button variant="ghost" size="sm" onClick={onVer}>Ver <ArrowRight /></Button>}
         {a.estado === 'error' && a.reintentable !== false && <Button variant="outline" size="sm" onClick={onReintentar}><RotateCw /> Reintentar</Button>}
-        {!procesando && (
+        {!procesando && (onEliminar ? (
+          <button onClick={onEliminar} className="rounded-md p-1.5 text-muted-foreground hover:bg-bad-soft hover:text-bad" aria-label={`Eliminar ${a.nombre}`} title="Eliminar el CV del servidor">
+            <Trash2 className="size-4" />
+          </button>
+        ) : (
           <button onClick={onQuitar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Quitar ${a.nombre} de la lista`}>
             <Trash2 className="size-4" />
           </button>
-        )}
+        ))}
       </div>
     </li>
   );
@@ -68,13 +74,15 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
 
 export default function CargaCVs() {
   const {
-    vacante, archivos, agregarArchivos, reintentar, quitarArchivo, cargarDemo, lote, notificar, backend, enDemo, evaluando, pendientes, ranking,
+    vacante, archivos, agregarArchivos, reintentar, quitarArchivo, eliminarCandidato, cargarDemo, lote, notificar, backend, enDemo, evaluando, pendientes, ranking,
   } = useApp();
   const navigate = useNavigate();
   const input = useRef(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [rechazados, setRechazados] = useState([]);
   const [filtro, setFiltro] = useState('todos');
+  const [porEliminar, setPorEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const conteo = useMemo(() => ({
     total: archivos.length,
@@ -223,10 +231,27 @@ export default function CargaCVs() {
                 <FilaArchivo key={a.id} a={a}
                   onReintentar={() => reintentar(a.id)}
                   onQuitar={() => quitarArchivo(a.id)}
+                  onEliminar={!enDemo && a.candidato_id ? () => setPorEliminar(a) : null}
                   onVer={() => navigate(`/candidato/${a.candidato_id}`)} />
               ))}
             </ul>
           </Card>
+          <Modal abierto={!!porEliminar} onClose={() => !eliminando && setPorEliminar(null)} titulo="¿Eliminar este CV?"
+            pie={(
+              <>
+                <Button variant="ghost" onClick={() => setPorEliminar(null)} disabled={eliminando}>Cancelar</Button>
+                <Button variant="destructive" disabled={eliminando} onClick={async () => {
+                  setEliminando(true);
+                  const ok = await eliminarCandidato(porEliminar.candidato_id);
+                  setEliminando(false);
+                  if (ok) setPorEliminar(null);
+                }}>
+                  {eliminando ? <Loader2 className="animate-spin" /> : <Trash2 />} Eliminar
+                </Button>
+              </>
+            )}>
+            Se borran del servidor <b>{porEliminar?.nombre}</b>, sus datos de contacto, su evaluación y sus entrevistas. No se puede deshacer.
+          </Modal>
         </>
       )}
     </>

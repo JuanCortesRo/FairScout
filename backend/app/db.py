@@ -71,6 +71,8 @@ def _migrar_columnas_existentes() -> None:
             "revoked_at": "TIMESTAMP",
         },
     }
+    # Datos personales que ya no se guardan: se eliminan también de las bases existentes.
+    columnas_eliminadas = {"candidatos": ("lineas_originales", "nombre_archivo")}
     inspector = inspect(engine)
     with engine.begin() as conexion:
         for tabla, columnas in columnas_nuevas.items():
@@ -78,6 +80,11 @@ def _migrar_columnas_existentes() -> None:
             for nombre, definicion in columnas.items():
                 if nombre not in existentes:
                     conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {definicion}"))
+        for tabla, columnas in columnas_eliminadas.items():
+            existentes = {columna["name"] for columna in inspector.get_columns(tabla)}
+            for nombre in columnas:
+                if nombre in existentes:
+                    conexion.execute(text(f"ALTER TABLE {tabla} DROP COLUMN {nombre}"))
         if "entrevistas" in inspector.get_table_names():
             conexion.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_entrevistas_token_hash "

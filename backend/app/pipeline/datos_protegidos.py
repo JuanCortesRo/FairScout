@@ -14,7 +14,7 @@ from app.schemas import Requisito
 _NO_ES_EDAD = r"(?!\s+(?:de\s+)?(?:experiencia|trayectoria|antigüedad|antiguedad|en|con|trabajando|como|liderando|desarrollando|of\s+experience|experience|in|with))"
 
 # Raíces de gentilicios, ya sin tildes ni ñ (el texto se normaliza antes de comparar).
-_GENTILICIOS = (
+RAICES_GENTILICIOS = (
     "colombian|venezolan|peruan|ecuatorian|mexican|argentin|chilen|bolivian|uruguay|paraguay|cuban|"
     "dominican|panamen|costarricens|honduren|guatemaltec|salvadoren|nicaraguens|brasilen|estadounidens"
 )
@@ -22,7 +22,7 @@ _GENTILICIOS = (
 # ("normativa tributaria colombiana").
 _PERSONA_DE_NACIONALIDAD = (
     r"\b(?:ser|candidat[oa]s?|personas?|profesional(?:es)?|ciudadan[oa]s?|de\s+origen)\s+"
-    r"(?:" + _GENTILICIOS + r")(?:o|a|os|as|e|es)?\b"
+    r"(?:" + RAICES_GENTILICIOS + r")(?:o|a|os|as|e|es)?\b"
 )
 
 # (categoría, patrón). Se aplica al texto en minúsculas y sin tildes, salvo donde la tilde importa (ñ).

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Briefcase, FolderKanban, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X, Eye, EyeOff,
+  Briefcase, FolderKanban, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X,
   CircleCheck, CircleX, Info, Check, Sparkles, Scale, Moon, Sun,
 } from 'lucide-react';
 import { useApp } from '@/store';
@@ -88,16 +88,6 @@ function Sidebar({ onNavigate }) {
           </div>
         </div>
       </nav>
-
-      <div className="m-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-        <div className="flex items-center gap-2 text-white">
-          <Scale className="size-4 text-cyan-300" />
-          <p className="text-sm font-semibold">IA responsable</p>
-        </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-sidebar-foreground/60">
-          Sin edad, género, foto ni nacionalidad. La IA recomienda; tu equipo decide.
-        </p>
-      </div>
     </div>
   );
 }
@@ -129,7 +119,7 @@ function PildoraVacante({ vacante, visible }) {
 }
 
 function BarraSuperior({ onMenu }) {
-  const { vacante, modoCiego, toggleCiego, enDemo, reiniciar } = useApp();
+  const { vacante, enDemo, reiniciar } = useApp();
   const { tema, alternar } = useTema();
   const oscuro = tema === 'oscuro';
   const navigate = useNavigate();
@@ -162,16 +152,6 @@ function BarraSuperior({ onMenu }) {
       >
         <Moon className={cn('size-4 transition-all duration-300', oscuro ? 'translate-y-6 rotate-90 opacity-0' : 'text-violet-600')} />
         <Sun className={cn('absolute size-4 transition-all duration-300', oscuro ? 'text-amber-300' : '-translate-y-6 -rotate-90 opacity-0')} />
-      </button>
-      <button
-        onClick={toggleCiego}
-        aria-pressed={modoCiego}
-        title="El modo ciego oculta los nombres y muestra solo un número de candidato"
-        className={cn('inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium shadow-sm transition-all',
-          modoCiego ? 'border-transparent bg-foreground text-background' : 'bg-card hover:bg-muted')}
-      >
-        {modoCiego ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        <span className="hidden sm:inline">{modoCiego ? 'Modo ciego' : 'Nombres visibles'}</span>
       </button>
     </header>
   );

@@ -51,7 +51,10 @@ def test_init_db_agrega_alertas_a_candidatos_existentes(tmp_path, monkeypatch):
 
     with engine.connect() as conexion:
         assert conexion.execute(text("SELECT alertas FROM candidatos WHERE id = 'C1'")).scalar() == "[]"
-    assert "fecha_creacion" in {columna["name"] for columna in inspect(engine).get_columns("candidatos")}
+    columnas = {columna["name"] for columna in inspect(engine).get_columns("candidatos")}
+    assert "fecha_creacion" in columnas
+    # El texto original y el nombre del archivo eran datos personales: se eliminan de las bases existentes.
+    assert not {"lineas_originales", "nombre_archivo"} & columnas
     engine.dispose()
 
 
@@ -61,8 +64,8 @@ def _vacante(vacante_id: str, fecha: datetime | None = None) -> VacanteDB:
 
 def _candidato(candidato_id: str) -> CandidatoDB:
     return CandidatoDB(
-        id=candidato_id, documento_id=candidato_id, nombre_archivo="cv.pdf", estado="processed",
-        ficha={}, lineas_anonimizadas=[], lineas_originales=[], alertas=[],
+        id=candidato_id, documento_id=candidato_id, estado="processed",
+        ficha={}, lineas_anonimizadas=[], alertas=[],
     )
 
 

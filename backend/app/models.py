@@ -57,14 +57,26 @@ class CandidatoDB(Base):
         ForeignKey("vacantes.id", ondelete="CASCADE"), nullable=True, index=True
     )
     documento_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    nombre_archivo: Mapped[str] = mapped_column(String(300), nullable=False)
     estado: Mapped[str] = mapped_column(String(30), nullable=False)
     ficha: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # Del CV solo se guarda el texto anonimizado: ni el archivo, ni su nombre, ni las líneas originales.
     lineas_anonimizadas: Mapped[list] = mapped_column(JSON, nullable=False)
-    lineas_originales: Mapped[list] = mapped_column(JSON, nullable=False)
     # Tipos de alerta del documento ("prompt_injection", "hidden_text", "ocr", ...). Bajan la confianza del puntaje.
     alertas: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     fecha_creacion: Mapped[datetime | None] = _fecha_creacion()
+
+
+class ContactoCandidatoDB(Base):
+    """Datos de contacto, separados de la evaluación. Ningún endpoint los devuelve: solo el ranking exportado."""
+
+    __tablename__ = "contactos_candidato"
+
+    candidato_id: Mapped[str] = mapped_column(
+        ForeignKey("candidatos.id", ondelete="CASCADE"), primary_key=True
+    )
+    nombre: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    correo: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class EvaluacionDB(Base):

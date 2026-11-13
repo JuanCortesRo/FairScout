@@ -1,5 +1,6 @@
 // Componentes visuales reutilizables de la app.
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { CONFIANZAS, ESTADOS, RESULTADOS, TIPOS, CATEGORIAS } from '@/lib/constantes';
 import { CircleHelp, X } from 'lucide-react';
@@ -244,8 +245,10 @@ export function Modal({ abierto, onClose, titulo, children, pie }) {
     return () => document.removeEventListener('keydown', esc);
   }, [abierto, onClose]);
   if (!abierto) return null;
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+  // Se monta en <body> para cubrir toda la app (aside, header, main y footer) y quedar centrado en la pantalla:
+  // dentro de la vista, la animación de entrada hace que "fixed" se posicione respecto al main y no a la pantalla.
+  return createPortal(
+    <div className="fixed inset-0 z-[55] grid place-items-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in-0" onClick={onClose} />
       <div role="dialog" aria-modal="true" className="relative w-full max-w-md rounded-2xl border bg-card shadow-2xl animate-in fade-in-0 zoom-in-95">
         <div className="flex items-center justify-between border-b px-5 py-4">
@@ -255,7 +258,8 @@ export function Modal({ abierto, onClose, titulo, children, pie }) {
         <div className="px-5 py-4 text-sm">{children}</div>
         {pie && <div className="flex justify-end gap-2 border-t px-5 py-3">{pie}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

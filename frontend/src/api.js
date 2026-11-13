@@ -68,6 +68,9 @@ export function subirCVs(vacanteId, archivos) {
 export const listarCVs = (vacanteId) => request(`/vacantes/${vacanteId}/cvs`);
 export const obtenerCandidato = (id) => request(`/candidatos/${id}`);
 
+/** Borra el CV con sus datos de contacto, evaluaciones y entrevistas. */
+export const eliminarCandidato = (id) => request(`/candidatos/${id}`, { method: 'DELETE' });
+
 /** Evalúa en lote los CVs procesados que aún no tienen evaluación con la versión vigente. */
 export const evaluarLote = (vacanteId, reevaluar = false) =>
   request(`/vacantes/${vacanteId}/evaluar${reevaluar ? '?reevaluar=true' : ''}`, { method: 'POST' });

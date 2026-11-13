@@ -74,9 +74,6 @@ function Resumen({ vacante, onEditar }) {
         acciones={(
           <>
             <Button variant="outline" size="lg" onClick={onEditar}><Pencil /> Editar requisitos</Button>
-            <Button size="lg" onClick={() => navigate(candidatos.length ? '/ranking' : '/cvs')}>
-              {candidatos.length ? 'Ver ranking' : 'Cargar CVs'} <ArrowRight />
-            </Button>
           </>
         )}
       />
@@ -341,8 +338,7 @@ export default function NuevaVacante() {
                   <Button variant="outline" onClick={agregar}><Plus /> Agregar requisito</Button>
                 </div>
                 <div className="flex gap-2">
-                  {vacante && <Button variant="ghost" size="lg" onClick={() => setEditando(false)}>Cancelar</Button>}
-                  <Button size="lg" onClick={confirmar}>Confirmar requisitos <ArrowRight /></Button>
+                  <Button size="lg" onClick={confirmar}>Confirmar<ArrowRight /></Button>
                 </div>
               </div>
               {intentado && problemas.length > 0 && (

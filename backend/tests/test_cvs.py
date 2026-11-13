@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import CandidatoDB, VacanteDB
+from app.models import CandidatoDB, ContactoCandidatoDB, EvaluacionDB, VacanteDB
 from app.schemas import Ficha
 
 URL = "/api/vacantes/V1/cvs"
@@ -51,7 +51,7 @@ def test_subir_pdf_extrae_lineas_y_coordenadas(tmp_path, monkeypatch):
     assert archivo["lineas"][0]["id"] == "p1-l1"
     assert archivo["lineas"][0]["texto"] == "Experiencia con Python"
     assert len(archivo["lineas"][0]["bbox"]) == 4
-    assert (tmp_path / f"{archivo['id']}.pdf").exists()
+    assert not list(tmp_path.iterdir())   # el archivo original no se conserva
 
 
 def test_subir_pdf_devuelve_lineas_anonimizadas(tmp_path, monkeypatch):
@@ -122,8 +122,7 @@ def test_subir_docx_convierte_a_pdf_y_extrae_lineas(tmp_path, monkeypatch):
     assert respuesta.status_code == 200
     archivo = respuesta.json()["archivos"][0]
     assert archivo["lineas"][0]["texto"] == "Experiencia con Python"
-    assert (tmp_path / f"{archivo['id']}.docx").exists()
-    assert not list(tmp_path.glob("*.pdf"))
+    assert not list(tmp_path.iterdir())   # ni el DOCX ni el PDF convertido se conservan
 
 
 def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_path, monkeypatch):
@@ -203,3 +202,59 @@ def test_subir_cvs_a_una_vacante_inexistente_devuelve_404(tmp_path, monkeypatch,
     assert listado.status_code == 404
     with bd_aislada() as db:
         assert db.query(CandidatoDB).count() == 0
+
+
+async def _ficha_vacia(lineas):
+    return Ficha(
+        experiencias=[], formacion=[], certificaciones=[], idiomas=[],
+        habilidades_tecnicas=[], competencias_blandas=[],
+    )
+
+
+def _pdf_con_contacto() -> bytes:
+    documento = pymupdf.open()
+    pagina = documento.new_page()
+    for i, texto in enumerate(["LAURA GÓMEZ DÍAZ", "laura.gomez@example.com | 310 555 1234", "Analista contable"]):
+        pagina.insert_text((72, 72 + 18 * i), texto)
+    contenido = documento.tobytes()
+    documento.close()
+    return contenido
+
+
+def test_el_contacto_se_guarda_aparte_y_ninguna_respuesta_lo_devuelve(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", _ficha_vacia)
+
+    with TestClient(app) as client:
+        subido = client.post(URL, files={"archivos": ("Laura_Gomez_CV.pdf", _pdf_con_contacto(), "application/pdf")})
+        cv_id = subido.json()["archivos"][0]["id"]
+        respuestas = [subido.text, client.get(URL).text, client.get(f"/api/candidatos/{cv_id}").text]
+
+    for cuerpo in respuestas:
+        for dato in ("LAURA", "Laura", "laura.gomez@example.com", "310 555 1234"):
+            assert dato not in cuerpo
+    with bd_aislada() as db:
+        contacto = db.get(ContactoCandidatoDB, cv_id)
+        assert (contacto.nombre, contacto.correo, contacto.telefono) == (
+            "LAURA GÓMEZ DÍAZ", "laura.gomez@example.com", "310 555 1234",
+        )
+
+
+def test_borrar_un_candidato_borra_su_contacto_y_evaluaciones(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", _ficha_vacia)
+
+    with TestClient(app) as client:
+        cv_id = client.post(URL, files={"archivos": ("cv.pdf", _pdf_con_contacto(), "application/pdf")}).json()["archivos"][0]["id"]
+        with bd_aislada() as db:
+            db.add(EvaluacionDB(id="E1", candidato_id=cv_id, vacante_id="V1", version_requisitos=1, resultado={}))
+            db.commit()
+
+        assert client.delete(f"/api/candidatos/{cv_id}").status_code == 204
+        assert client.get(f"/api/candidatos/{cv_id}").status_code == 404
+        assert client.delete(f"/api/candidatos/{cv_id}").status_code == 404
+        assert client.get(URL).json()["archivos"] == []
+
+    with bd_aislada() as db:
+        assert db.get(ContactoCandidatoDB, cv_id) is None
+        assert db.query(EvaluacionDB).count() == 0
