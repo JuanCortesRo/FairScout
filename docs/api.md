@@ -76,7 +76,7 @@ curl.exe -X POST "http://localhost:8000/api/vacantes/ID/cvs" `
   -F "archivos=@C:\CVs\perfil.docx"
 ```
 
-`GET /api/ranking` acepta `peso_obligatorios` entre 0 y 100 (predeterminado 60); los deseables toman el porcentaje restante. Requiere `vacante_id` para obtener candidatos. El ranking contiene `candidatos`, `detalles` por candidato y `en_revision`.
+`GET /api/ranking` acepta `peso_obligatorios` entre 0 y 100 (predeterminado 60); los deseables toman el porcentaje restante. Requiere `vacante_id` para obtener candidatos. El ranking contiene `candidatos`, `detalles` por candidato y `en_revision`, y aplica las [correcciones humanas](#correcciones-humanas) vigentes.
 
 Evaluar un candidato individual:
 
@@ -125,7 +125,29 @@ Los valores posibles de `estado` son `cumple`, `cumple_parcialmente`, `pendiente
 - `top`: entero desde 1; limita cuántos candidatos incluir.
 - `peso_obligatorios`: entre 0 y 100, predeterminado 60.
 
-El libro incluye información de contacto cuando existe; el endpoint registra la exportación.
+El libro incluye información de contacto cuando existe y aplica las correcciones humanas vigentes; el endpoint registra la exportación.
+
+## Correcciones humanas
+
+Una corrección reemplaza el resultado de la IA para un candidato y un requisito. Solo vale para la versión vigente de los requisitos: si cambian, deja de aplicarse (queda guardada como registro). El ranking y la exportación aplican las correcciones al calcular; la cita del CV se conserva.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/vacantes/{vacante_id}/correcciones` | Lista las correcciones de la versión vigente. |
+| `PUT` | `/api/vacantes/{vacante_id}/candidatos/{candidato_id}/correcciones/{requisito_id}` | Crea o actualiza la corrección de un requisito. |
+| `DELETE` | `/api/vacantes/{vacante_id}/candidatos/{candidato_id}/correcciones/{requisito_id}` | Elimina la corrección y vuelve al resultado de la IA (204). |
+
+```http
+PUT /api/vacantes/ID_DE_VACANTE/candidatos/ID_DE_CANDIDATO/correcciones/R1
+Content-Type: application/json
+
+{"resultado":"cumple","resultado_ia":"sin_informacion","motivo":"Confirmado en llamada","origen":"manual"}
+```
+
+- `resultado`: para obligatorios y deseables, `cumple`, `equivalente`, `parcial`, `no_cumple` o `sin_informacion`; para descalificantes, `presente`, `ausente` o `sin_informacion`. Un valor que no aplica al tipo produce `422`.
+- `origen`: `manual` (predeterminado) o `entrevista`. Con `entrevista` se envían además `entrevista_id` y `evidencia` (frase del candidato, máximo 600 caracteres).
+- `motivo`: opcional, máximo 500 caracteres.
+- `resultado_ia` se guarda en la primera corrección y se conserva aunque la corrección se edite después.
 
 ## Entrevistas
 
@@ -134,14 +156,16 @@ El libro incluye información de contacto cuando existe; el endpoint registra la
 | `POST` | `/api/entrevistas` | Inicia una entrevista interna con `{ "candidato_id": "...", "vacante_id": "..." }`. |
 | `GET` | `/api/entrevistas/{entrevista_id}` | Recupera la sesión interna. |
 | `POST` | `/api/entrevistas/{entrevista_id}/respuestas` | Envía una respuesta interna (`respuesta`). |
-| `POST` | `/api/entrevistas/{entrevista_id}/finalizar` | Finaliza la sesión. |
+| `POST` | `/api/entrevistas/{entrevista_id}/finalizar` | Finaliza la sesión; requiere al menos cinco respuestas (`409` si no). |
 | `POST` | `/api/entrevistas/{entrevista_id}/reiniciar` | Reinicia la sesión. |
 | `POST` | `/api/vacantes/{vacante_id}/candidatos/{candidato_id}/entrevista` | Genera invitación pública de 72 horas. |
-| `GET` | `/api/vacantes/{vacante_id}/entrevistas` | Lista sesiones/invitaciones de la vacante. |
+| `GET` | `/api/vacantes/{vacante_id}/entrevistas` | Lista sesiones/invitaciones de la vacante con `recomendacion`, `informe` y `respondidas`. |
 | `POST` | `/api/entrevistas/{entrevista_id}/revocar` | Revoca una invitación. |
 | `GET` | `/api/publico/entrevistas/{token}` | Consulta la invitación pública. |
-| `POST` | `/api/publico/entrevistas/{token}/iniciar` | Inicia tras aceptar consentimiento. |
+| `POST` | `/api/publico/entrevistas/{token}/iniciar` | Inicia tras aceptar consentimiento (`{"consentimiento": true}`). |
 | `POST` | `/api/publico/entrevistas/{token}/responder` | Envía una respuesta pública (`texto`). |
+
+La entrevista no termina antes de cinco respuestas. Al finalizar se genera un `informe` con `recomendacion` (`avanzar` o `revisar`), `justificacion`, `inconsistencias` con el CV y `requisitos`: por cada requisito preguntado, la calificación (`solida`, `aceptable` o `debil`), la frase del candidato como `evidencia` y `verificado` (respuesta aceptable o sólida con cita textual). El informe no cambia el ranking por sí solo: una persona debe aceptar el ajuste, que se guarda como corrección con `origen: "entrevista"`.
 
 Los tokens de invitación son credenciales de acceso: no los registres en logs ni los compartas públicamente.
 
@@ -150,9 +174,9 @@ Los tokens de invitación son credenciales de acceso: no los registres en logs n
 | Código | Significado habitual |
 |---|---|
 | `400` | Archivo no admitido o solicitud incorrecta. |
-| `404` | No existe la vacante, candidato o entrevista indicada. |
-| `409` | Estado incompatible: requisitos sin confirmar, CV no listo o perteneciente a otra vacante. |
-| `422` | Datos inválidos o requisito protegido. |
+| `404` | No existe la vacante, candidato, requisito o entrevista indicada. |
+| `409` | Estado incompatible: requisitos sin confirmar, CV no listo o perteneciente a otra vacante, entrevista sin las respuestas mínimas. |
+| `422` | Datos inválidos, requisito protegido o resultado de corrección que no aplica al tipo de requisito. |
 | `429` | Límite del servicio del modelo. |
 | `502` / `503` | Falla de proveedor, conexión o configuración de IA. |
 

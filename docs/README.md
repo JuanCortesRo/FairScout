@@ -4,9 +4,9 @@ Esta documentación está dirigida a personas usuarias, desarrolladoras y respon
 
 | Documento | Para quién | Contenido |
 |---|---|---|
-| [Guía de uso](guia-de-uso.md) | Reclutamiento y demo | Flujo de vacante, carga, resultados, entrevistas y exportación. |
+| [Guía de uso](guia-de-uso.md) | Reclutamiento y demo | Flujo de vacante, carga, resultados, correcciones, entrevistas y exportación. |
 | [Arquitectura](arquitectura.md) | Desarrollo | Componentes, pipeline, persistencia y límites de datos. |
-| [API](api.md) | Integraciones | Endpoints, ejemplos HTTP, parámetros y errores. |
+| [API](api.md) | Integraciones | Endpoints (incluidas correcciones y entrevistas), ejemplos HTTP, parámetros y errores. |
 | [Desarrollo y pruebas](desarrollo-y-pruebas.md) | Desarrollo y QA | Entorno local, comandos, fixtures y criterios de validación. |
 | [Despliegue](despliegue.md) | Operación | Docker Compose, CI/CD, volúmenes, salud y diagnóstico. |
 | [Privacidad y uso responsable](privacidad-y-uso-responsable.md) | Todas las personas | Datos tratados, controles, estados, limitaciones y responsabilidades. |

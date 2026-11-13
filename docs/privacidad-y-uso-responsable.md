@@ -11,7 +11,7 @@ La calidad de la extracción y evaluación depende del formato y legibilidad del
 - El archivo original se guarda temporalmente durante el procesamiento y se elimina al terminar la solicitud.
 - La base de datos conserva la ficha estructurada, el texto de líneas anonimizado y alertas del documento.
 - Nombre, correo y teléfono extraídos se mantienen en una tabla separada del contenido evaluativo; el XLSX de ranking es el canal previsto para exportar esos contactos.
-- Evaluaciones, trazabilidad, entrevistas internas e invitaciones se persisten en la base de datos.
+- Evaluaciones, trazabilidad, correcciones humanas, entrevistas internas e invitaciones se persisten en la base de datos. Una corrección aceptada desde la entrevista guarda la frase del candidato como evidencia.
 - El navegador conserva preferencias de interfaz y el identificador de la entrevista interna en curso; las respuestas e informes de la entrevista están en el backend.
 - El texto anonimizado usado en extracción y evaluación se transmite al proveedor configurado de IA. No envíes CVs reales a entornos de prueba sin autorización y una base legal adecuada.
 
@@ -24,6 +24,7 @@ Eliminar un candidato borra sus datos relacionados; eliminar una vacante los bor
 - Detección de contenido sospechoso, incluidos indicios de prompt injection y texto de baja visibilidad.
 - Citas asociadas a líneas y verificadas en código antes de mostrarse como verificadas.
 - Los candidatos con alertas críticas quedan aparte del ranking para revisión humana.
+- La IA propone y la persona decide: el reclutador puede corregir el resultado de cualquier requisito, y lo que verifica la entrevista solo cambia el ranking si una persona lo acepta. Cada corrección conserva el resultado original de la IA.
 - Las invitaciones públicas tienen tokens aleatorios de duración limitada; se guarda el hash del token y se registra consentimiento antes de comenzar.
 - Los errores operativos se reportan sin detener toda la evaluación por lote cuando es posible.
 

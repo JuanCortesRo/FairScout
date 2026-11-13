@@ -54,14 +54,19 @@ El ranking ordena primero por estado, luego por puntaje descendente y finalmente
 ### 5. Revisar y comparar
 
 - Abre un candidato para ver su resumen, ficha y cada requisito con cita, líneas asociadas y explicación.
+- Si no estás de acuerdo con el resultado de un requisito, **corrígelo** desde el detalle e indica el motivo. La corrección se guarda en el servidor, conserva lo que había dicho la IA y se aplica al ranking y al XLSX. Solo vale para la versión actual de los requisitos: si los cambias, la IA vuelve a evaluar y la corrección deja de aplicarse.
 - Usa **Comparador** para revisar hasta tres candidatos y, si conviene, mostrar solo requisitos con resultados diferentes.
-- En modo demo, **Entrevista simulada** corre en el frontend con datos de ejemplo. Con el servidor conectado, la entrevista interna usa el agente del backend y persiste la sesión. También se puede generar una invitación pública; la persona candidata debe aceptar el consentimiento antes de comenzar.
+- En modo demo, **Entrevista simulada** corre en el frontend con datos de ejemplo. Con el servidor conectado, la entrevista interna usa el agente del backend y persiste la sesión. También se puede generar una invitación pública; la persona candidata debe aceptar el consentimiento antes de comenzar. La entrevista requiere al menos cinco respuestas.
 
-### 6. Exportar y borrar
+### 6. Resultado de la entrevista
 
-El ranking puede exportarse a XLSX. El archivo incluye nombre, correo y teléfono cuando se extrajeron; esos datos personales requieren distribución restringida y eliminación cuando ya no se necesiten.
+Cuando la entrevista termina, el ranking muestra su recomendación (**Entrevista: avanzar** o **Entrevista: revisar**) en lugar de la recomendación del CV, y el detalle del candidato muestra el resultado por requisito: la calificación de la respuesta, la frase del candidato como evidencia y las contradicciones con el CV. Si la entrevista resolvió una duda (un requisito sin información o parcial), FairScout propone subirlo a **Cumple** (respuesta sólida) o **Parcial** (respuesta aceptable); nunca propone bajar un resultado. La propuesta solo se aplica si la aceptas y puede deshacerse.
 
-Eliminar una vacante desde la API borra en cascada sus requisitos, CVs, evaluaciones, entrevistas y exportaciones registradas. El borrado no puede deshacerse; confirma el identificador de vacante antes de usarlo.
+### 7. Exportar y borrar
+
+El ranking puede exportarse a XLSX con las correcciones humanas aplicadas. El archivo incluye nombre, correo y teléfono cuando se extrajeron; esos datos personales requieren distribución restringida y eliminación cuando ya no se necesiten.
+
+Eliminar una vacante desde la API borra en cascada sus requisitos, CVs, evaluaciones, correcciones, entrevistas y exportaciones registradas. El borrado no puede deshacerse; confirma el identificador de vacante antes de usarlo.
 
 ## Modo demo
 

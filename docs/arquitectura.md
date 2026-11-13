@@ -15,7 +15,7 @@ FastAPI ─── Anthropic API
 Producción: Caddy sirve el build estático y hace reverse proxy de /api al backend.
 ```
 
-El [diagrama SVG](arquitecturaFairScout.svg) presenta la arquitectura visualmente. El frontend centraliza solicitudes HTTP en `frontend/src/api.js` y estado de aplicación en `frontend/src/store.jsx`. Las rutas de FastAPI se montan bajo `/api`; los esquemas Pydantic definen los contratos.
+El [diagrama SVG](arquitecturaFairScout_v2.svg) presenta la arquitectura visualmente. El frontend centraliza solicitudes HTTP en `frontend/src/api.js` y estado de aplicación en `frontend/src/store.jsx`. Las rutas de FastAPI se montan bajo `/api`; los esquemas Pydantic definen los contratos.
 
 ## Ciclo de una vacante
 
@@ -33,7 +33,8 @@ El [diagrama SVG](arquitecturaFairScout.svg) presenta la arquitectura visualment
 5. Las coincidencias de contenido o contacto se comprueban dentro de la vacante.
 6. El modelo extrae una ficha; el backend normaliza fechas, habilidades, idiomas y años totales de experiencia.
 7. El endpoint de evaluación llama al modelo por candidato, verifica que las citas correspondan con el texto, calcula resultado en código y guarda trazabilidad.
-8. El ranking selecciona la evaluación vigente por candidato y versión de requisitos; cambiar pesos solo recalcula el resultado.
+8. El ranking selecciona la evaluación vigente por candidato y versión de requisitos, le aplica las correcciones humanas de esa versión y calcula el resultado; cambiar pesos solo recalcula.
+9. Opcionalmente, una entrevista (interna o por invitación pública) genera un informe con evidencia por requisito. Si la persona acepta un ajuste propuesto, se guarda como corrección con origen `entrevista` y se refleja en el ranking y la exportación.
 
 La carga procesa los documentos dentro de la solicitud, secuencialmente por lote. La evaluación en lote usa concurrencia limitada por `EVALUACIONES_CONCURRENTES` y guarda cada resultado conforme termina.
 
@@ -45,6 +46,7 @@ La carga procesa los documentos dentro de la solicitud, secuencialmente por lote
 | `candidatos` | Identificador, vacante, ficha, líneas anonimizadas y alertas. | Pertenece a una vacante. |
 | `contactos_candidato` | Nombre, correo y teléfono separados de la ficha. | Se elimina junto con el candidato. |
 | `evaluaciones` | Resultados por requisito, explicación y trazabilidad. | Relacionada con candidato, vacante y versión. |
+| `correcciones` | Resultado corregido, resultado original de la IA, motivo, origen (`manual`/`entrevista`) y evidencia de entrevista. | Una por candidato, requisito y versión de requisitos. |
 | `entrevistas` | Estado, plan, mensajes, historial e informe. | Relacionada con candidato y vacante. |
 | `exportaciones` | Fecha, candidatos y parámetros del XLSX creado. | Relacionada con la vacante. |
 
