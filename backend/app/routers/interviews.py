@@ -168,7 +168,7 @@ async def crear_invitacion(
     try:
         plan = await generar_plan(Ficha.model_validate(candidato.ficha), _requisitos(vacante))
     except Exception as error:
-        raise HTTPException(status_code=502, detail="No fue posible preparar la entrevista.") from error
+        raise error_de_ia(error, "preparar la entrevista") from error
     token = secrets.token_urlsafe(32)
     expira = _utcnow() + timedelta(hours=72)
     fila = EntrevistaDB(

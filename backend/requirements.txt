@@ -6,10 +6,10 @@ anthropic==2.8.0
 sqlalchemy==2.1.8
 psycopg[binary]==3.3.8
 python-multipart==0.0.33
-pymupdf==1.26.0
 pytesseract==0.3.13
 Pillow==11.3.0
 rapidfuzz==3.14.6
 openpyxl==3.1.5
 pytest==9.2.0
 httpx==0.28.1
+pymupdf==1.26.0

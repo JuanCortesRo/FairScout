@@ -37,9 +37,9 @@ winget install --id TheDocumentFoundation.LibreOffice
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env 
-python -m uvicorn app.main:app --reload o .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 pytest
 ```
 

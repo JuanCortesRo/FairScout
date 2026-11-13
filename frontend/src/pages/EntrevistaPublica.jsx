@@ -56,7 +56,6 @@ export default function EntrevistaPublica() {
   };
 
   const responder = async (evento) => {
-    evento.preventDefault();
     const respuesta = texto.trim();
     if (!respuesta || procesando) return;
     setProcesando(true);
@@ -151,9 +150,31 @@ export default function EntrevistaPublica() {
               ))}
               {pregunta && !mensajes.some((m) => m.pregunta_id === pregunta.id) && <div className="entrada mr-10 rounded-2xl rounded-tl-sm bg-muted/70 p-3.5 text-sm">{pregunta.texto}</div>}
               {error && <Alerta tipo="error" icono={TriangleAlert} titulo="No se pudo enviar la respuesta">{error}</Alerta>}
-              <form onSubmit={responder} className="flex items-end gap-2 border-t pt-4">
-                <textarea value={texto} maxLength={2000} rows={3} disabled={procesando} onChange={(e) => setTexto(e.target.value)} placeholder="Escribe tu respuesta…" className="min-w-0 flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-                <Button type="submit" size="icon-lg" disabled={!texto.trim() || procesando} aria-label="Enviar respuesta">{procesando ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  responder();
+                }}
+                className="flex items-end gap-2 border-t pt-4"
+              >
+                <textarea
+                  value={texto}
+                  maxLength={2000}
+                  rows={3}
+                  disabled={procesando}
+                  onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault(); // evita el salto de línea
+                      responder();        // envía sin pasar el evento
+                    }
+                  }}
+                  placeholder="Escribe tu respuesta… (Enter para enviar, Shift+Enter para salto de línea)"
+                  className="min-w-0 flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <Button type="submit" size="icon-lg" disabled={!texto.trim() || procesando} aria-label="Enviar respuesta">
+                  {procesando ? <Loader2 className="animate-spin" /> : <Send />}
+                </Button>
               </form>
             </div>
           </section>
