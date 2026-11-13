@@ -282,8 +282,8 @@ def _completar_plan(preguntas: list[PreguntaEntrevista],
 # --------------------------------------------------------------------------- LLM
 
 def _sistema() -> str:
-    """Prompt base (v1) + reglas ampliadas (v2), versionados en app/prompts/*.md."""
-    return cargar_prompt("entrevista") + "\n\n" + cargar_prompt("entrevista", "v2")
+    """Reglas del entrevistador, versionadas en app/prompts/entrevista_<PROMPT_VERSION>.md."""
+    return cargar_prompt("entrevista")
 
 async def _json(messages: list[dict[str, str]], system: str) -> dict[str, Any]:
     for intento in range(2):
