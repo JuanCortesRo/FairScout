@@ -125,13 +125,16 @@ def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, 
 
 @router.get("/cvs", response_model=ListaCVsSalida)
 def listar_cvs(db: Session = Depends(get_db)) -> ListaCVsSalida:
-    candidatos = db.query(CandidatoDB).order_by(CandidatoDB.id).all()
+    candidatos = db.query(CandidatoDB).order_by(
+        CandidatoDB.fecha_creacion.desc().nulls_last(), CandidatoDB.id
+    ).all()
     return ListaCVsSalida(archivos=[
         CVResumen(
             id=candidato.id,
             nombre_archivo=candidato.nombre_archivo,
             estado=candidato.estado,
             alertas=candidato.alertas or [],
+            fecha_creacion=candidato.fecha_creacion,
         )
         for candidato in candidatos
     ])

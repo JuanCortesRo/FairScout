@@ -35,12 +35,15 @@ def _salida(vacante: VacanteDB) -> VacanteSalida:
         ],
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
     )
 
 
 @router.get("/vacantes", response_model=list[VacanteSalida])
 def listar_vacantes(db: Session = Depends(get_db)) -> list[VacanteSalida]:
-    vacantes = db.scalars(select(VacanteDB).order_by(VacanteDB.id)).all()
+    vacantes = db.scalars(
+        select(VacanteDB).order_by(VacanteDB.fecha_creacion.desc().nulls_last(), VacanteDB.id)
+    ).all()
     return [_salida(vacante) for vacante in vacantes]
 
 
@@ -107,6 +110,7 @@ async def crear_vacante(
         requisitos=requisitos,
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
         requisitos_bloqueados=[RequisitoBloqueado(requisito=r, motivo=m) for r, m in bloqueados],
     )
 
@@ -147,4 +151,5 @@ def actualizar_vacante(
         requisitos=entrada.requisitos,
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
     )

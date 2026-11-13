@@ -2,7 +2,7 @@
 
 No cambiarla sin avisar. Al final van los modelos de entrada/salida de la API.
 """
-from datetime import date
+from datetime import date, datetime
 import re
 from typing import Literal
 
@@ -132,6 +132,7 @@ class VacanteSalida(BaseModel):
     descripcion: str | None = None
     version_requisitos: int = 1
     requisitos_confirmados: bool = False
+    fecha_creacion: datetime | None = None
     # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
     requisitos_bloqueados: list[RequisitoBloqueado] = []
 
@@ -154,6 +155,7 @@ class CVResumen(BaseModel):
     nombre_archivo: str
     estado: Literal["processed", "needs_review", "failed"]
     alertas: list[str] = []
+    fecha_creacion: datetime | None = None
 
 
 class ListaCVsSalida(BaseModel):
