@@ -42,6 +42,7 @@ def _salida(vacante: VacanteDB) -> VacanteSalida:
 
 @router.get("/vacantes", response_model=list[VacanteSalida])
 def listar_vacantes(db: Session = Depends(get_db)) -> list[VacanteSalida]:
+    """Lista las vacantes guardadas, de la más reciente a la más antigua."""
     vacantes = db.scalars(
         select(VacanteDB).order_by(VacanteDB.fecha_creacion.desc().nulls_last(), VacanteDB.id)
     ).all()
@@ -50,6 +51,7 @@ def listar_vacantes(db: Session = Depends(get_db)) -> list[VacanteSalida]:
 
 @router.get("/vacantes/{vacante_id}", response_model=VacanteSalida)
 def obtener_vacante(vacante_id: str, db: Session = Depends(get_db)) -> VacanteSalida:
+    """Devuelve una vacante con requisitos, estado de confirmación y versión vigente."""
     vacante = db.get(VacanteDB, vacante_id)
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
@@ -71,6 +73,7 @@ async def crear_vacante(
     entrada: VacanteEntrada,
     db: Session = Depends(get_db),
 ) -> VacanteSalida:
+    """Propone requisitos con IA, descarta los protegidos y guarda un borrador sin confirmar."""
     try:
         propuesta = await proponer_requisitos(entrada.descripcion)
     except RespuestaLLMInvalida as e:
@@ -115,7 +118,7 @@ async def crear_vacante(
 
 
 def _firma(requisitos) -> list[tuple]:
-    """Lo que la IA usa para evaluar cada requisito (sin el peso ni el orden)."""
+    """Firma de evaluación: cambios de peso u orden no requieren volver a llamar al LLM."""
     return sorted((r.id, " ".join(r.nombre.split()), r.tipo, r.categoria) for r in requisitos)
 
 
@@ -125,6 +128,7 @@ def actualizar_vacante(
     entrada: VacanteActualizacion,
     db: Session = Depends(get_db),
 ) -> VacanteSalida:
+    """Confirma o actualiza los requisitos; aumenta la versión solo ante cambios evaluables."""
     vacante = db.get(VacanteDB, vacante_id)
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")

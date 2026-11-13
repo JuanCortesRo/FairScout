@@ -6,6 +6,7 @@ import { detectarDatoProtegido } from './protegidos';
 import { aniosExperiencia } from './ficha';
 
 // Pregunta según la categoría del requisito: sirve para cualquier vacante, no solo la de ejemplo.
+/** Crea una pregunta de entrevista a partir del requisito que se quiere verificar. */
 function preguntaPara(req) {
   const n = `«${req.nombre}»`;
   switch (req.categoria) {
@@ -44,6 +45,7 @@ function nivelIngles(texto) {
 }
 
 /** Plan inicial: primero lo que falta verificar, luego brechas, luego una verificación de algo cumplido y preguntas generales. */
+/** Construye un plan local de preguntas basado en brechas e información faltante del ranking. */
 export function crearPlan(resultado) {
   const filas = resultado.detalle.filas.filter((f) => f.req.tipo !== 'descalificante');
   const item = (f, motivo) => ({ id: f.req.id, tema: f.req.nombre, categoria: f.req.categoria, texto: preguntaPara(f.req), motivo });
@@ -67,6 +69,7 @@ export function crearPlan(resultado) {
 }
 
 /** Evalúa una respuesta y la compara con la ficha del CV. */
+/** Evalúa una respuesta de forma determinista en modo demo y señala evidencias o dudas. */
 export function evaluarRespuesta(pregunta, respuesta, candidato) {
   const r = respuesta.trim();
   const inconsistencias = [];
@@ -122,6 +125,7 @@ export function evaluarRespuesta(pregunta, respuesta, candidato) {
 }
 
 /** Decide el siguiente turno. */
+/** Avanza el plan, añade repreguntas cuando corresponde y detiene la entrevista al alcanzar su límite. */
 export function siguienteTurno(estado) {
   const { plan, indice, turnos, repreguntas } = estado;
   const ultima = turnos[turnos.length - 1];
@@ -134,6 +138,7 @@ export function siguienteTurno(estado) {
   return { tipo: 'pregunta', pregunta: plan[indice] };
 }
 
+/** Resume turnos y consistencia en un informe de apoyo, no en una decisión de contratación. */
 export function resumir(estado, resultado) {
   const { turnos } = estado;
   const inconsistencias = turnos.flatMap((t) => t.evaluacion.inconsistencias);

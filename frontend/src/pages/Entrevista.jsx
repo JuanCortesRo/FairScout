@@ -114,6 +114,7 @@ function Selector() {
   );
 }
 
+/** Gestiona entrevistas internas y permite seguir sus preguntas, respuestas e informe. */
 export default function Entrevista() {
   const { id } = useParams();
   const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo, vacante, backend } = useApp();

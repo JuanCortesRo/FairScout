@@ -14,6 +14,7 @@ function preguntaDe(respuesta) {
   return respuesta?.pregunta_siguiente ?? respuesta?.pregunta ?? respuesta?.pregunta_actual ?? null;
 }
 
+/** Ejecuta una entrevista pública mediante token y exige consentimiento antes de comenzar. */
 export default function EntrevistaPublica() {
   const { token } = useParams();
   const [datos, setDatos] = useState(null);

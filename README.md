@@ -1,90 +1,125 @@
-# AI Talent Scout
+# FairScout
 
-Herramienta de apoyo a la selección de personal: a partir de la descripción de un cargo, extrae requisitos
-(obligatorios, deseables y descalificantes), procesa hojas de vida en PDF/DOCX de forma anonimizada y genera un
-ranking explicable de candidatos con citas verificables al CV.
+FairScout es una herramienta de apoyo a la selección: convierte una descripción de cargo en requisitos revisables, procesa CVs anonimizados y presenta un ranking explicable con evidencia del documento. La IA propone y analiza; el puntaje se calcula con reglas explícitas y la decisión final corresponde a una persona.
 
-## Estructura
+## Primeros pasos
 
-```
-backend/            API FastAPI (Python 3.12)
-  app/
-    main.py         App, CORS y routers
-    config.py       Variables de entorno (pydantic-settings)
-    db.py           SQLAlchemy (SQLite en local, Postgres en Docker)
-    schemas.py      Modelos Pydantic compartidos
-    llm.py          Cliente de Anthropic y utilidades
-    routers/        health, vacantes, cvs, ranking  (todos bajo /api)
-    pipeline/       requirements (vacante) y parsing → anonymize → extract → postprocess → evaluate → verify → scoring → explain
-    interview/      Bonus: agente entrevistador
-    prompts/        Prompts versionados (.md), nunca dentro del código
-  tests/            pytest
-frontend/           Vite + React + Tailwind + shadcn/ui
-  src/pages/        NuevaVacante, CargaCVs, Ranking, DetalleCandidato, Comparador, Auditoria, Entrevista
-  Caddyfile         Sirve el build y redirige /api al backend
-data/               cvs/, vacantes/, set_dorado/
-docs/               Documento base del proyecto
-docker-compose.yml  db (postgres:16) + backend + web (Caddy)
-.github/workflows/  CI (pytest + build) y despliegue en runner self-hosted
-```
+### Requisitos
 
-## Correr en local
+- Python 3.12.
+- Node.js 22.
+- LibreOffice para convertir archivos `.docx`.
+- Tesseract OCR con los idiomas español e inglés para CVs escaneados.
+- Una clave de Anthropic para crear vacantes, extraer fichas, evaluar CVs y realizar entrevistas con IA.
 
-**Backend** (requiere Python 3.12 y LibreOffice para procesar `.docx`):
+La imagen Docker del backend instala LibreOffice y Tesseract. En Windows, instala esos programas por separado y asegúrate de que `soffice` y `tesseract` estén disponibles en `PATH`.
+
+### Ejecución local en Windows
+
+En una terminal PowerShell, configura e inicia el backend:
 
 ```powershell
-winget install --id TheDocumentFoundation.LibreOffice
-cd backend
+cd "C:\ruta\FairScout\backend"
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env 
-python -m uvicorn app.main:app --reload o .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-pytest
+Copy-Item .env.example .env
 ```
 
-**Frontend** (requiere Node 20+):
+Edita `backend/.env` y agrega tu `ANTHROPIC_API_KEY`. El ejemplo usa SQLite local (`sqlite:///./data.db`).
 
-```bash
-cd frontend
-npm install
-npm run dev                   # http://localhost:5173 (redirige /api a localhost:8000)
+```powershell
+python -m uvicorn app.main:app --reload
 ```
 
-**Cómo usa el frontend la API:** crea la vacante con `POST /api/vacantes`, confirma los requisitos con
-`PUT /api/vacantes/{id}`, sube cada CV con `POST /api/cvs` (3 en paralelo), evalúa en lote con
-`POST /api/vacantes/{id}/evaluar` al terminar la carga y lee los resultados con `GET /api/cvs` y
-`GET /api/vacantes/{id}/evaluaciones`. El puntaje, el estado, la confianza y la recomendación se recalculan en el
-cliente con `src/lib/scoring.js` (idéntico a `scoring.py`, con test de paridad), así que cambiar los pesos no vuelve
-a llamar a la IA. Las correcciones humanas y las entrevistas se guardan por ahora solo en el navegador.
+En otra terminal, inicia el frontend:
 
-Si el backend no responde en `/api/health`, se ofrece **"Ver demo completa"**: una vacante y 60 CVs de ejemplo
-(`src/data/demo.js`) con los casos difíciles de la demo (AWS vs Azure, sin información de idiomas, texto oculto,
-fechas solapadas, OCR, cita no verificada). Los archivos que subas nunca se convierten en datos ficticios.
-
-**Todo con Docker:**
-
-```bash
-cp .env.example .env          # completa ANTHROPIC_API_KEY, POSTGRES_PASSWORD y DATABASE_URL
-docker compose up --build     # http://localhost
+```powershell
+cd "C:\ruta\FairScout\frontend"
+npm ci
+npm run dev
 ```
 
-**Despliegue:** cada push a `main` corre las pruebas y, si pasan, el runner propio del servidor ejecuta
-`docker compose -p talentscout up -d --build` usando `~/talentscout.env` (creado una sola vez a mano en el servidor).
+Abre <http://localhost:5173>. La documentación interactiva de la API está en <http://localhost:8000/docs>. El servidor Vite redirige `/api` a `localhost:8000`.
 
-## Variables de entorno
+### Ejecución con Docker Compose
 
-| Variable | Dónde | Descripción |
+Desde la raíz del repositorio:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Completa los valores de `.env` con credenciales propias y una URL de PostgreSQL que apunte al servicio `db`; nunca uses las credenciales de ejemplo en un entorno real.
+
+```powershell
+docker compose up --build
+```
+
+La aplicación queda en <http://localhost> y la API en <http://localhost/api>. Docker Compose guarda PostgreSQL, cargas procesadas y datos de Caddy en volúmenes persistentes.
+
+## Flujo de uso
+
+1. Crea una vacante a partir de una descripción.
+2. Revisa y confirma los requisitos propuestos; la IA puede proponer requisitos protegidos que se bloquean.
+3. Carga archivos PDF o DOCX en esa vacante.
+4. Revisa el ranking; las evaluaciones se procesan por lotes y los errores se muestran por candidato.
+5. Abre un candidato para consultar requisitos, citas, justificaciones y confianza; compara perfiles o exporta el ranking.
+6. Si corresponde, inicia una entrevista interna o genera una invitación pública con consentimiento.
+
+Consulta la [guía de uso](docs/guia-de-uso.md) para el significado de estados y recomendaciones.
+
+## Documentación
+
+- [Índice de documentación](docs/README.md)
+- [Guía de uso](docs/guia-de-uso.md)
+- [Arquitectura y flujo de datos](docs/arquitectura.md)
+- [API HTTP](docs/api.md)
+- [Desarrollo y pruebas](docs/desarrollo-y-pruebas.md)
+- [Despliegue y operación](docs/despliegue.md)
+- [Privacidad, seguridad y uso responsable](docs/privacidad-y-uso-responsable.md)
+- [Diagrama de arquitectura](docs/arquitecturaFairScout.svg)
+
+## Estructura del repositorio
+
+```text
+backend/app/       API FastAPI, persistencia, pipeline y entrevistas
+backend/tests/     Pruebas pytest y fixtures de paridad de puntaje
+frontend/src/      Aplicación React, vistas, cliente API y modo demo
+frontend/scripts/  Generación de casos compartidos de scoring
+data/              Directorios reservados para datasets locales
+docs/              Guías funcionales, técnicas y operativas
+.github/workflows/ CI y despliegue en runner self-hosted
+docker-compose.yml PostgreSQL, backend y frontend/Caddy
+```
+
+## Configuración
+
+El backend carga su configuración desde variables de entorno o `backend/.env`. Docker Compose carga el `.env` de la raíz. Las variables principales son:
+
+| Variable | Uso | Valor predeterminado local |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | backend | Llave de la API de Anthropic |
-| `DATABASE_URL` | backend | Por defecto `sqlite:///./data.db`; en Docker `postgresql+psycopg://usuario:clave@db:5432/bd` |
-| `FRONTEND_URL` | backend | Origen permitido por CORS |
-| `MODELO_EXTRACCION` | backend | Modelo para requisitos y extracción (por defecto `claude-haiku-5-5`) |
-| `MODELO_EVALUACION` | backend | Modelo para la evaluación (por defecto `claude-haiku-5-5`) |
-| `PROMPT_VERSION` | backend | Versión de prompts a cargar desde `app/prompts/` (por defecto `v1`) |
-| `UPLOADS_DIR` | backend | Carpeta donde se guardan los CVs subidos (por defecto `uploads`) |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | Credenciales de la base de datos |
-| `DOMAIN` | compose | `:80` para HTTP o `<ip-con-guiones>.sslip.io` para HTTPS automático |
-| `VITE_API_BASE` | frontend | URL del backend; vacío = rutas relativas `/api` |
+| `ANTHROPIC_API_KEY` | Credencial del proveedor de IA. | Vacía; necesaria para funciones de IA. |
+| `DATABASE_URL` | Conexión SQLAlchemy. | `sqlite:///./data.db` |
+| `FRONTEND_URL` | Origen del frontend y URL base de invitaciones. | `http://localhost:5173` |
+| `MODELO_EXTRACCION` | Modelo para proponer requisitos y extraer fichas. | `claude-haiku-5-5` |
+| `MODELO_EVALUACION` | Modelo para evaluación y entrevista. | `claude-haiku-5-5` |
+| `PROMPT_VERSION` | Versión de prompts en `backend/app/prompts/`. | `v1` |
+| `LLM_TIMEOUT_SECONDS` | Tiempo máximo por solicitud al proveedor. | `60` |
+| `EVALUACIONES_CONCURRENTES` | Máximo de evaluaciones simultáneas en un lote. | `5` |
+| `UPLOADS_DIR` | Directorio temporal usado al procesar documentos. | `uploads` |
+| `LIBREOFFICE_PATH` | Ruta opcional a LibreOffice si no está en `PATH`. | Vacía |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Credenciales de PostgreSQL en Compose. | Definidas en `.env.example`; cámbialas. |
+| `DOMAIN` | Host de Caddy: `:80` o dominio público. | `:80` |
 
-Nunca subas archivos `.env`, llaves `.pem` ni credenciales: usa los `.env.example` como plantilla.
+`VITE_API_BASE` es una variable de compilación del frontend; vacía usa rutas relativas `/api`. No incluyas claves ni datos personales en commits, issues o logs.
+
+## Estado actual y limitaciones
+
+- El puntaje, estado, recomendación y orden se calculan en código en backend y frontend. Las implementaciones se mantienen sincronizadas con fixtures de paridad.
+- El modo demo usa datos estáticos del frontend y no representa resultados de una ejecución real.
+- Las correcciones humanas y parte del registro de actividad son estado de interfaz; no equivalen a una bitácora persistente.
+- La API administrativa no implementa autenticación de usuarios. No la expongas directamente a Internet sin controles de acceso en la infraestructura.
+- La entrevista interna y las invitaciones públicas usan el agente del backend; la entrevista no toma decisiones de contratación.
+
+Más detalles en [privacidad y uso responsable](docs/privacidad-y-uso-responsable.md) y [despliegue](docs/despliegue.md).

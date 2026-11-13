@@ -1,3 +1,5 @@
+"""Extracción de una ficha estructurada desde líneas de CV ya anonimizadas."""
+
 import logging
 import re
 from datetime import datetime, timezone

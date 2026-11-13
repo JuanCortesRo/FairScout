@@ -118,6 +118,7 @@ def _respuesta(fila: EntrevistaDB, evaluacion: dict | None = None,
 
 @router.post("/entrevistas", response_model=EntrevistaSalida)
 async def iniciar_entrevista(entrada: EntrevistaEntrada, db: Session = Depends(get_db)) -> EntrevistaSalida:
+    """Crea una entrevista privada y revoca cualquier sesión pendiente del mismo candidato y vacante."""
     candidato = db.get(CandidatoDB, entrada.candidato_id)
     vacante = db.get(VacanteDB, entrada.vacante_id)
     if candidato is None or vacante is None:
@@ -157,6 +158,7 @@ async def iniciar_entrevista(entrada: EntrevistaEntrada, db: Session = Depends(g
 async def crear_invitacion(
     vacante_id: str, candidato_id: str, request: Request, db: Session = Depends(get_db)
 ) -> CrearInvitacionEntrevistaSalida:
+    """Genera un enlace público de 72 horas y persiste solo el hash de su token de acceso."""
     candidato = db.get(CandidatoDB, candidato_id)
     vacante = db.get(VacanteDB, vacante_id)
     if candidato is None or vacante is None:
@@ -214,6 +216,7 @@ def revocar_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> Ent
 
 @router.get("/publico/entrevistas/{token}", response_model=EntrevistaPublicaSalida)
 def ver_entrevista_publica(token: str, db: Session = Depends(get_db)) -> EntrevistaPublicaSalida:
+    """Consulta el estado público del enlace tras aplicar límite de solicitudes y validar expiración."""
     _rate_limit(hash_interview_token(token))
     fila = _obtener_publica(token, db)
     return _publica(fila, db.get(VacanteDB, fila.vacante_id))
@@ -226,6 +229,7 @@ def ver_entrevista_publica(token: str, db: Session = Depends(get_db)) -> Entrevi
 def iniciar_entrevista_publica(
     token: str, entrada: ConsentimientoEntrevistaEntrada, db: Session = Depends(get_db)
 ) -> EntrevistaPublicaSalida:
+    """Inicia el enlace público únicamente después de registrar el consentimiento."""
     token_hash = hash_interview_token(token)
     _rate_limit(token_hash)
     fila = _obtener_publica(token, db)
@@ -247,6 +251,7 @@ def iniciar_entrevista_publica(
 async def responder_entrevista_publica(
     token: str, entrada: RespuestaPublicaEntrevistaEntrada, db: Session = Depends(get_db)
 ) -> EntrevistaPublicaSalida:
+    """Procesa una respuesta pública, avanza el plan y finaliza entre cinco y diez turnos."""
     token_hash = hash_interview_token(token)
     _rate_limit(token_hash)
     fila = _obtener_publica(token, db)
@@ -285,6 +290,7 @@ async def responder_entrevista_publica(
 @router.post("/entrevistas/{entrevista_id}/respuestas", response_model=EntrevistaSalida)
 async def responder_entrevista(entrevista_id: str, entrada: RespuestaEntrevistaEntrada,
                                db: Session = Depends(get_db)) -> EntrevistaSalida:
+    """Guarda la respuesta privada y avanza o finaliza la entrevista sin terminar antes de cinco turnos."""
     fila = db.get(EntrevistaDB, entrevista_id)
     if fila is None:
         raise HTTPException(status_code=404, detail="La entrevista no existe.")
@@ -323,6 +329,7 @@ async def responder_entrevista(entrevista_id: str, entrada: RespuestaEntrevistaE
 
 @router.get("/entrevistas/{entrevista_id}", response_model=EntrevistaSalida)
 def obtener_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> EntrevistaSalida:
+    """Devuelve el estado privado completo de una entrevista persistida."""
     fila = db.get(EntrevistaDB, entrevista_id)
     if fila is None:
         raise HTTPException(status_code=404, detail="La entrevista no existe.")
@@ -331,6 +338,7 @@ def obtener_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> Ent
 
 @router.post("/entrevistas/{entrevista_id}/finalizar", response_model=EntrevistaSalida)
 def finalizar_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> EntrevistaSalida:
+    """Finaliza manualmente una entrevista solo si ya contiene al menos cinco respuestas."""
     fila = db.get(EntrevistaDB, entrevista_id)
     if fila is None:
         raise HTTPException(status_code=404, detail="La entrevista no existe.")
@@ -345,6 +353,7 @@ def finalizar_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> E
 
 @router.post("/entrevistas/{entrevista_id}/reiniciar", response_model=EntrevistaSalida)
 async def reiniciar_entrevista(entrevista_id: str, db: Session = Depends(get_db)) -> EntrevistaSalida:
+    """Crea una sesión nueva con el plan guardado; conserva intacto el historial anterior."""
     fila = db.get(EntrevistaDB, entrevista_id)
     if fila is None:
         raise HTTPException(status_code=404, detail="La entrevista no existe.")

@@ -1,6 +1,5 @@
-"""Pipeline de procesamiento.
+"""Procesamiento de vacantes y CVs: lectura, anonimización, extracción y evaluación.
 
-Por vacante: requirements (LLM).
-Por CV: parsing → anonymize → extract (LLM 1) → postprocess → evaluate (LLM 2) → verify → scoring → explain (LLM 3).
-Salvo requirements.py, todas las funciones son stubs por ahora.
+El flujo de CV combina pasos locales deterministas con extracción y evaluación mediante LLM;
+las citas, puntajes y explicaciones se validan o calculan en código.
 """

@@ -9,6 +9,7 @@ export class ErrorAPI extends Error {
   }
 }
 
+/** Centraliza fetch, normaliza errores de red/API y devuelve el cuerpo JSON. */
 async function request(path, options = {}) {
   let response;
   try {
@@ -28,6 +29,7 @@ async function request(path, options = {}) {
 
 const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+/** Comprueba disponibilidad con un límite corto para no bloquear el inicio de la interfaz. */
 export async function salud() {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), 2500);

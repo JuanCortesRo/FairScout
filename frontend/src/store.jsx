@@ -36,6 +36,7 @@ const INICIAL = {
   lote: null,               // { inicio, fin, total }
 };
 
+/** Recupera solo preferencias visuales; candidatos y datos personales vienen del servidor. */
 function cargar() {
   try {
     const raw = localStorage.getItem(CLAVE);
@@ -153,6 +154,7 @@ function conCorrecciones(c, correcciones) {
   };
 }
 
+/** Coordina el estado compartido, la sincronización con la API y el modo de demostración. */
 export function AppProvider({ children }) {
   const [estado, setEstado] = useState(cargar);
   const [backend, setBackend] = useState('verificando'); // verificando | conectado | desconectado
@@ -193,6 +195,7 @@ export function AppProvider({ children }) {
   }, [set]);
 
   // ── Datos del servidor ─────────────────────────────────────────────────────
+  /** Sincroniza vacantes, CVs, evaluaciones y ranking; ignora respuestas de solicitudes obsoletas. */
   const refrescar = useCallback(async (vacanteIdPreferida) => {
     if (ref.current.origen === 'demo') return;
     const solicitud = ++rankingSeq.current;
@@ -252,6 +255,7 @@ export function AppProvider({ children }) {
     }
   }, [set]);
 
+  /** Carga de forma diferida el detalle anonimizado del candidato y su evaluación vigente. */
   const cargarCandidato = useCallback(async (id) => {
     const vacanteId = ref.current.vacante?.id;
     const [cv, evaluacion] = await Promise.all([
@@ -318,6 +322,7 @@ export function AppProvider({ children }) {
   }, [refrescar, registrar, notificar]);
 
   // ── Vacante ────────────────────────────────────────────────────────────────
+  /** Actualiza la vacante y vuelve a evaluar solo si cambió la versión de sus requisitos. */
   const confirmarVacante = useCallback((vacante) => {
     const anterior = ref.current.vacante;
     const version = vacante.version_requisitos
@@ -397,6 +402,7 @@ export function AppProvider({ children }) {
     }
   }, [actualizarArchivo]);
 
+  /** Procesa una cola de cargas con concurrencia limitada para evitar saturar la API. */
   const procesarCola = useCallback(async (lista) => {
     const cola = [...lista];
     await Promise.all(Array.from({ length: Math.min(CARGAS_EN_PARALELO, cola.length) }, async () => {
@@ -411,6 +417,7 @@ export function AppProvider({ children }) {
   }, [subirUno, set, refrescar, evaluar]);
 
   /** Valida y sube archivos al backend. Devuelve los rechazados por formato. */
+  /** Valida tamaño/formato, registra archivos aceptados y arranca su procesamiento. */
   const agregarArchivos = useCallback((files) => {
     if (ref.current.origen === 'demo') {
       notificar('Estás viendo datos de ejemplo. Sal de la demo para cargar CVs reales.', 'error');
@@ -527,6 +534,7 @@ export function AppProvider({ children }) {
   }, [set, refrescar, registrar, notificar]);
 
   // ── Demo ───────────────────────────────────────────────────────────────────
+  /** Activa los datos sintéticos sin mezclarlos con el estado persistido del backend. */
   const cargarDemo = useCallback(() => {
     const candidatos = generarLoteDemo(60);
     const archivos = [
@@ -627,5 +635,6 @@ export function AppProvider({ children }) {
 }
 
 export function useApp() {
+  /** Accede al estado y acciones globales; requiere estar dentro de `AppProvider`. */
   return useContext(Ctx);
 }

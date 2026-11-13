@@ -1,3 +1,5 @@
+"""Normalización y validación local de fechas, experiencia, habilidades e idiomas de la ficha."""
+
 import re
 from datetime import date
 

@@ -1,3 +1,5 @@
+"""Evaluación semántica de cada requisito mediante el modelo configurado."""
+
 import logging
 
 from pydantic import ValidationError
