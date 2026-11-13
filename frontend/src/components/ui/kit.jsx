@@ -5,7 +5,7 @@ import { CONFIANZAS, ESTADOS, RESULTADOS, TIPOS, CATEGORIAS } from '@/lib/consta
 import { CircleHelp, X } from 'lucide-react';
 
 export function Card({ className, ...props }) {
-  return <div className={cn('rounded-xl border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]', className)} {...props} />;
+  return <div className={cn('rounded-2xl border border-border/80 bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_4px_16px_-8px_rgba(16,24,40,0.08)]', className)} {...props} />;
 }
 
 export function CardHeader({ titulo, descripcion, accion, icono: Icono, className }) {
@@ -13,7 +13,7 @@ export function CardHeader({ titulo, descripcion, accion, icono: Icono, classNam
     <div className={cn('flex items-start justify-between gap-4 border-b px-5 py-4', className)}>
       <div className="flex min-w-0 items-start gap-3">
         {Icono && (
-          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-100 text-primary ring-1 ring-primary/10 dark:from-indigo-500/15 dark:to-violet-500/25">
             <Icono className="size-4" />
           </span>
         )}
@@ -29,13 +29,21 @@ export function CardHeader({ titulo, descripcion, accion, icono: Icono, classNam
 
 export function PageHeader({ titulo, descripcion, paso, acciones }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        {paso && <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">{paso}</p>}
-        <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
-        {descripcion && <p className="mt-1 max-w-2xl text-muted-foreground">{descripcion}</p>}
+    <div className="fondo-cabecera relative mb-6 overflow-hidden rounded-3xl border border-primary/10 px-6 py-6 sm:px-8 sm:py-7">
+      <span aria-hidden="true" className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-violet-400/20 blur-3xl" />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 size-56 rounded-full bg-cyan-300/20 blur-3xl" />
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          {paso && (
+            <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-0.5 dark:bg-white/10 text-[11px] font-semibold uppercase tracking-wider text-primary ring-1 ring-primary/15">
+              <span className="bg-marca size-1.5 rounded-full" /> {paso}
+            </p>
+          )}
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{titulo}</h1>
+          {descripcion && <p className="mt-1.5 max-w-2xl text-[15px] text-muted-foreground">{descripcion}</p>}
+        </div>
+        {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
       </div>
-      {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
     </div>
   );
 }
@@ -144,12 +152,12 @@ export function Interruptor({ activo, onChange, etiqueta, descripcion }) {
 
 export function Pestanas({ opciones, valor, onChange, className }) {
   return (
-    <div role="tablist" className={cn('inline-flex max-w-full overflow-x-auto rounded-lg bg-muted p-1 scrollbar-fino', className)}>
+    <div role="tablist" className={cn('inline-flex max-w-full overflow-x-auto rounded-xl bg-muted/80 p-1 ring-1 ring-border/60 scrollbar-fino', className)}>
       {opciones.map((o) => (
         <button
           key={o.valor} role="tab" type="button" aria-selected={valor === o.valor} onClick={() => onChange(o.valor)}
           className={cn('inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all',
-            valor === o.valor ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+            valor === o.valor ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60' : 'text-muted-foreground hover:text-foreground')}
         >
           {o.icono && <o.icono className="size-4" />}
           {o.etiqueta}
@@ -166,11 +174,15 @@ export function EstadoVacio({ icono: Icono, titulo, descripcion, children, class
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-14 text-center', className)}>
       {Icono && (
-        <span className="mb-4 grid size-14 place-items-center rounded-2xl bg-accent text-accent-foreground">
-          <Icono className="size-7" />
+        <span className="relative mb-5 grid size-20 place-items-center">
+          <span aria-hidden="true" className="bg-marca absolute inset-0 rounded-3xl opacity-15 blur-xl" />
+          <span aria-hidden="true" className="absolute inset-2 rotate-6 rounded-2xl bg-violet-100 dark:bg-violet-500/20" />
+          <span className="bg-marca relative grid size-14 place-items-center rounded-2xl text-white shadow-lg shadow-violet-500/30">
+            <Icono className="size-7" />
+          </span>
         </span>
       )}
-      <h3 className="text-lg font-semibold">{titulo}</h3>
+      <h3 className="text-xl font-bold">{titulo}</h3>
       {descripcion && <p className="mt-1 max-w-md text-muted-foreground">{descripcion}</p>}
       {children && <div className="mt-5 flex flex-wrap justify-center gap-2">{children}</div>}
     </div>
@@ -247,21 +259,53 @@ export function Modal({ abierto, onClose, titulo, children, pie }) {
   );
 }
 
-export function Kpi({ etiqueta, valor, detalle, icono: Icono, tono = 'default' }) {
+/** Número que cuenta desde 0 al aparecer (solo visual). */
+function Contador({ valor }) {
+  const [mostrado, setMostrado] = useState(valor);
+  useEffect(() => {
+    const sinAnimar = typeof valor !== 'number' || document.hidden
+      || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (sinAnimar) { setMostrado(valor); return undefined; }
+    // setInterval (no requestAnimationFrame) para que siempre termine en el valor real, aunque la pestaña esté oculta.
+    const inicio = Date.now();
+    const id = setInterval(() => {
+      const p = Math.min(1, (Date.now() - inicio) / 700);
+      setMostrado(Math.round(valor * (1 - (1 - p) ** 3)));
+      if (p >= 1) clearInterval(id);
+    }, 30);
+    return () => { clearInterval(id); setMostrado(valor); };
+  }, [valor]);
+  return mostrado;
+}
+
+export function Kpi({ etiqueta, valor, detalle, icono: Icono, tono = 'default', total }) {
   const tonos = {
-    default: 'bg-accent text-accent-foreground',
-    ok: 'bg-ok-soft text-ok',
-    warn: 'bg-warn-soft text-warn',
-    bad: 'bg-bad-soft text-bad',
-    info: 'bg-info-soft text-info',
+    default: { icono: 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white', barra: 'bg-marca' },
+    ok: { icono: 'bg-ok-soft text-ok', barra: 'bg-ok' },
+    warn: { icono: 'bg-warn-soft text-warn', barra: 'bg-warn' },
+    bad: { icono: 'bg-bad-soft text-bad', barra: 'bg-bad' },
+    info: { icono: 'bg-info-soft text-info', barra: 'bg-info' },
   };
+  const t = tonos[tono] ?? tonos.default;
+  const pct = total ? Math.round((valor / total) * 100) : null;
   return (
-    <Card className="flex items-center gap-3 p-4">
-      {Icono && <span className={cn('grid size-10 shrink-0 place-items-center rounded-lg', tonos[tono])}><Icono className="size-5" /></span>}
-      <div className="min-w-0">
-        <p className="text-2xl font-semibold leading-none tabular-nums">{valor}</p>
-        <p className="mt-1 text-xs leading-tight text-muted-foreground">{etiqueta}{detalle && <span> · {detalle}</span>}</p>
+    <Card className="tarjeta-viva relative overflow-hidden p-4">
+      <span aria-hidden="true" className={cn('absolute inset-x-0 top-0 h-1', t.barra)} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-heading text-3xl font-extrabold leading-none tabular-nums"><Contador valor={valor} /></p>
+          <p className="mt-1.5 text-xs leading-tight text-muted-foreground">{etiqueta}{detalle && <span> · {detalle}</span>}</p>
+        </div>
+        {Icono && <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', t.icono)}><Icono className="size-5" /></span>}
       </div>
+      {pct != null && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div className={cn('h-full rounded-full transition-all duration-700', t.barra)} style={{ width: `${pct}%` }} />
+          </div>
+          <span className="text-[11px] font-medium text-muted-foreground tabular-nums">{pct}%</span>
+        </div>
+      )}
     </Card>
   );
 }

@@ -19,7 +19,7 @@ class LLMNoConfigurado(RuntimeError):
 def get_client() -> AsyncAnthropic:
     if not settings.ANTHROPIC_API_KEY:
         raise LLMNoConfigurado("Falta configurar ANTHROPIC_API_KEY en el archivo .env del backend.")
-    return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=settings.LLM_TIMEOUT_SECONDS)
 
 
 def cargar_prompt(nombre: str, version: str | None = None) -> str:

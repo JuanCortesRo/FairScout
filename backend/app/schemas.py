@@ -41,6 +41,8 @@ class Ficha(BaseModel):          # salida del LLM, llamada 1
     idiomas: list[Idioma]
     habilidades_tecnicas: list[str]
     competencias_blandas: list[str]
+    anios_experiencia: float | None = None
+    inconsistencia_fechas: bool = False
 
 class Requisito(BaseModel):
     id: str
@@ -92,10 +94,19 @@ class EvaluacionSalida(BaseModel):
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
     puntaje: float                     # 0-100
-    estado: Literal["cumple", "cumple_parcialmente", "no_cumple"]
+    estado: Literal["cumple", "cumple_parcialmente", "pendiente_verificar", "no_cumple"]
     confianza: Literal["alta", "media", "baja"]
     recomendado_entrevista: bool
     motivo_estado: str                 # p. ej. "Falta obligatorio: inglés B2"
+
+
+class DetalleRanking(BaseModel):
+    puntaje_obligatorios: float | None
+    puntaje_deseables: float | None
+    cobertura: float
+    motivos_confianza: list[str]
+    categorias: dict[str, float]
+    citas_sin_verificar: int
 
 
 # ── Entrada/salida de la API (no forman parte de la sección 8) ──────────────
@@ -118,6 +129,9 @@ class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
     id: str | None = None
+    descripcion: str | None = None
+    version_requisitos: int = 1
+    requisitos_confirmados: bool = False
     # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
     requisitos_bloqueados: list[RequisitoBloqueado] = []
 
@@ -133,6 +147,17 @@ class CVSubido(BaseModel):
 
 class CargaCVsSalida(BaseModel):
     archivos: list[CVSubido]
+
+
+class CVResumen(BaseModel):
+    id: str
+    nombre_archivo: str
+    estado: Literal["processed", "needs_review", "failed"]
+    alertas: list[str] = []
+
+
+class ListaCVsSalida(BaseModel):
+    archivos: list[CVResumen]
 
 
 class EvaluacionEntrada(BaseModel):
@@ -163,7 +188,67 @@ class RankingSalida(BaseModel):
     vacante_id: str | None = None
     peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
     candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
+    detalles: dict[str, DetalleRanking] = Field(default_factory=dict)
     en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
+
+
+class EntrevistaEntrada(BaseModel):
+    candidato_id: str = Field(..., min_length=1)
+    vacante_id: str = Field(..., min_length=1)
+
+
+class RespuestaEntrevistaEntrada(BaseModel):
+    respuesta: str = Field(..., min_length=1, max_length=10000)
+
+
+class CrearInvitacionEntrevistaSalida(BaseModel):
+    id: str
+    public_url: str
+    token: str
+    expira_at: str
+    estado: Literal["pending", "en_curso", "finalizada", "expirada", "revocada"]
+
+
+class EntrevistaPrivadaResumen(BaseModel):
+    id: str
+    candidato_id: str
+    vacante_id: str
+    estado: Literal["pending", "en_curso", "finalizada", "expirada", "revocada"]
+    expira_at: str | None = None
+    consent_at: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+class ConsentimientoEntrevistaEntrada(BaseModel):
+    consentimiento: bool
+
+
+class RespuestaPublicaEntrevistaEntrada(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000)
+
+
+class EntrevistaPublicaSalida(BaseModel):
+    estado: Literal["pending", "en_curso", "finalizada"]
+    expira_at: str
+    vacante_titulo: str | None = None
+    pregunta: dict | None = None
+    progreso: dict = Field(default_factory=dict)
+
+class EntrevistaSalida(BaseModel):
+    id: str
+    candidato_id: str
+    vacante_id: str
+    pregunta: dict | None = None
+    pregunta_siguiente: dict | None = None
+    mensajes: list[dict] = Field(default_factory=list)
+    historial: list[dict] = Field(default_factory=list)
+    evaluacion_respuesta: dict | None = None
+    inconsistencias: list[str] = Field(default_factory=list)
+    progreso: dict = Field(default_factory=dict)
+    estado: str
+    informe: dict | None = None
+    recomendacion: str | None = None
 
 
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.

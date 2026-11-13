@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Users, CircleCheck, CircleAlert, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert, Trophy, ArrowRight,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
-  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor,
+  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor, Alerta, Pill, AnilloPuntaje,
 } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
@@ -30,6 +31,78 @@ function MiniCategorias({ categorias }) {
   );
 }
 
+const MEDALLAS = [
+  { etiqueta: '1.º', clase: 'from-amber-300 to-amber-500 text-amber-950', borde: 'ring-amber-300/60' },
+  { etiqueta: '2.º', clase: 'from-slate-200 to-slate-400 text-slate-800', borde: 'ring-slate-300/60' },
+  { etiqueta: '3.º', clase: 'from-orange-300 to-orange-500 text-orange-950', borde: 'ring-orange-300/60' },
+];
+
+/** Los tres primeros del ranking, destacados (solo presentación). */
+function Podio({ items, nombreVisible, onAbrir }) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-6">
+      <div className="mb-3 flex items-center gap-2">
+        <Trophy className="size-4 text-amber-500" />
+        <h2 className="font-heading text-lg font-bold">Mejor evaluados</h2>
+      </div>
+      <div className="entrada-escalonada grid gap-4 md:grid-cols-3">
+        {items.map(({ candidato: c, resultado: r }, i) => (
+          <button key={c.candidato_id} onClick={() => onAbrir(c.candidato_id)}
+            className={cn('tarjeta-viva group relative overflow-hidden rounded-2xl border bg-card p-5 text-left shadow-sm ring-1', MEDALLAS[i].borde)}>
+            <span aria-hidden="true" className="bg-marca pointer-events-none absolute -top-12 -right-12 size-32 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-25" />
+            <div className="flex items-start justify-between">
+              <span className={cn('grid size-9 place-items-center rounded-full bg-gradient-to-br font-heading text-sm font-extrabold shadow-sm', MEDALLAS[i].clase)}>{MEDALLAS[i].etiqueta}</span>
+              <AnilloPuntaje valor={r.puntaje} tamano={64} grosor={6} />
+            </div>
+            <p className="mt-3 truncate font-heading text-lg font-bold">{nombreVisible(c)}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <EstadoBadge estado={r.estado} />
+              <Confianza nivel={r.confianza} />
+            </div>
+            <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-xs text-muted-foreground">{r.motivo_estado}</p>
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+              {r.recomendado_entrevista ? 'Recomendado para entrevista' : 'Ver evaluación'}
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Barra apilada con la distribución de estados del lote. */
+function Distribucion({ stats }) {
+  const partes = [
+    { clave: 'cumple', etiqueta: 'Cumplen', valor: stats.cumple, color: 'bg-ok' },
+    { clave: 'parcial', etiqueta: 'Parcialmente', valor: stats.parcial, color: 'bg-warn' },
+    { clave: 'pendiente', etiqueta: 'Por verificar', valor: stats.pendiente, color: 'bg-info' },
+    { clave: 'no', etiqueta: 'No cumplen', valor: stats.no, color: 'bg-bad' },
+  ].filter((p) => p.valor > 0);
+  if (!stats.total) return null;
+  return (
+    <Card className="mt-4 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Distribución del lote</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {partes.map((p) => (
+            <span key={p.clave} className="inline-flex items-center gap-1.5">
+              <span className={cn('size-2.5 rounded-full', p.color)} /> {p.etiqueta} <b className="text-foreground tabular-nums">{p.valor}</b>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label="Distribución de candidatos por estado">
+        {partes.map((p) => (
+          <div key={p.clave} className={cn('h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full', p.color)}
+            style={{ width: `${(p.valor / stats.total) * 100}%` }} title={`${p.etiqueta}: ${p.valor}`} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function AjustePesos() {
   const { pesos, setPesos, registrar } = useApp();
   return (
@@ -48,7 +121,7 @@ function AjustePesos() {
             onChange={(e) => setPesos({ obligatorios: Number(e.target.value) })}
             onMouseUp={() => registrar('Pesos ajustados', `Obligatorios ${pesos.obligatorios}% / deseables ${100 - pesos.obligatorios}%`)}
             className="w-full accent-[var(--primary)]" aria-label="Peso de los obligatorios" />
-          <p className="mt-1 text-xs">El ranking se recalcula al instante, sin volver a llamar a la IA.</p>
+          <p className="mt-1 text-xs">El backend recalcula el ranking sin volver a llamar a la IA.</p>
         </div>
         <p className="border-t pt-3 text-xs">El puntaje <b>no</b> es una probabilidad de éxito.</p>
       </div>
@@ -57,7 +130,10 @@ function AjustePesos() {
 }
 
 export default function Ranking() {
-  const { vacante, ranking, candidatos, cargarDemo, nombreVisible, seleccion, toggleSeleccion } = useApp();
+  const {
+    vacante, ranking, cargarDemo, nombreVisible, seleccion, toggleSeleccion, backend, enDemo,
+    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor, erroresEvaluacion,
+  } = useApp();
   const navigate = useNavigate();
   const [pestana, setPestana] = useState('aptos');
   const [busqueda, setBusqueda] = useState('');
@@ -68,12 +144,14 @@ export default function Ranking() {
     total: ranking.length,
     cumple: ranking.filter((r) => r.resultado.estado === 'cumple').length,
     parcial: ranking.filter((r) => r.resultado.estado === 'cumple_parcialmente').length,
+    pendiente: ranking.filter((r) => r.resultado.estado === 'pendiente_verificar').length,
     no: ranking.filter((r) => r.resultado.estado === 'no_cumple').length,
     recomendados: ranking.filter((r) => r.resultado.recomendado_entrevista).length,
   }), [ranking]);
 
   const filtrados = useMemo(() => ranking.filter(({ candidato, resultado }) => {
     if (pestana === 'aptos' && resultado.estado === 'no_cumple') return false;
+    if (pestana === 'pendiente_verificar' && resultado.estado !== 'pendiente_verificar') return false;
     if (pestana === 'no_cumple' && resultado.estado !== 'no_cumple') return false;
     if (confianza !== 'todas' && resultado.confianza !== confianza) return false;
     if (soloRecomendados && !resultado.recomendado_entrevista) return false;
@@ -81,18 +159,50 @@ export default function Ranking() {
     return true;
   }), [ranking, pestana, confianza, soloRecomendados, busqueda, nombreVisible]);
 
-  if (!vacante || candidatos.length === 0) {
+  const avisoEvaluacion = !enDemo && (evaluando || pendientes.length > 0) && (
+    evaluando ? (
+      <Alerta tipo="info" icono={Loader2} className="mb-4 [&>svg]:animate-spin" titulo="Evaluando CVs con la IA…">
+        Cada requisito se evalúa con una cita del CV. El ranking se actualiza al terminar.
+      </Alerta>
+    ) : (
+      <Alerta tipo="warn" icono={Clock} className="mb-4" titulo={`${pendientes.length} CV(s) procesados todavía sin evaluar`}>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <span>Aún no aparecen en el ranking.</span>
+          <Button size="sm" onClick={() => evaluar()}><Sparkles /> Evaluar ahora</Button>
+        </div>
+      </Alerta>
+    )
+  );
+  const avisoErrores = erroresEvaluacion.length > 0 && (
+    <Alerta tipo="error" icono={CircleAlert} className="mb-4" titulo={`${erroresEvaluacion.length} CV(s) no pudieron evaluarse`}>
+      <ul className="mt-1 list-disc pl-4">
+        {erroresEvaluacion.map((error) => (
+          <li key={error.candidato_id}>
+            {`Candidato ${error.candidato_id.slice(0, 6).toUpperCase()}: ${error.detalle}`}
+          </li>
+        ))}
+      </ul>
+    </Alerta>
+  );
+
+  if (!vacante || (ranking.length === 0 && enRevision.length === 0)) {
+    const sinCVs = vacante && pendientes.length === 0 && !evaluando;
     return (
       <>
         <PageHeader paso="Paso 3 de 3" titulo="Ranking de candidatos" />
+        {vacante && avisoEvaluacion}
+        {avisoErrores}
+        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los datos del servidor">{errorServidor}</Alerta>}
         <Card>
           <EstadoVacio
             icono={vacante ? FileUp : Briefcase}
-            titulo={vacante ? 'Aún no hay CVs evaluados' : 'No hay una vacante activa'}
-            descripcion={vacante ? 'Carga las hojas de vida para ver aquí el ranking explicado de todos los candidatos.' : 'Crea la vacante y carga CVs, o prueba la demo con 60 candidatos ya evaluados.'}
+            titulo={!vacante ? 'No hay una vacante activa' : cargandoServidor ? 'Cargando candidatos…' : sinCVs ? 'Aún no hay CVs evaluados' : 'Todavía no hay resultados'}
+            descripcion={vacante
+              ? 'Carga las hojas de vida para ver aquí el ranking explicado de todos los candidatos.'
+              : backend === 'conectado' ? 'Crea la vacante y confirma sus requisitos para empezar.' : 'Crea una vacante para empezar, o explora un ejemplo con 60 candidatos ya evaluados.'}
           >
-            <Link to={vacante ? '/cvs' : '/vacante'} className={buttonVariants({ size: 'lg' })}>{vacante ? 'Cargar CVs' : 'Crear vacante'}</Link>
-            <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Ver demo completa</Button>
+            {(!vacante || sinCVs) && <Link to={vacante ? '/cvs' : '/vacante'} className={buttonVariants({ size: 'lg' })}>{vacante ? 'Cargar CVs' : 'Crear vacante'}</Link>}
+            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Explorar un ejemplo</Button>}
           </EstadoVacio>
         </Card>
       </>
@@ -104,28 +214,46 @@ export default function Ranking() {
       <PageHeader
         paso="Paso 3 de 3"
         titulo="Ranking de candidatos"
-        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado contra la vacante; el orden lo calcula el código, no la IA."
+        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el backend calcula el orden, no la IA."
         acciones={(
-          <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)}>
-            <Download /> Exportar CSV
-          </Button>
+          <>
+            {!enDemo && (
+              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar datos del servidor">
+                <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
+              </Button>
+            )}
+            <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
+              <Download /> Exportar CSV
+            </Button>
+          </>
         )}
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {avisoEvaluacion}
+      {avisoErrores}
+      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
+
+      <div className="entrada-escalonada grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />
-        <Kpi icono={CircleCheck} tono="ok" etiqueta="Cumplen" valor={stats.cumple} />
-        <Kpi icono={CircleAlert} tono="warn" etiqueta="Cumplen parcialmente" valor={stats.parcial} />
-        <Kpi icono={CircleX} tono="bad" etiqueta="No cumplen" valor={stats.no} />
-        <Kpi icono={Star} tono="info" etiqueta="Recomendados a entrevista" valor={stats.recomendados} />
+        <Kpi icono={CircleCheck} tono="ok" etiqueta="Cumplen" valor={stats.cumple} total={stats.total} />
+        <Kpi icono={CircleAlert} tono="warn" etiqueta="Cumplen parcialmente" valor={stats.parcial} total={stats.total} />
+        <Kpi icono={CircleHelp} tono="info" etiqueta="Pendientes de verificar" valor={stats.pendiente} total={stats.total} />
+        <Kpi icono={CircleX} tono="bad" etiqueta="No cumplen" valor={stats.no} total={stats.total} />
+        <Kpi icono={Star} etiqueta="Recomendados a entrevista" valor={stats.recomendados} total={stats.total} />
       </div>
+
+      <Distribucion stats={stats} />
+      <Podio items={ranking.filter((r) => r.resultado.estado !== 'no_cumple').slice(0, 3)} nombreVisible={nombreVisible}
+        onAbrir={(id) => navigate(`/candidato/${id}`)} />
 
       <Card className="mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <Pestanas valor={pestana} onChange={setPestana} opciones={[
-            { valor: 'aptos', etiqueta: 'Para revisar', contador: stats.cumple + stats.parcial },
+            { valor: 'aptos', etiqueta: 'Para revisar', contador: stats.cumple + stats.parcial + stats.pendiente },
+            { valor: 'pendiente_verificar', etiqueta: 'Pendientes', contador: stats.pendiente },
             { valor: 'no_cumple', etiqueta: 'No cumplen', contador: stats.no },
             { valor: 'todos', etiqueta: 'Todos', contador: stats.total },
+            ...(enRevision.length ? [{ valor: 'revision', etiqueta: 'En revisión', contador: enRevision.length }] : []),
           ]} />
           <div className="flex flex-wrap items-center gap-3">
             <label className="relative">
@@ -150,7 +278,35 @@ export default function Ranking() {
             Estos candidatos siguen visibles para revisión humana. Si crees que la evaluación se equivocó, abre el detalle y revisa la evidencia.
           </p>
         )}
+        {pestana === 'pendiente_verificar' && (
+          <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+            Falta información del CV sobre requisitos obligatorios. Verifica esos puntos antes de decidir si cumple o no.
+          </p>
+        )}
 
+        {pestana === 'revision' ? (
+          <>
+            <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+              Estos CVs no se enviaron a la IA por una alerta de seguridad. Una persona debe revisarlos antes de decidir.
+            </p>
+            <ul className="divide-y">
+              {enRevision.map((c) => (
+                <li key={c.candidato_id}>
+                  <button onClick={() => navigate(`/candidato/${c.candidato_id}`)} className="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-accent/50">
+                    <ShieldAlert className="size-5 shrink-0 text-warn" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{nombreVisible(c)}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
         <div className="overflow-x-auto scrollbar-fino">
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
@@ -206,6 +362,7 @@ export default function Ranking() {
             </tbody>
           </table>
         </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
           <span>{filtrados.length} de {ranking.length} candidatos</span>
           <span>{AVISO_DECISION}</span>

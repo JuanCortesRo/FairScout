@@ -12,6 +12,8 @@ import { useApp } from '@/store';
 import { explicar } from '@/lib/scoring';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
+import { aniosExperiencia, nombreCertificacion } from '@/lib/ficha';
+import { crearInvitacionEntrevista, revocarInvitacionEntrevista } from '@/api';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
 function VisorCV({ candidato, activas, citadas, alClicLinea }) {
@@ -39,7 +41,7 @@ function VisorCV({ candidato, activas, citadas, alClicLinea }) {
   return (
     <div ref={contenedor} className="max-h-[calc(100vh-11rem)] space-y-4 overflow-y-auto bg-muted/50 p-4 scrollbar-fino">
       {paginas.map(([p, lineas]) => (
-        <div key={p} className="rounded-lg bg-white px-6 py-5 shadow-sm ring-1 ring-black/5">
+        <div key={p} className="hoja-papel rounded-md bg-white px-7 py-6 ring-1 ring-black/5">
           <p className="mb-3 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Página {p.slice(1)}</p>
           {lineas.map((l) => {
             const activa = activas.includes(l.id);
@@ -105,7 +107,7 @@ function FilaEvaluacion({ fila, activa, onCita, onCorregir }) {
               : <CircleAlert className="size-3.5 shrink-0 text-warn" aria-label="Cita no encontrada en el CV" />}
           </button>
         ) : <span className="text-xs text-muted-foreground">Sin cita: no hay evidencia en el CV.</span>}
-        <button onClick={onCorregir} className="text-xs font-medium text-muted-foreground hover:text-primary">Corregir</button>
+        {onCorregir && <button onClick={onCorregir} className="text-xs font-medium text-muted-foreground hover:text-primary">Corregir</button>}
       </div>
       {ev.cita && !ev.cita_verificada && (
         <p className="mt-2 text-xs text-warn">La cita no aparece textualmente en el CV. Se marcó como no verificada y bajó la confianza.</p>
@@ -125,8 +127,10 @@ function ListaExplicacion({ icono: Icono, titulo, items, tono, vacio }) {
       {items.length === 0 ? <p className="text-sm text-muted-foreground">{vacio}</p> : (
         <ul className="space-y-2">
           {items.map((it) => (
-            <li key={it.req.id} className="rounded-lg border px-3 py-2 text-sm">
-              <span className="font-medium">{it.req.nombre}.</span> <span className="text-foreground/75">{it.texto}</span>
+            <li key={typeof it === 'string' ? it : it.req.id} className="rounded-lg border px-3 py-2 text-sm">
+              {typeof it === 'string'
+                ? it
+                : <><span className="font-medium">{it.req.nombre}.</span> <span className="text-foreground/75">{it.texto}</span></>}
             </li>
           ))}
         </ul>
@@ -146,8 +150,8 @@ function Ficha({ ficha, onLinea }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.anios_experiencia}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.anios_python}</p><p className="text-xs text-muted-foreground">años con Python</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.experiencias.length}</p><p className="text-xs text-muted-foreground">cargos registrados</p></div>
       </div>
       <Seccion icono={Briefcase} titulo="Experiencia">
         <ol className="relative space-y-3 border-l pl-4">
@@ -171,7 +175,7 @@ function Ficha({ ficha, onLinea }) {
       </Seccion>
       <div className="grid gap-5 sm:grid-cols-2">
         <Seccion icono={Award} titulo="Certificaciones">
-          {ficha.certificaciones.length ? <div className="flex flex-wrap gap-1.5">{ficha.certificaciones.map((c) => <Chip key={c.nombre}>{c.nombre}</Chip>)}</div>
+          {ficha.certificaciones.length ? <div className="flex flex-wrap gap-1.5">{ficha.certificaciones.map((c, i) => <Chip key={i}>{nombreCertificacion(c)}</Chip>)}</div>
             : <p className="text-sm text-muted-foreground">Ninguna reportada.</p>}
         </Seccion>
         <Seccion icono={Languages} titulo="Idiomas">
@@ -189,6 +193,36 @@ function Ficha({ ficha, onLinea }) {
   );
 }
 
+/** CV en revisión humana (no se envió a la IA) o procesado pero todavía sin evaluar. */
+function SinEvaluacion({ c, nombre, onVolver }) {
+  const revision = c.estado_documento === 'needs_review';
+  return (
+    <>
+      <button onClick={onVolver} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> Volver al ranking
+      </button>
+      <Card className="mb-6 p-5">
+        <p className="text-xs font-medium text-muted-foreground">{c.nombre_archivo}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
+        </div>
+      </Card>
+      <Alerta tipo={revision ? 'warn' : 'info'} icono={revision ? ShieldAlert : CircleAlert} className="mb-6"
+        titulo={revision ? 'En revisión humana: este CV no se envió a la IA' : 'Este CV todavía no se ha evaluado'}>
+        {revision
+          ? 'Se detectó una alerta de seguridad (texto que intenta manipular la evaluación o un dato personal sin anonimizar). Revisa el documento antes de decidir.'
+          : 'Ya se leyó y anonimizó. Evalúalo desde el ranking para ver su resultado por requisito.'}
+        <ul className="mt-1 list-disc pl-4">{c.alertas.map((a) => <li key={a}>{ALERTAS[a]?.texto ?? a}</li>)}</ul>
+      </Alerta>
+      <Card className="overflow-hidden">
+        <CardHeader icono={FileText} titulo="Hoja de vida anonimizada" descripcion="Texto extraído del documento." />
+        <VisorCV candidato={c} activas={[]} citadas={new Set()} alClicLinea={() => {}} />
+      </Card>
+    </>
+  );
+}
+
 const OPCIONES_CORRECCION = {
   normal: ['cumple', 'equivalente', 'parcial', 'no_cumple', 'sin_informacion'],
   descalificante: ['presente', 'ausente', 'sin_informacion'],
@@ -197,15 +231,61 @@ const OPCIONES_CORRECCION = {
 export default function DetalleCandidato() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { ranking, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar } = useApp();
+  const {
+    ranking, candidatos, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar,
+    cargarCandidato, enDemo,
+  } = useApp();
   const [pestana, setPestana] = useState('evaluacion');
   const [activas, setActivas] = useState([]);
   const [reqActivo, setReqActivo] = useState(null);
   const [correccion, setCorreccion] = useState(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState('');
+  const [invitacion, setInvitacion] = useState(null);
+  const [creandoInvitacion, setCreandoInvitacion] = useState(false);
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
+  useEffect(() => {
+    if (!id || enDemo) return undefined;
+    let vigente = true;
+    setCargandoDetalle(true);
+    setErrorDetalle('');
+    cargarCandidato(id).catch((e) => {
+      if (vigente) setErrorDetalle(e.message);
+    }).finally(() => {
+      if (vigente) setCargandoDetalle(false);
+    });
+    return () => { vigente = false; };
+  }, [id, enDemo, cargarCandidato]);
 
   const item = ranking.find((r) => r.candidato.candidato_id === id);
-  const exp = useMemo(() => (item ? explicar(item.resultado) : null), [item]);
+  const candidatoActual = item?.candidato ?? candidatos.find((x) => x.candidato_id === id);
+  const necesitaCarga = !enDemo && !!id && !errorDetalle && !candidatoActual?.ficha;
+  const exp = useMemo(() => {
+    if (!item) return null;
+    const explicacion = item.candidato.explicacion;
+    return explicacion
+      ? {
+        fortalezas: explicacion.fortalezas,
+        brechas: explicacion.brechas,
+        porVerificar: explicacion.aspectos_por_verificar,
+      }
+      : explicar(item.resultado);
+  }, [item]);
+
+  const sinEvaluar = !item && candidatoActual;
+  if (cargandoDetalle || necesitaCarga) {
+    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV y la evaluación desde el servidor">Las líneas del documento se consultan solo al abrir el detalle.</Alerta>;
+  }
+  if (errorDetalle && !sinEvaluar?.lineas?.length && !item?.candidato.lineas?.length) {
+    return (
+      <Card>
+        <EstadoVacio icono={UserX} titulo="No se pudo cargar este candidato" descripcion={errorDetalle}>
+          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+        </EstadoVacio>
+      </Card>
+    );
+  }
+  if (sinEvaluar) return <SinEvaluacion c={sinEvaluar} nombre={nombreVisible(sinEvaluar)} onVolver={() => navigate('/ranking')} />;
 
   if (!item) {
     return (
@@ -226,6 +306,27 @@ export default function DetalleCandidato() {
   const anterior = ranking[posicion - 2];
   const siguiente = ranking[posicion];
 
+  const invitar = async () => {
+    if (!vacante?.id || creandoInvitacion) return;
+    setCreandoInvitacion(true);
+    try {
+      setInvitacion(await crearInvitacionEntrevista(vacante.id, c.candidato_id));
+    } catch (error) {
+      notificar(error.message, 'error');
+    } finally {
+      setCreandoInvitacion(false);
+    }
+  };
+  const revocar = async () => {
+    try {
+      await revocarInvitacionEntrevista(invitacion.id);
+      setInvitacion({ ...invitacion, estado: 'revocada' });
+      notificar('La invitación fue revocada.', 'ok');
+    } catch (error) {
+      notificar(error.message, 'error');
+    }
+  };
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -240,13 +341,18 @@ export default function DetalleCandidato() {
       </div>
 
       {/* Encabezado */}
-      <Card className="mb-6 p-5">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <AnilloPuntaje valor={r.puntaje} tamano={84} />
+      <Card className="relative mb-6 overflow-hidden p-0">
+        <div aria-hidden="true" className={cn('h-1.5 w-full',
+          r.estado === 'cumple' ? 'bg-ok' : r.estado === 'no_cumple' ? 'bg-bad' : r.estado === 'pendiente_verificar' ? 'bg-info' : 'bg-warn')} />
+        <span aria-hidden="true" className="bg-marca pointer-events-none absolute -top-24 -left-16 size-64 rounded-full opacity-[0.07] blur-3xl" />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-5">
+            <div className="rounded-full bg-card p-1.5 shadow-[0_8px_24px_-12px_rgba(91,91,240,0.5)] ring-1 ring-border">
+              <AnilloPuntaje valor={r.puntaje} tamano={84} grosor={8} />
+            </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">Posición #{posicion} · {c.nombre_archivo}</p>
-              <h1 className="truncate text-2xl font-semibold tracking-tight">{nombreVisible(c)}</h1>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Posición #{posicion} de {ranking.length}</p>
+              <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <EstadoBadge estado={r.estado} />
                 <Confianza nivel={r.confianza} />
@@ -255,17 +361,26 @@ export default function DetalleCandidato() {
               <p className="mt-1.5 text-sm text-muted-foreground">{r.motivo_estado}</p>
             </div>
           </div>
-          <div className={cn('flex items-start gap-3 rounded-xl border p-4 lg:w-80', r.recomendado_entrevista ? 'border-info/25 bg-info-soft' : 'bg-muted/50')}>
-            {r.recomendado_entrevista ? <ThumbsUp className="mt-0.5 size-5 shrink-0 text-info" /> : <ThumbsDown className="mt-0.5 size-5 shrink-0 text-muted-foreground" />}
+          <div className={cn('flex items-start gap-3 rounded-2xl border p-4 lg:w-96',
+            r.recomendado_entrevista ? 'border-violet-200 bg-gradient-to-br from-indigo-50 via-violet-50 to-cyan-50 dark:border-violet-400/25 dark:from-indigo-500/10 dark:via-violet-500/10 dark:to-cyan-500/10' : 'bg-muted/50')}>
+            <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', r.recomendado_entrevista ? 'bg-marca text-white shadow-md shadow-violet-500/30' : 'bg-card text-muted-foreground ring-1 ring-border')}>
+              {r.recomendado_entrevista ? <ThumbsUp className="size-5" /> : <ThumbsDown className="size-5" />}
+            </span>
             <div className="min-w-0">
               <p className="font-semibold">{r.recomendado_entrevista ? 'Recomendado para entrevista' : 'No recomendado para entrevista'}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {r.recomendado_entrevista
-                  ? (r.estado === 'cumple' ? 'Cumple todos los obligatorios.' : 'La duda viene de falta de información: vale la pena verificarla en entrevista.')
-                  : r.estado === 'no_cumple' ? 'No cumple un obligatorio o tiene un descalificante.' : 'Las brechas en obligatorios pesan más que la falta de información.'}
+                  ? (r.estado === 'cumple' ? 'Cumple todos los obligatorios.' : 'Falta información de requisitos obligatorios que puede verificarse en entrevista.')
+                  : r.estado === 'no_cumple'
+                    ? 'Hay evidencia de que no cumple un obligatorio o de un descalificante presente.'
+                    : r.estado === 'pendiente_verificar'
+                      ? 'Falta información sobre requisitos obligatorios; verifica esos puntos antes de decidir.'
+                      : 'Hay evidencia parcial sobre uno o más requisitos obligatorios.'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => navigate(`/entrevista/${c.candidato_id}`)}><MessagesSquare /> Iniciar entrevista</Button>
+                <Button size="sm" onClick={invitar} disabled={enDemo || creandoInvitacion}>
+                  <MessagesSquare /> {creandoInvitacion ? 'Creando enlace…' : 'Invitar a entrevista'}
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => { if (!seleccion.includes(c.candidato_id)) toggleSeleccion(c.candidato_id); navigate('/comparador'); }}>
                   <Columns3 /> Comparar
                 </Button>
@@ -275,10 +390,15 @@ export default function DetalleCandidato() {
         </div>
       </Card>
 
-      {c.alertas.includes('prompt_injection') && (
+      {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
           Se encontró una instrucción escrita en blanco y en tamaño mínimo. El texto del CV se envía a la IA como dato, nunca como instrucción, así que no tuvo efecto.
-          {' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button>
+          {c.linea_inyeccion && <>{' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button></>}
+        </Alerta>
+      )}
+      {!enDemo && (
+        <Alerta tipo="info" icono={CircleAlert} className="mb-6" titulo="Correcciones humanas no disponibles en el backend">
+          El servidor aún no ofrece un endpoint para guardar correcciones. La evidencia y el resultado que ves provienen de la evaluación persistida.
         </Alerta>
       )}
 
@@ -307,7 +427,7 @@ export default function DetalleCandidato() {
                       {g.filas.map((f) => (
                         <FilaEvaluacion key={f.req.id} fila={f} activa={reqActivo === f.req.id}
                           onCita={() => mostrarCita(f)}
-                          onCorregir={() => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' })} />
+                        onCorregir={enDemo ? () => setCorreccion({ req: f.req, valor: f.ev.resultado, motivo: '' }) : null} />
                       ))}
                     </div>
                   </section>
@@ -344,6 +464,24 @@ export default function DetalleCandidato() {
       </div>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">{AVISO_DECISION}</p>
+
+      <Modal abierto={!!invitacion} onClose={() => setInvitacion(null)} titulo="Invitación creada"
+        pie={(
+          <>
+            {invitacion?.estado === 'pending' && <Button variant="outline" onClick={revocar}>Revocar enlace</Button>}
+            <Button onClick={() => setInvitacion(null)}>Cerrar</Button>
+          </>
+        )}>
+        {invitacion && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Comparte este enlace con el candidato. Expira el {new Date(invitacion.expira_at).toLocaleString()}.</p>
+            <div className="flex gap-2">
+              <input readOnly value={invitacion.public_url} className="min-w-0 flex-1 rounded-lg border bg-muted px-3 py-2 text-sm" />
+              <Button variant="outline" onClick={() => navigator.clipboard.writeText(invitacion.public_url)}>Copiar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal abierto={!!correccion} onClose={() => setCorreccion(null)} titulo={`Corregir ${correccion?.req.id ?? ''}`}
         pie={(

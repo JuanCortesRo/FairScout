@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Briefcase, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X, Eye, EyeOff, Scale,
-  CircleCheck, CircleX, Info, Check,
+  Briefcase, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X, Eye, EyeOff,
+  CircleCheck, CircleX, Info, Check, Sparkles, Scale, Moon, Sun,
 } from 'lucide-react';
 import { useApp } from '@/store';
+import Logo from '@/components/Logo';
+import { useTema } from '@/lib/tema';
 import { cn } from '@/lib/utils';
 
 const FLUJO = [
@@ -14,7 +16,7 @@ const FLUJO = [
 ];
 const ANALISIS = [
   { to: '/comparador', label: 'Comparador', icono: Columns3 },
-  { to: '/entrevista', label: 'Entrevista IA', icono: MessagesSquare, etiqueta: 'Bonus' },
+  { to: '/entrevista', label: 'Entrevistas', icono: MessagesSquare },
   { to: '/auditoria', label: 'Auditoría', icono: ShieldCheck },
 ];
 
@@ -25,25 +27,29 @@ function ItemNav({ item, completado, onNavigate }) {
       to={item.to}
       onClick={onNavigate}
       className={({ isActive }) => cn(
-        'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-        isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+        'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+        isActive
+          ? 'bg-white/[0.08] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+          : 'text-sidebar-foreground/70 hover:bg-white/[0.05] hover:text-white',
       )}
     >
       {({ isActive }) => (
         <>
           {item.paso ? (
             <span className={cn(
-              'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ring-1',
-              completado ? 'bg-sidebar-primary text-sidebar-primary-foreground ring-sidebar-primary'
-                : isActive ? 'ring-sidebar-primary text-sidebar-accent-foreground' : 'ring-sidebar-border text-sidebar-foreground/70',
+              'relative z-10 grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold ring-1 transition-all',
+              completado ? 'bg-marca text-white ring-transparent shadow-[0_4px_12px_-2px_rgba(139,79,240,0.6)]'
+                : isActive ? 'bg-sidebar ring-2 ring-sidebar-primary text-white' : 'bg-sidebar ring-sidebar-border text-sidebar-foreground/70',
             )}>
               {completado ? <Check className="size-3.5" /> : item.paso}
             </span>
           ) : (
-            <Icono className={cn('size-4 shrink-0', isActive ? 'text-sidebar-primary' : '')} />
+            <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg transition-colors', isActive ? 'bg-marca text-white' : 'text-sidebar-foreground/70 group-hover:text-white')}>
+              <Icono className="size-4" />
+            </span>
           )}
           <span className="flex-1">{item.label}</span>
-          {item.etiqueta && <span className="rounded bg-sidebar-primary/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sidebar-primary">{item.etiqueta}</span>}
+          {item.etiqueta && <span className="rounded-full bg-gradient-to-r from-violet-500/30 to-cyan-400/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">{item.etiqueta}</span>}
         </>
       )}
     </NavLink>
@@ -51,44 +57,44 @@ function ItemNav({ item, completado, onNavigate }) {
 }
 
 function Sidebar({ onNavigate }) {
-  const { vacante, candidatos, backend } = useApp();
-  const completados = { 1: !!vacante, 2: candidatos.length > 0, 3: false };
+  const { vacante, candidatos, ranking } = useApp();
+  const completados = { 1: !!vacante, 2: candidatos.length > 0, 3: ranking.length > 0 };
+  const avance = Object.values(completados).filter(Boolean).length;
   return (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 to-violet-600 text-white shadow-lg shadow-indigo-900/40">
-          <Scale className="size-5" />
-        </span>
-        <div className="leading-tight">
-          <p className="font-semibold text-white">FairScout</p>
-          <p className="text-xs text-sidebar-foreground/60">Preselección justa y explicable</p>
-        </div>
+    <div className="fondo-sidebar flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="px-5 pt-6 pb-5">
+        <Logo claro lema />
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="Navegación principal">
+      <nav className="flex-1 space-y-7 overflow-y-auto px-3 py-2" aria-label="Navegación principal">
         <div>
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">Flujo</p>
+          <div className="flex items-center justify-between px-3 pb-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Proceso</p>
+            <span className="text-[11px] font-medium text-sidebar-foreground/45 tabular-nums">{avance}/3</span>
+          </div>
           <div className="relative space-y-1">
+            {/* Línea que une los pasos del proceso; la parte de color avanza con cada paso completado */}
+            <span aria-hidden="true" className="absolute top-6 bottom-6 left-[1.6rem] w-px bg-sidebar-border" />
+            <span aria-hidden="true" className="bg-marca absolute top-6 left-[1.6rem] w-px transition-all duration-500"
+              style={{ height: `calc((100% - 3rem) * ${Math.max(0, avance - 1) / 2})` }} />
             {FLUJO.map((it) => <ItemNav key={it.to} item={it} completado={completados[it.paso]} onNavigate={onNavigate} />)}
           </div>
         </div>
         <div>
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">Análisis y gobierno</p>
+          <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Análisis y gobierno</p>
           <div className="space-y-1">
             {ANALISIS.map((it) => <ItemNav key={it.to} item={it} onNavigate={onNavigate} />)}
           </div>
         </div>
       </nav>
 
-      <div className="m-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-3 text-xs">
-        <div className="flex items-center gap-2">
-          <span className={cn('size-2 rounded-full', backend === 'conectado' ? 'bg-emerald-400' : backend === 'demo' ? 'bg-amber-400' : 'animate-pulse bg-sidebar-foreground/40')} />
-          <span className="font-medium text-sidebar-accent-foreground">
-            {backend === 'conectado' ? 'Servidor conectado' : backend === 'demo' ? 'Modo demostración' : 'Verificando servidor…'}
-          </span>
+      <div className="m-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex items-center gap-2 text-white">
+          <Scale className="size-4 text-cyan-300" />
+          <p className="text-sm font-semibold">IA responsable</p>
         </div>
-        <p className="mt-1 text-sidebar-foreground/55">
-          {backend === 'demo' ? 'Sin conexión al backend: se usan datos de ejemplo.' : 'La IA recomienda; el equipo de selección decide.'}
+        <p className="mt-1.5 text-xs leading-relaxed text-sidebar-foreground/60">
+          Sin edad, género, foto ni nacionalidad. La IA recomienda; tu equipo decide.
         </p>
       </div>
     </div>
@@ -96,36 +102,74 @@ function Sidebar({ onNavigate }) {
 }
 
 function BarraSuperior({ onMenu }) {
-  const { vacante, modoCiego, toggleCiego } = useApp();
+  const { vacante, modoCiego, toggleCiego, enDemo, reiniciar } = useApp();
+  const { tema, alternar } = useTema();
+  const oscuro = tema === 'oscuro';
+  const navigate = useNavigate();
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/70 bg-background/75 px-4 backdrop-blur-xl sm:px-6">
       <button className="-ml-1 rounded-md p-1.5 hover:bg-muted lg:hidden" onClick={onMenu} aria-label="Abrir menú">
         <Menu className="size-5" />
       </button>
+      <Logo tamano={30} className="mr-1 lg:hidden" />
       <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
         {vacante ? (
           <>
-            <Briefcase className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate font-medium">{vacante.titulo}</span>
-            <span className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground sm:inline">
-              requisitos v{vacante.version}
+            <span className="hidden min-w-0 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 shadow-sm sm:inline-flex">
+              <span className="bg-marca grid size-6 shrink-0 place-items-center rounded-full text-white"><Briefcase className="size-3.5" /></span>
+              <span className="truncate font-medium">{vacante.titulo}</span>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">v{vacante.version}</span>
             </span>
           </>
         ) : (
-          <span className="text-muted-foreground">Sin vacante activa</span>
+          <span className="hidden text-muted-foreground sm:inline">Crea una vacante para empezar</span>
         )}
       </div>
+      {enDemo && (
+        <button onClick={() => { reiniciar(); navigate('/vacante'); }} title="Salir de los datos de ejemplo"
+          className="group inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20">
+          <Sparkles className="size-3.5" /> Ejemplo <X className="size-3 opacity-60 group-hover:opacity-100" />
+        </button>
+      )}
+      <button
+        onClick={alternar}
+        aria-label={oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        title={oscuro ? 'Modo claro' : 'Modo oscuro'}
+        className="relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border bg-card shadow-sm transition-colors hover:bg-muted"
+      >
+        <Moon className={cn('size-4 transition-all duration-300', oscuro ? 'translate-y-6 rotate-90 opacity-0' : 'text-violet-600')} />
+        <Sun className={cn('absolute size-4 transition-all duration-300', oscuro ? 'text-amber-300' : '-translate-y-6 -rotate-90 opacity-0')} />
+      </button>
       <button
         onClick={toggleCiego}
         aria-pressed={modoCiego}
         title="El modo ciego oculta los nombres y muestra solo un número de candidato"
-        className={cn('inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
-          modoCiego ? 'border-primary/30 bg-accent text-accent-foreground' : 'hover:bg-muted')}
+        className={cn('inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium shadow-sm transition-all',
+          modoCiego ? 'border-transparent bg-foreground text-background' : 'bg-card hover:bg-muted')}
       >
         {modoCiego ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        <span className="hidden sm:inline">{modoCiego ? 'Modo ciego activo' : 'Modo ciego apagado'}</span>
+        <span className="hidden sm:inline">{modoCiego ? 'Modo ciego' : 'Nombres visibles'}</span>
       </button>
     </header>
+  );
+}
+
+function Pie() {
+  return (
+    <footer className="border-t border-border/70 bg-card/60">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-sm sm:px-6 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <Logo tamano={28} />
+          <span className="hidden h-5 w-px bg-border md:block" />
+          <span className="text-muted-foreground">Preselección justa, explicable y basada en evidencia.</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+          <NavLink to="/auditoria" className="inline-flex items-center gap-1.5 hover:text-foreground"><ShieldCheck className="size-3.5" /> Ficha del sistema</NavLink>
+          <span>Desarrollado por <b className="font-semibold text-foreground">Backpropagation</b></span>
+          <span>© {new Date().getFullYear()} FairScout</span>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -169,9 +213,12 @@ export default function Layout() {
         </div>
       )}
       <BarraSuperior onMenu={() => setMenu(true)} />
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
-        <Outlet />
+      <main className="mx-auto min-h-[calc(100vh-11rem)] max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
+        <div key={pathname} className="entrada">
+          <Outlet />
+        </div>
       </main>
+      <Pie />
       <Avisos />
     </div>
   );

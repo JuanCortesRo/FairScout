@@ -69,3 +69,67 @@ def test_equivalente_vale_0_8_y_sigue_cumpliendo():
 
     assert resultado.puntaje == 80
     assert resultado.estado == "cumple"
+
+
+def test_sin_informacion_obligatoria_queda_pendiente_aunque_otro_sea_parcial():
+    requisitos = [
+        Requisito(id="o1", nombre="Python", tipo="obligatorio", categoria="tecnica"),
+        Requisito(id="o2", nombre="SQL", tipo="obligatorio", categoria="tecnica"),
+    ]
+    evaluaciones = [
+        EvaluacionRequisito(
+            requisito_id="o1", resultado="parcial", cita="Conocimientos básicos",
+            lineas=["p1-l1"], justificacion="Evidencia parcial.", cita_verificada=True,
+        ),
+        EvaluacionRequisito(
+            requisito_id="o2", resultado="sin_informacion", cita=None,
+            lineas=[], justificacion="No se menciona.", cita_verificada=False,
+        ),
+    ]
+
+    resultado = calcular_resultado(evaluaciones, requisitos, "cand-1")
+
+    assert resultado.estado == "pendiente_verificar"
+
+
+def test_incumplimiento_explicito_prevalece_sobre_informacion_faltante():
+    requisitos = [
+        Requisito(id="o1", nombre="Python", tipo="obligatorio", categoria="tecnica"),
+        Requisito(id="o2", nombre="SQL", tipo="obligatorio", categoria="tecnica"),
+    ]
+    evaluaciones = [
+        EvaluacionRequisito(
+            requisito_id="o1", resultado="no_cumple", cita="No tiene experiencia con Python",
+            lineas=["p1-l1"], justificacion="El CV contradice el requisito.", cita_verificada=True,
+        ),
+        EvaluacionRequisito(
+            requisito_id="o2", resultado="sin_informacion", cita=None,
+            lineas=[], justificacion="No se menciona.", cita_verificada=False,
+        ),
+    ]
+
+    resultado = calcular_resultado(evaluaciones, requisitos, "cand-1")
+
+    assert resultado.estado == "no_cumple"
+
+
+def test_cumplir_obligatorios_no_depende_de_los_deseables():
+    requisitos = [
+        Requisito(id="o1", nombre="Python", tipo="obligatorio", categoria="tecnica"),
+        Requisito(id="d1", nombre="Docker", tipo="deseable", categoria="tecnica"),
+    ]
+    evaluaciones = [
+        EvaluacionRequisito(
+            requisito_id="o1", resultado="cumple", cita="Experiencia con Python",
+            lineas=["p1-l1"], justificacion="Cumple el requisito.", cita_verificada=True,
+        ),
+        EvaluacionRequisito(
+            requisito_id="d1", resultado="no_cumple", cita="No ha usado Docker",
+            lineas=["p1-l2"], justificacion="No cumple el deseable.", cita_verificada=True,
+        ),
+    ]
+
+    resultado = calcular_resultado(evaluaciones, requisitos, "cand-1")
+
+    assert resultado.puntaje == 60
+    assert resultado.estado == "cumple"

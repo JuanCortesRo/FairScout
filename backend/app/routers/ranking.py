@@ -13,8 +13,19 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
-from app.pipeline.scoring import PESO_OBLIGATORIOS, alertas_para_puntaje, calcular_resultado, ordenar_ranking
-from app.schemas import CandidatoEnRevision, EvaluacionRequisito, RankingSalida, Requisito
+from app.pipeline.scoring import (
+    PESO_OBLIGATORIOS,
+    alertas_para_puntaje,
+    calcular_con_desglose,
+    ordenar_ranking,
+)
+from app.schemas import (
+    CandidatoEnRevision,
+    DetalleRanking,
+    EvaluacionRequisito,
+    RankingSalida,
+    Requisito,
+)
 
 router = APIRouter(tags=["ranking"])
 
@@ -50,11 +61,23 @@ def obtener_ranking(
             vigentes[fila.candidato_id] = fila
 
     resultados = []
+    detalles = {}
     for candidato_id, fila in vigentes.items():
         candidato = db.get(CandidatoDB, candidato_id)
         evaluaciones = [EvaluacionRequisito.model_validate(e) for e in fila.resultado["evaluaciones"]]
         alertas = alertas_para_puntaje(candidato.alertas or []) if candidato else []
-        resultados.append(calcular_resultado(evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios))
+        resultado, desglose = calcular_con_desglose(
+            evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios
+        )
+        resultados.append(resultado)
+        detalles[candidato_id] = DetalleRanking(
+            puntaje_obligatorios=desglose.puntaje_obligatorios,
+            puntaje_deseables=desglose.puntaje_deseables,
+            cobertura=desglose.cobertura,
+            motivos_confianza=desglose.motivos_confianza,
+            categorias=desglose.categorias,
+            citas_sin_verificar=desglose.citas_sin_verificar,
+        )
 
     en_revision = db.scalars(
         select(CandidatoDB).where(CandidatoDB.estado == "needs_review").order_by(CandidatoDB.id)
@@ -64,6 +87,7 @@ def obtener_ranking(
         vacante_id=vacante.id,
         peso_obligatorios=peso_obligatorios,
         candidatos=ordenar_ranking(resultados),
+        detalles=detalles,
         en_revision=[
             CandidatoEnRevision(candidato_id=c.id, nombre_archivo=c.nombre_archivo, alertas=c.alertas or [])
             for c in en_revision

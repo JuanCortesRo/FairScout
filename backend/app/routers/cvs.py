@@ -17,7 +17,7 @@ from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB
-from app.schemas import CargaCVsSalida, CVSubido, Ficha
+from app.schemas import CargaCVsSalida, CVResumen, CVSubido, Ficha, ListaCVsSalida
 
 router = APIRouter(tags=["cvs"])
 
@@ -89,6 +89,8 @@ async def subir_cvs(
                 alertas=[f"extraccion_llm: {error}"],
             )
             continue
+        if ficha.inconsistencia_fechas:
+            alertas = list(dict.fromkeys([*alertas, "inconsistencia_fechas"]))
         subidos[-1] = CVSubido(
             id=cv_id,
             nombre_archivo=archivo.filename,
@@ -121,15 +123,13 @@ def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, 
     db.commit()
 
 
-@router.get("/cvs", response_model=CargaCVsSalida)
-def listar_cvs(db: Session = Depends(get_db)) -> CargaCVsSalida:
+@router.get("/cvs", response_model=ListaCVsSalida)
+def listar_cvs(db: Session = Depends(get_db)) -> ListaCVsSalida:
     candidatos = db.query(CandidatoDB).order_by(CandidatoDB.id).all()
-    return CargaCVsSalida(archivos=[
-        CVSubido(
+    return ListaCVsSalida(archivos=[
+        CVResumen(
             id=candidato.id,
             nombre_archivo=candidato.nombre_archivo,
-            lineas=candidato.lineas_anonimizadas,
-            ficha=candidato.ficha,
             estado=candidato.estado,
             alertas=candidato.alertas or [],
         )

@@ -1,5 +1,5 @@
 """Modelos SQLAlchemy para vacantes, candidatos y evaluaciones."""
-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -58,3 +58,25 @@ class EvaluacionDB(Base):
     vacante_id: Mapped[str] = mapped_column(String(32), nullable=False)
     version_requisitos: Mapped[int] = mapped_column(Integer, nullable=False)
     resultado: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class EntrevistaDB(Base):
+    """Estado durable de una entrevista (el contenido no guarda datos originales del CV)."""
+
+    __tablename__ = "entrevistas"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    candidato_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    vacante_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    estado: Mapped[str] = mapped_column(String(30), nullable=False, default="en_curso")
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    expira_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consent_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    plan: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    mensajes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    historial: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    pregunta_actual: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    informe: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -127,7 +127,7 @@ def test_evaluacion_devuelve_puntaje_calculado_en_codigo(client):
         "estado": "cumple",
         "confianza": "baja",  # la cita "AWS" no está en p1-l2 (dice Azure): obligatorio sin verificar
         "recomendado_entrevista": True,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje",
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes",
     }
     assert "1 cita(s) no encontradas en el CV" in cuerpo["motivos_confianza"]
     # La explicación se arma en código después del puntaje: la cita falsa de AWS queda "por verificar".
@@ -145,10 +145,13 @@ def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
 
     assert [c["candidato_id"] for c in cuerpo["candidatos"]] == ["C1", "C3", "C2"]
     estados = {c["candidato_id"]: c["estado"] for c in cuerpo["candidatos"]}
-    assert estados == {"C1": "cumple", "C3": "cumple_parcialmente", "C2": "no_cumple"}
+    assert estados == {"C1": "cumple", "C3": "pendiente_verificar", "C2": "no_cumple"}
     c3 = next(c for c in cuerpo["candidatos"] if c["candidato_id"] == "C3")
     assert c3["confianza"] == "baja"  # texto oculto cuenta como intento de manipulación
     assert c3["motivo_estado"] == "Obligatorio sin información: AWS"
+    assert c3["recomendado_entrevista"] is True
+    assert cuerpo["detalles"]["C3"]["puntaje_obligatorios"] == 0.5
+    assert cuerpo["detalles"]["C3"]["categorias"] == {"tecnica": 0.5, "idioma": 1.0}
 
 
 def test_ranking_recalcula_con_otro_peso_sin_llamar_al_llm(client):
@@ -250,3 +253,37 @@ def test_no_se_evalua_con_un_requisito_protegido_guardado(client, session_factor
     assert r.status_code == 422
     assert "dato protegido (género)" in r.json()["detail"]
     assert client.llamadas == []
+
+
+def test_listar_evaluaciones_devuelve_la_vigente_de_cada_candidato(client, session_factory):
+    _evaluar(client, "C1")
+    _evaluar(client, "C2")
+    _evaluar(client, "C2")
+
+    cuerpo = client.get("/api/vacantes/V1/evaluaciones").json()
+
+    assert [e["candidato_id"] for e in cuerpo] == ["C1", "C2"]
+    c1 = cuerpo[0]
+    assert [e["requisito_id"] for e in c1["evaluaciones"]] == ["R1", "R2", "R3"]
+    assert c1["evaluaciones"][0]["cita_verificada"] is True
+    assert c1["trazabilidad"]["version_requisitos"] == 1
+
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").version_requisitos += 1
+        db.commit()
+    assert client.get("/api/vacantes/V1/evaluaciones").json() == []
+    assert client.get("/api/vacantes/NO/evaluaciones").status_code == 404
+
+
+def test_obtener_evaluacion_individual_devuelve_solo_la_vigente(client, session_factory):
+    _evaluar(client, "C1")
+    endpoint = "/api/vacantes/V1/candidatos/C1/evaluacion"
+
+    assert client.get(endpoint).json()["candidato_id"] == "C1"
+    assert client.get("/api/vacantes/V1/candidatos/C4/evaluacion").status_code == 404
+    assert client.get("/api/vacantes/NO/candidatos/C1/evaluacion").status_code == 404
+
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").version_requisitos += 1
+        db.commit()
+    assert client.get(endpoint).status_code == 404

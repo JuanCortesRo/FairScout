@@ -47,6 +47,14 @@ def _migrar_columnas_existentes() -> None:
         "candidatos": {
             "alertas": "JSON NOT NULL DEFAULT '[]'",
         },
+        "entrevistas": {
+            "token_hash": "VARCHAR(64)",
+            "expira_at": "TIMESTAMP",
+            "consent_at": "TIMESTAMP",
+            "started_at": "TIMESTAMP",
+            "finished_at": "TIMESTAMP",
+            "revoked_at": "TIMESTAMP",
+        },
     }
     inspector = inspect(engine)
     with engine.begin() as conexion:
@@ -55,3 +63,8 @@ def _migrar_columnas_existentes() -> None:
             for nombre, definicion in columnas.items():
                 if nombre not in existentes:
                     conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {definicion}"))
+        if "entrevistas" in inspector.get_table_names():
+            conexion.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_entrevistas_token_hash "
+                "ON entrevistas(token_hash)"
+            ))

@@ -44,7 +44,7 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-export function hashTexto(s) {
+function hashTexto(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
@@ -141,7 +141,6 @@ function construirCV(p) {
     habilidades_tecnicas: p.skills,
     competencias_blandas: p.liderazgo ? ['Liderazgo', 'Comunicación'] : ['Trabajo en equipo'],
     anios_experiencia: p.aniosTotal,
-    anios_python: p.aniosPython,
   };
 
   return { lineas, idx, id, buscarClave, ficha };
@@ -326,7 +325,7 @@ const CASOS = [
 ];
 
 /** Crea un candidato completo (CV, ficha, evaluación) a partir de una semilla. */
-export function crearCandidato(candidato_id, nombre_archivo, base = {}, semilla = hashTexto(candidato_id)) {
+function crearCandidato(candidato_id, nombre_archivo, base = {}, semilla = hashTexto(candidato_id)) {
   const p = perfil(semilla, base);
   const cv = construirCV(p);
   const rand = mulberry32(semilla + 7);
