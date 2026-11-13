@@ -23,8 +23,7 @@ async def proponer_requisitos(descripcion: str) -> VacanteSalida:
 
     Propaga los errores de la API de Anthropic (anthropic.APIError) y lanza
     RespuestaLLMInvalida si la salida no se puede usar tras un reintento.
-
-    TODO (sección 6.1 / 12): bloquear requisitos basados en datos protegidos.
+    Los requisitos con datos protegidos los filtra el router con `datos_protegidos.separar_requisitos`.
     """
     client = get_client()
     messages = [{

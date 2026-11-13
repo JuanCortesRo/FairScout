@@ -109,10 +109,17 @@ class VacanteActualizacion(BaseModel):
     requisitos: list[Requisito]
 
 
+class RequisitoBloqueado(BaseModel):
+    requisito: Requisito
+    motivo: str
+
+
 class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
     id: str | None = None
+    # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
+    requisitos_bloqueados: list[RequisitoBloqueado] = []
 
 
 class CVSubido(BaseModel):
