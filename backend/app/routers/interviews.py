@@ -14,6 +14,7 @@ from app.interview.agent import (
     EvaluacionTurno, PreguntaEntrevista, RespuestaAgenteInvalida,
     construir_informe, evaluar_respuesta, generar_plan,
 )
+from app.mensajes import error_de_ia
 from app.models import CandidatoDB, EntrevistaDB, VacanteDB
 from app.schemas import (
     ConsentimientoEntrevistaEntrada, CrearInvitacionEntrevistaSalida,
@@ -121,11 +122,13 @@ async def iniciar_entrevista(entrada: EntrevistaEntrada, db: Session = Depends(g
     vacante = db.get(VacanteDB, entrada.vacante_id)
     if candidato is None or vacante is None:
         raise HTTPException(status_code=404, detail="El candidato o la vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El candidato no está listo para entrevista.")
     pendientes = db.query(EntrevistaDB).filter(
-        EntrevistaDB.vacante_id == vacante_id,
-        EntrevistaDB.candidato_id == candidato_id,
+        EntrevistaDB.vacante_id == vacante.id,
+        EntrevistaDB.candidato_id == candidato.id,
         EntrevistaDB.estado.in_(("pending", "en_curso")),
     ).all()
     for pendiente in pendientes:
@@ -134,7 +137,7 @@ async def iniciar_entrevista(entrada: EntrevistaEntrada, db: Session = Depends(g
     try:
         plan = await generar_plan(Ficha.model_validate(candidato.ficha), _requisitos(vacante))
     except Exception as error:
-        raise HTTPException(status_code=502, detail=f"No fue posible generar la entrevista: {error}") from error
+        raise error_de_ia(error, "preparar la entrevista") from error
     fila = EntrevistaDB(
         id=uuid.uuid4().hex, candidato_id=candidato.id, vacante_id=vacante.id,
         estado="en_curso", plan=[p.model_dump() for p in plan], mensajes=[
@@ -158,6 +161,8 @@ async def crear_invitacion(
     vacante = db.get(VacanteDB, vacante_id)
     if candidato is None or vacante is None:
         raise HTTPException(status_code=404, detail="El candidato o la vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El candidato no está listo para entrevista.")
     try:
@@ -293,7 +298,7 @@ async def responder_entrevista(entrevista_id: str, entrada: RespuestaEntrevistaE
         evaluacion, siguiente, terminar = await evaluar_respuesta(
             Ficha.model_validate(candidato.ficha), pregunta, entrada.respuesta, fila.historial)
     except Exception as error:
-        raise HTTPException(status_code=502, detail=f"Respuesta de entrevista inválida: {error}") from error
+        raise error_de_ia(error, "procesar la respuesta") from error
     historial = [*fila.historial, {"pregunta": pregunta.model_dump(), "respuesta": entrada.respuesta,
                                    "evaluacion": evaluacion.model_dump()}]
     fila.historial = historial

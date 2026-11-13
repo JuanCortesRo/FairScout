@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Briefcase, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X, Eye, EyeOff,
+  Briefcase, FolderKanban, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X,
   CircleCheck, CircleX, Info, Check, Sparkles, Scale, Moon, Sun,
 } from 'lucide-react';
 import { useApp } from '@/store';
@@ -67,6 +67,7 @@ function Sidebar({ onNavigate }) {
       </div>
 
       <nav className="flex-1 space-y-7 overflow-y-auto px-3 py-2" aria-label="Navegación principal">
+        <ItemNav item={{ to: '/vacantes', label: 'Vacantes', icono: FolderKanban }} onNavigate={onNavigate} />
         <div>
           <div className="flex items-center justify-between px-3 pb-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Proceso</p>
@@ -81,31 +82,50 @@ function Sidebar({ onNavigate }) {
           </div>
         </div>
         <div>
-          <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Análisis y gobierno</p>
+          <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Análisis</p>
           <div className="space-y-1">
             {ANALISIS.map((it) => <ItemNav key={it.to} item={it} onNavigate={onNavigate} />)}
           </div>
         </div>
       </nav>
-
-      <div className="m-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-        <div className="flex items-center gap-2 text-white">
-          <Scale className="size-4 text-cyan-300" />
-          <p className="text-sm font-semibold">IA responsable</p>
-        </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-sidebar-foreground/60">
-          Sin edad, género, foto ni nacionalidad. La IA recomienda; tu equipo decide.
-        </p>
-      </div>
     </div>
   );
 }
 
+const SALIDA_PILDORA_MS = 250;
+
+/** Píldora de la vacante abierta: entra deslizándose a la derecha y sale hacia la izquierda. */
+function PildoraVacante({ vacante, visible }) {
+  const [montada, setMontada] = useState(visible && !!vacante);
+  const [ultima, setUltima] = useState(vacante);
+  useEffect(() => { if (vacante) setUltima(vacante); }, [vacante]);
+  useEffect(() => {
+    if (visible && vacante) { setMontada(true); return undefined; }
+    // Se mantiene montada mientras dura la animación de salida.
+    const t = setTimeout(() => setMontada(false), SALIDA_PILDORA_MS);
+    return () => clearTimeout(t);
+  }, [visible, vacante]);
+  if (!montada || !ultima) return null;
+  const saliendo = !(visible && vacante);
+  return (
+    <Link to="/vacantes" title="Cambiar de vacante" aria-hidden={saliendo || undefined} tabIndex={saliendo ? -1 : undefined}
+      className={cn('hidden min-w-0 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 shadow-sm transition-colors hover:bg-muted sm:inline-flex',
+        saliendo ? 'pildora-sale pointer-events-none' : 'pildora-entra')}>
+      <span className="bg-marca grid size-6 shrink-0 place-items-center rounded-full text-white"><Briefcase className="size-3.5" /></span>
+      <span className="truncate font-medium">{ultima.titulo}</span>
+      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">v{ultima.version}</span>
+    </Link>
+  );
+}
+
 function BarraSuperior({ onMenu }) {
-  const { vacante, modoCiego, toggleCiego, enDemo, reiniciar } = useApp();
+  const { vacante, enDemo, reiniciar } = useApp();
   const { tema, alternar } = useTema();
   const oscuro = tema === 'oscuro';
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // En la lista de vacantes no hay "vacante actual" que mostrar.
+  const mostrarVacante = pathname !== '/vacantes';
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/70 bg-background/75 px-4 backdrop-blur-xl sm:px-6">
       <button className="-ml-1 rounded-md p-1.5 hover:bg-muted lg:hidden" onClick={onMenu} aria-label="Abrir menú">
@@ -113,16 +133,9 @@ function BarraSuperior({ onMenu }) {
       </button>
       <Logo tamano={30} className="mr-1 lg:hidden" />
       <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-        {vacante ? (
-          <>
-            <span className="hidden min-w-0 items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 shadow-sm sm:inline-flex">
-              <span className="bg-marca grid size-6 shrink-0 place-items-center rounded-full text-white"><Briefcase className="size-3.5" /></span>
-              <span className="truncate font-medium">{vacante.titulo}</span>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">v{vacante.version}</span>
-            </span>
-          </>
-        ) : (
-          <span className="hidden text-muted-foreground sm:inline">Crea una vacante para empezar</span>
+        <PildoraVacante vacante={vacante} visible={mostrarVacante} />
+        {mostrarVacante && !vacante && (
+          <Link to="/vacantes" className="hidden text-muted-foreground hover:text-foreground sm:inline">Crea o abre una vacante para empezar</Link>
         )}
       </div>
       {enDemo && (
@@ -139,16 +152,6 @@ function BarraSuperior({ onMenu }) {
       >
         <Moon className={cn('size-4 transition-all duration-300', oscuro ? 'translate-y-6 rotate-90 opacity-0' : 'text-violet-600')} />
         <Sun className={cn('absolute size-4 transition-all duration-300', oscuro ? 'text-amber-300' : '-translate-y-6 -rotate-90 opacity-0')} />
-      </button>
-      <button
-        onClick={toggleCiego}
-        aria-pressed={modoCiego}
-        title="El modo ciego oculta los nombres y muestra solo un número de candidato"
-        className={cn('inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium shadow-sm transition-all',
-          modoCiego ? 'border-transparent bg-foreground text-background' : 'bg-card hover:bg-muted')}
-      >
-        {modoCiego ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        <span className="hidden sm:inline">{modoCiego ? 'Modo ciego' : 'Nombres visibles'}</span>
       </button>
     </header>
   );
@@ -197,7 +200,7 @@ export default function Layout() {
   useEffect(() => { setMenu(false); window.scrollTo(0, 0); }, [pathname]);
 
   return (
-    <div className="min-h-screen lg:pl-64">
+    <div className="flex min-h-screen flex-col lg:pl-64">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
         <Sidebar />
       </aside>
@@ -213,7 +216,7 @@ export default function Layout() {
         </div>
       )}
       <BarraSuperior onMenu={() => setMenu(true)} />
-      <main className="mx-auto min-h-[calc(100vh-11rem)] max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:py-8">
         <div key={pathname} className="entrada">
           <Outlet />
         </div>

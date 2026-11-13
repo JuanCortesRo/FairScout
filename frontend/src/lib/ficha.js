@@ -23,6 +23,20 @@ export function aniosExperiencia(ficha, hoy = new Date()) {
   return Math.round((meses / 12) * 10) / 10;
 }
 
+/** "5 años y 7 meses": más claro para el reclutador que 5,58 y sin redondear hacia un requisito que no cumple. */
+export function formatearExperiencia(anios) {
+  if (anios == null) return '—';
+  const total = Math.round(anios * 12);
+  const a = Math.floor(total / 12);
+  const m = total % 12;
+  const textoA = a === 1 ? '1 año' : `${a} años`;
+  const textoM = m === 1 ? '1 mes' : `${m} meses`;
+  if (!a && !m) return 'Sin experiencia registrada';
+  if (!m) return textoA;
+  if (!a) return textoM;
+  return `${textoA} y ${textoM}`;
+}
+
 /** Texto visible de una certificación (el LLM la devuelve como objeto libre). */
 export const nombreCertificacion = (c) =>
   typeof c === 'string' ? c : c?.nombre ?? c?.titulo ?? c?.name ?? Object.values(c ?? {}).find((v) => typeof v === 'string') ?? 'Certificación';

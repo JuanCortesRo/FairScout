@@ -71,14 +71,22 @@ def session_factory(tmp_path):
             id="V1", titulo="Backend", descripcion="Vacante de prueba", requisitos_confirmados=True,
             requisitos=[RequisitoDB(id=i, nombre=n, tipo=t, categoria=c, peso=1.0) for i, n, t, c in REQUISITOS],
         ))
+        db.flush()  # la vacante debe existir antes que los candidatos que la referencian
+        # V2 es otra vacante con sus propios CVs: nunca deben aparecer ni evaluarse en V1.
+        db.add(VacanteDB(
+            id="V2", titulo="Frontend", descripcion="Otra vacante de prueba", requisitos_confirmados=True,
+            requisitos=[RequisitoDB(id=i, nombre=n, tipo=t, categoria=c, peso=1.0) for i, n, t, c in REQUISITOS],
+        ))
+        db.flush()
         candidatos = (
-            ("C1", "processed", []), ("C2", "processed", []), ("C3", "processed", ["hidden_text"]),
-            ("C4", "needs_review", ["prompt_injection"]),
+            ("C1", "V1", "processed", []), ("C2", "V1", "processed", []),
+            ("C3", "V1", "processed", ["hidden_text"]), ("C4", "V1", "needs_review", ["prompt_injection"]),
+            ("C8", "V2", "needs_review", ["prompt_injection"]), ("C9", "V2", "processed", []),
         )
-        for cid, estado, alertas in candidatos:
+        for cid, vacante_id, estado, alertas in candidatos:
             db.add(CandidatoDB(
-                id=cid, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado=estado,
-                ficha=_ficha(cid), lineas_anonimizadas=LINEAS, lineas_originales=LINEAS, alertas=alertas,
+                id=cid, vacante_id=vacante_id, documento_id=cid, estado=estado,
+                ficha=_ficha(cid), lineas_anonimizadas=LINEAS, alertas=alertas,
             ))
         db.commit()
     yield factory
@@ -198,12 +206,12 @@ def test_alertas_para_puntaje():
 def test_lote_evalua_todos_los_procesados_y_no_los_que_estan_en_revision(client):
     cuerpo = client.post("/api/vacantes/V1/evaluar").json()
 
-    assert cuerpo == {"vacante_id": "V1", "evaluados": 3, "omitidos": 0, "errores": []}
+    assert cuerpo == {"vacante_id": "V1", "evaluados": 3, "omitidos": 0, "errores": [], "ia_no_disponible": False}
     assert sorted(client.llamadas) == ["C1", "C2", "C3"]   # C4 (prompt injection) nunca llega al LLM
     ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
     assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3", "C2"]
     assert ranking["en_revision"] == [
-        {"candidato_id": "C4", "nombre_archivo": "C4.pdf", "alertas": ["prompt_injection"]}
+        {"candidato_id": "C4", "alertas": ["prompt_injection"]}
     ]
 
 
@@ -224,7 +232,7 @@ def test_lote_un_candidato_que_falla_no_detiene_el_resto(client):
 
     assert cuerpo["evaluados"] == 2
     assert cuerpo["errores"] == [
-        {"candidato_id": "C2", "detalle": "El modelo devolvió una evaluación con formato inválido."}
+        {"candidato_id": "C2", "detalle": "La IA no pudo evaluar este CV. Intenta de nuevo."}
     ]
     ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
     assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3"]
@@ -287,3 +295,140 @@ def test_obtener_evaluacion_individual_devuelve_solo_la_vigente(client, session_
         db.get(VacanteDB, "V1").version_requisitos += 1
         db.commit()
     assert client.get(endpoint).status_code == 404
+
+
+def test_no_se_evalua_un_cv_de_otra_vacante(client):
+    respuesta = client.post("/api/evaluations", json={"candidato_id": "C9", "vacante_id": "V1"})
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "El CV no pertenece a esta vacante."
+    assert client.llamadas == []
+
+
+def test_borrar_una_vacante_borra_sus_cvs_y_evaluaciones_pero_no_los_de_otra(client, session_factory):
+    client.post("/api/vacantes/V1/evaluar")
+
+    assert client.delete("/api/vacantes/V1").status_code == 204
+    assert client.get("/api/vacantes/V1").status_code == 404
+    assert client.delete("/api/vacantes/V1").status_code == 404
+    with session_factory() as db:
+        assert {c.id for c in db.query(CandidatoDB)} == {"C8", "C9"}
+    assert [v["id"] for v in client.get("/api/vacantes").json()] == ["V2"]
+
+
+def test_entrevista_exige_que_el_cv_sea_de_la_vacante(client, monkeypatch):
+    from app.interview.agent import PreguntaEntrevista
+
+    async def plan_falso(ficha, requisitos):
+        return [PreguntaEntrevista(id=f"P{i}", tema="Python", texto=f"Pregunta de prueba número {i}") for i in range(5)]
+    monkeypatch.setattr("app.routers.interviews.generar_plan", plan_falso)
+
+    propia = client.post("/api/entrevistas", json={"candidato_id": "C1", "vacante_id": "V1"})
+    ajena = client.post("/api/entrevistas", json={"candidato_id": "C9", "vacante_id": "V1"})
+    invitacion_ajena = client.post("/api/vacantes/V1/candidatos/C9/entrevista")
+
+    assert propia.status_code == 200
+    assert propia.json()["pregunta"]["id"] == "P0"
+    assert ajena.status_code == 409
+    assert invitacion_ajena.status_code == 409
+
+
+def _libro_exportado(respuesta):
+    import io
+
+    from openpyxl import load_workbook
+    return load_workbook(io.BytesIO(respuesta.content))
+
+
+def test_exportar_el_ranking_en_xlsx_con_el_contacto_y_registra_la_exportacion(client, session_factory):
+    from app.models import ContactoCandidatoDB, ExportacionDB
+
+    client.post("/api/vacantes/V1/evaluar")
+    with session_factory() as db:
+        db.add(ContactoCandidatoDB(candidato_id="C1", nombre="Laura Gómez", correo="laura@example.com", telefono="310 555 1234"))
+        db.commit()
+
+    respuesta = client.get("/api/vacantes/V1/exportar")
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml")
+    assert 'filename="ranking_backend_' in respuesta.headers["content-disposition"]
+    libro = _libro_exportado(respuesta)
+    assert libro.sheetnames == ["Ranking", "Evidencia", "Información"]
+    filas = list(libro["Ranking"].iter_rows(min_row=2, values_only=True))
+    assert [f[1] for f in filas] == ["Candidato C1", "Candidato C3", "Candidato C2"]   # mismo orden que el ranking
+    assert filas[0][2:5] == ("Laura Gómez", "laura@example.com", "310 555 1234")
+    assert filas[1][2:5] == (None, None, None)
+    assert libro["Evidencia"].max_row == 1 + 3 * len(REQUISITOS)
+    assert "datos personales" in libro["Información"]["B6"].value
+    # El contacto solo sale en el archivo: el ranking de la API no lo trae.
+    assert "Laura" not in client.get("/api/ranking", params={"vacante_id": "V1"}).text
+    with session_factory() as db:
+        exportacion = db.query(ExportacionDB).one()
+        assert (exportacion.vacante_id, exportacion.top, exportacion.candidatos) == ("V1", None, ["C1", "C3", "C2"])
+
+
+def test_exportar_solo_el_top_n(client, session_factory):
+    from app.models import ExportacionDB
+
+    client.post("/api/vacantes/V1/evaluar")
+
+    libro = _libro_exportado(client.get("/api/vacantes/V1/exportar", params={"top": 1}))
+
+    assert [f[1] for f in libro["Ranking"].iter_rows(min_row=2, values_only=True)] == ["Candidato C1"]
+    with session_factory() as db:
+        assert db.query(ExportacionDB).one().top == 1
+
+
+def test_exportar_sin_evaluados_o_vacante_inexistente(client):
+    assert client.get("/api/vacantes/V1/exportar").status_code == 409
+    assert client.get("/api/vacantes/NO/exportar").status_code == 404
+    assert client.get("/api/vacantes/V1/exportar", params={"top": 0}).status_code == 422
+
+
+def test_confirmar_los_requisitos_sin_cambios_no_vuelve_a_llamar_a_la_ia(client):
+    client.post("/api/vacantes/V1/evaluar")
+    llamadas = len(client.llamadas)
+    requisitos = [{"id": i, "nombre": n, "tipo": t, "categoria": c, "peso": 2.0} for i, n, t, c in REQUISITOS]
+
+    actualizada = client.put("/api/vacantes/V1", json={
+        "titulo": "Backend", "descripcion": "Vacante de prueba con otra descripción", "requisitos": requisitos,
+    }).json()
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert actualizada["version_requisitos"] == 1
+    assert (lote["evaluados"], lote["omitidos"]) == (0, 3)
+    assert len(client.llamadas) == llamadas
+
+
+def test_el_lote_se_corta_si_la_ia_no_esta_disponible(client, monkeypatch):
+    import anthropic
+    import httpx
+
+    llamadas = []
+
+    async def ia_caida(ficha, requisitos, lineas):
+        llamadas.append(1)
+        raise anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+
+    monkeypatch.setattr("app.routers.evaluations.evaluar", ia_caida)
+    monkeypatch.setattr("app.routers.evaluations.FALLAS_PARA_CORTAR", 1)
+    monkeypatch.setattr("app.routers.evaluations.settings.EVALUACIONES_CONCURRENTES", 1)
+
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert lote["ia_no_disponible"] is True
+    assert (lote["evaluados"], len(lote["errores"])) == (0, 3)
+    assert len(llamadas) == 1                                   # tras la falla, el resto no se intenta
+    assert all("no está disponible" in e["detalle"] for e in lote["errores"])
+    assert client.get("/api/ranking", params={"vacante_id": "V1"}).json()["candidatos"] == []
+
+
+def test_una_respuesta_mal_formada_no_corta_el_lote(client, monkeypatch):
+    monkeypatch.setattr("app.routers.evaluations.FALLAS_PARA_CORTAR", 1)
+    FALLAN.add("C1")
+
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert lote["ia_no_disponible"] is False
+    assert (lote["evaluados"], len(lote["errores"])) == (2, 1)

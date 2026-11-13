@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.llm import LLMNoConfigurado
+from app.mensajes import ERROR_INESPERADO, IA_NO_DISPONIBLE, error_de_ia, es_falla_del_servicio
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.datos_protegidos import motivo_bloqueo
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida, evaluar
@@ -35,6 +36,10 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["evaluations"])
+# Tras estas fallas del servicio de IA el lote se corta: si la IA no responde, cada llamada puede tardar minutos
+# en fallar (espera y reintentos) y el reclutador esperaría por todo el lote para nada.
+FALLAS_PARA_CORTAR = 3
+NO_EVALUADO = "No se evaluó: " + IA_NO_DISPONIBLE[0].lower() + IA_NO_DISPONIBLE[1:]
 log = logging.getLogger(__name__)
 
 
@@ -49,6 +54,8 @@ async def crear_evaluacion(
         raise HTTPException(status_code=404, detail="El candidato no existe.")
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El CV no está listo para evaluación.")
     requisitos = _requisitos_evaluables(vacante)
@@ -67,7 +74,7 @@ async def evaluar_todos(
     reevaluar: bool = False,
     db: Session = Depends(get_db),
 ) -> EvaluacionLoteSalida:
-    """Evalúa todos los CVs procesados contra la vacante, con varias llamadas al LLM en paralelo.
+    """Evalúa todos los CVs procesados de la vacante, con varias llamadas al LLM en paralelo.
 
     Por defecto omite a quien ya tiene una evaluación con la versión vigente de los requisitos
     (`reevaluar=true` los evalúa de nuevo). Un candidato que falla se reporta en `errores` y no detiene el lote.
@@ -78,7 +85,9 @@ async def evaluar_todos(
     requisitos = _requisitos_evaluables(vacante)
 
     candidatos = db.scalars(
-        select(CandidatoDB).where(CandidatoDB.estado == "processed").order_by(CandidatoDB.id)
+        select(CandidatoDB)
+        .where(CandidatoDB.vacante_id == vacante.id, CandidatoDB.estado == "processed")
+        .order_by(CandidatoDB.id)
     ).all()
     ya_evaluados = set() if reevaluar else set(db.scalars(
         select(EvaluacionDB.candidato_id).where(
@@ -90,12 +99,19 @@ async def evaluar_todos(
 
     semaforo = asyncio.Semaphore(settings.EVALUACIONES_CONCURRENTES)
     errores: list[ErrorEvaluacion] = []
+    fallas_del_servicio = 0
 
     async def procesar(candidato: CandidatoDB) -> None:
+        nonlocal fallas_del_servicio
         async with semaforo:
+            if fallas_del_servicio >= FALLAS_PARA_CORTAR:
+                errores.append(ErrorEvaluacion(candidato_id=candidato.id, detalle=NO_EVALUADO))
+                return
             try:
                 resultado = await _evaluar_candidato(candidato, vacante, requisitos)
-            except Exception as error:  # un CV que falla no detiene el lote
+            except Exception as error:  # un CV que falla no detiene el lote (salvo que la IA no esté disponible)
+                if es_falla_del_servicio(error):
+                    fallas_del_servicio += 1
                 errores.append(ErrorEvaluacion(candidato_id=candidato.id, detalle=_error_http(error).detail))
                 return
         # Se guarda apenas termina: si el lote se corta, lo evaluado no se pierde.
@@ -106,6 +122,7 @@ async def evaluar_todos(
     return EvaluacionLoteSalida(
         vacante_id=vacante.id,
         evaluados=len(pendientes) - len(errores),
+        ia_no_disponible=fallas_del_servicio >= FALLAS_PARA_CORTAR,
         omitidos=len(candidatos) - len(pendientes),
         errores=errores,
     )
@@ -224,20 +241,10 @@ def _guardar(db: Session, resultado: EvaluacionSalida) -> None:
 
 def _error_http(error: Exception) -> HTTPException:
     """Traduce los errores de la evaluación a HTTP con mensajes en español."""
+    if isinstance(error, (LLMNoConfigurado, anthropic.APIError, RespuestaEvaluacionInvalida)):
+        return error_de_ia(error, "evaluar este CV")
     if isinstance(error, (ValidationError, ValueError)):
-        return HTTPException(status_code=422, detail=f"Datos del candidato inválidos: {error}")
-    if isinstance(error, LLMNoConfigurado):
-        return HTTPException(status_code=503, detail=str(error))
-    if isinstance(error, RespuestaEvaluacionInvalida):
-        return HTTPException(status_code=502, detail=str(error))
-    if isinstance(error, anthropic.AuthenticationError):
-        return HTTPException(status_code=503, detail="La llave de Anthropic no es válida.")
-    if isinstance(error, anthropic.RateLimitError):
-        return HTTPException(status_code=429, detail="Se superó el límite de uso del modelo.")
-    if isinstance(error, anthropic.APIConnectionError):
-        return HTTPException(status_code=502, detail="No fue posible conectarse con Anthropic.")
-    if isinstance(error, anthropic.APIStatusError):
-        log.error("Error de Anthropic al evaluar: %s", error.status_code)
-        return HTTPException(status_code=502, detail="El servicio del modelo no pudo evaluar el candidato.")
+        log.warning("Datos guardados del candidato inválidos: %r", error)
+        return HTTPException(status_code=422, detail="No se pudieron leer los datos de este CV. Vuelve a subirlo.")
     log.exception("Error inesperado al evaluar")
-    return HTTPException(status_code=500, detail="Error inesperado al evaluar el candidato.")
+    return HTTPException(status_code=500, detail=ERROR_INESPERADO)

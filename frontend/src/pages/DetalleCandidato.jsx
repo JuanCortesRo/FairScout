@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, MessagesSquare, Columns3, BadgeCheck, CircleAlert, FileText, ListChecks, Lightbulb, IdCard, ThumbsUp, ThumbsDown,
-  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX,
+  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX, EyeOff, Copy, Check,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -12,7 +12,7 @@ import { useApp } from '@/store';
 import { explicar } from '@/lib/scoring';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
-import { aniosExperiencia, nombreCertificacion } from '@/lib/ficha';
+import { aniosExperiencia, formatearExperiencia, nombreCertificacion } from '@/lib/ficha';
 import { crearInvitacionEntrevista, revocarInvitacionEntrevista } from '@/api';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
@@ -49,7 +49,7 @@ function VisorCV({ candidato, activas, citadas, alClicLinea }) {
             if (l.oculto) {
               return (
                 <div key={l.id} data-linea={l.id} className={cn('my-1 rounded-md border border-dashed border-bad/50 bg-bad-soft px-2 py-1.5', activa && 'linea-activa')}>
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-bad"><ShieldAlert className="size-3.5" /> Texto oculto detectado (blanco, tamaño 1 pt). Se trató como dato y se ignoró:</p>
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-bad"><ShieldAlert className="size-3.5" /> Texto oculto detectado (blanco, tamaño 1 pt). No se tuvo en cuenta:</p>
                   <p className="font-mono text-xs text-bad/80 line-through">{l.texto}</p>
                 </div>
               );
@@ -150,7 +150,7 @@ function Ficha({ ficha, onLinea }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-lg font-semibold leading-tight">{formatearExperiencia(aniosExperiencia(ficha))}</p><p className="mt-0.5 text-xs text-muted-foreground" title="Si dos cargos se cruzan en el tiempo, ese periodo se cuenta una sola vez.">de experiencia</p></div>
         <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.experiencias.length}</p><p className="text-xs text-muted-foreground">cargos registrados</p></div>
       </div>
       <Seccion icono={Briefcase} titulo="Experiencia">
@@ -193,6 +193,36 @@ function Ficha({ ficha, onLinea }) {
   );
 }
 
+/** Explica por qué el candidato aparece con un código y no con su nombre. */
+function IdentidadOculta() {
+  return (
+    <span tabIndex={0} aria-label="Por qué no se muestra el nombre" className="group relative inline-flex shrink-0 rounded-md p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+      <EyeOff className="size-4" />
+      <span role="tooltip" className="pointer-events-none absolute top-full left-0 z-40 mt-2 w-72 rounded-xl border bg-popover p-3 text-xs leading-relaxed font-normal text-popover-foreground opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        La identidad se oculta durante la evaluación para evitar sesgos. Los datos de contacto solo se incluyen al exportar el ranking.
+      </span>
+    </span>
+  );
+}
+
+/** Otros CVs de la vacante que parecen otra versión de este o del mismo candidato. */
+function AvisoSimilares({ similares }) {
+  if (!similares?.length) return null;
+  return (
+    <Alerta tipo="warn" icono={Copy} className="mb-6" titulo="Posible duplicado">
+      <ul className="mt-1 space-y-0.5">
+        {similares.map((s) => (
+          <li key={s.candidato_id}>
+            {s.motivo === 'texto' ? `Comparte el ${s.similitud} % del texto con ` : 'Tiene el mismo correo o teléfono que '}
+            <Link to={`/candidato/${s.candidato_id}`} className="font-medium underline">Candidato {s.candidato_id.slice(0, 6).toUpperCase()}</Link>.
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1">Si es el mismo candidato, conserva la versión que prefieras y elimina la otra desde la carga de CVs.</p>
+    </Alerta>
+  );
+}
+
 /** CV en revisión humana (no se envió a la IA) o procesado pero todavía sin evaluar. */
 function SinEvaluacion({ c, nombre, onVolver }) {
   const revision = c.estado_documento === 'needs_review';
@@ -202,12 +232,15 @@ function SinEvaluacion({ c, nombre, onVolver }) {
         <ArrowLeft className="size-4" /> Volver al ranking
       </button>
       <Card className="mb-6 p-5">
-        <p className="text-xs font-medium text-muted-foreground">{c.nombre_archivo}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+          <IdentidadOculta />
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
         </div>
       </Card>
+      <AvisoSimilares similares={c.similares} />
       <Alerta tipo={revision ? 'warn' : 'info'} icono={revision ? ShieldAlert : CircleAlert} className="mb-6"
         titulo={revision ? 'En revisión humana: este CV no se envió a la IA' : 'Este CV todavía no se ha evaluado'}>
         {revision
@@ -242,6 +275,7 @@ export default function DetalleCandidato() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState('');
   const [invitacion, setInvitacion] = useState(null);
+  const [copiado, setCopiado] = useState(false);
   const [creandoInvitacion, setCreandoInvitacion] = useState(false);
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
   useEffect(() => {
@@ -274,13 +308,13 @@ export default function DetalleCandidato() {
 
   const sinEvaluar = !item && candidatoActual;
   if (cargandoDetalle || necesitaCarga) {
-    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV y la evaluación desde el servidor">Las líneas del documento se consultan solo al abrir el detalle.</Alerta>;
+    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV…" />;
   }
   if (errorDetalle && !sinEvaluar?.lineas?.length && !item?.candidato.lineas?.length) {
     return (
       <Card>
         <EstadoVacio icono={UserX} titulo="No se pudo cargar este candidato" descripcion={errorDetalle}>
-          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+          <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Volver a vacantes</Link>
         </EstadoVacio>
       </Card>
     );
@@ -292,7 +326,7 @@ export default function DetalleCandidato() {
       <Card>
         <EstadoVacio icono={UserX} titulo="No encontramos este candidato"
           descripcion={vacante ? 'Puede que se haya eliminado o que el enlace sea incorrecto.' : 'No hay una vacante activa con candidatos evaluados.'}>
-          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+          <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Volver a vacantes</Link>
         </EstadoVacio>
       </Card>
     );
@@ -352,7 +386,10 @@ export default function DetalleCandidato() {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Posición #{posicion} de {ranking.length}</p>
-              <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
+                <IdentidadOculta />
+              </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <EstadoBadge estado={r.estado} />
                 <Confianza nivel={r.confianza} />
@@ -390,15 +427,11 @@ export default function DetalleCandidato() {
         </div>
       </Card>
 
+      <AvisoSimilares similares={c.similares} />
       {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
-          Se encontró una instrucción escrita en blanco y en tamaño mínimo. El texto del CV se envía a la IA como dato, nunca como instrucción, así que no tuvo efecto.
+          Se encontró una instrucción escrita en blanco y en tamaño mínimo. La IA ignora cualquier instrucción escrita dentro del CV, así que no tuvo efecto.
           {c.linea_inyeccion && <>{' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button></>}
-        </Alerta>
-      )}
-      {!enDemo && (
-        <Alerta tipo="info" icono={CircleAlert} className="mb-6" titulo="Correcciones humanas no disponibles en el backend">
-          El servidor aún no ofrece un endpoint para guardar correcciones. La evidencia y el resultado que ves provienen de la evaluación persistida.
         </Alerta>
       )}
 
@@ -477,7 +510,20 @@ export default function DetalleCandidato() {
             <p className="text-sm text-muted-foreground">Comparte este enlace con el candidato. Expira el {new Date(invitacion.expira_at).toLocaleString()}.</p>
             <div className="flex gap-2">
               <input readOnly value={invitacion.public_url} className="min-w-0 flex-1 rounded-lg border bg-muted px-3 py-2 text-sm" />
-              <Button variant="outline" onClick={() => navigator.clipboard.writeText(invitacion.public_url)}>Copiar</Button>
+              <Button
+                variant="outline"
+                aria-label={copiado ? 'Enlace copiado' : 'Copiar enlace'}
+                title={copiado ? 'Copiado' : 'Copiar enlace'}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(invitacion.public_url);
+                  setCopiado(true);
+                  setTimeout(() => setCopiado(false), 1500);
+                }}
+                className={cn('h-auto self-stretch px-3 transition-colors duration-300',
+                  copiado && 'border-ok/40 bg-ok-soft text-ok hover:bg-ok-soft hover:text-ok')}
+              >
+                {copiado ? <Check className="size-4 animate-in zoom-in-50" /> : <Copy className="size-4" />}
+              </Button>
             </div>
           </div>
         )}

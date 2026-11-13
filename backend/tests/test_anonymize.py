@@ -121,7 +121,7 @@ def test_anonimiza_identidad_de_genero_y_direccion_completa():
     ("28 años de edad", "[EDAD] años de edad"),
     ("35 years old", "[EDAD] years old"),
     ("Tengo 30 años", "Tengo [EDAD] años"),
-    ("Colombiana, 28 años", "Colombiana, [EDAD] años"),
+    ("Colombiana, 28 años", "[NACIONALIDAD], [EDAD] años"),
     # Años de experiencia: no son edad y no se tocan.
     ("5 años en Python", "5 años en Python"),
     ("Experiencia: 10 años", "Experiencia: 10 años"),
@@ -131,3 +131,47 @@ def test_anonimiza_identidad_de_genero_y_direccion_completa():
 ])
 def test_edad_sin_borrar_anos_de_experiencia(texto, esperado):
     assert anonimizar(lineas(texto))[0].texto == esperado
+
+
+@pytest.mark.parametrize(("textos", "esperados"), [
+    (["JUAN PÉREZ | juan.perez@gmail.com | +57 300 123 4567"], ["[NOMBRE] | [CORREO] | [TELEFONO]"]),
+    (["Juan Pérez - Desarrollador Backend"], ["[NOMBRE] - Desarrollador Backend"]),
+    (["HOJA DE VIDA", "", "Bogotá", "MARÍA FERNANDA LÓPEZ"], ["HOJA DE VIDA", "", "Bogotá", "[NOMBRE]"]),
+    (["Ana Ruiz", "Colombiana | Bogotá"], ["[NOMBRE]", "[NACIONALIDAD] | Bogotá"]),
+])
+def test_nombre_en_encabezado_junto_a_otros_datos(textos, esperados):
+    assert [linea.texto for linea in anonimizar(lineas(*textos))] == esperados
+
+
+@pytest.mark.parametrize("texto", [
+    "STAFF ACCOUNTANT",
+    "Ingeniero de sistemas",
+    "CURRICULUM VITAE",
+    "Career Overview",
+    "Graduating Ph.D. candidate with a research focus on machine learning",
+    "Security Clearance: Active TS/SCI w Poly",
+    "Internet and Microsoft Office - MS Word, MS Power Point, MS Excel, Pivot Tables, Spreadsheets",
+])
+def test_cargos_titulos_y_habilidades_del_encabezado_no_son_nombres(texto):
+    assert anonimizar(lineas(texto))[0].texto == texto
+
+
+def test_el_nombre_se_borra_donde_se_repite_y_se_guarda_el_contacto():
+    resultado = anonimizar_con_metadatos(lineas(
+        "Laura Gómez Díaz",
+        "laura.gomez@example.com · 310 555 1234",
+        "Analista contable",
+        "Atentamente, Laura Gómez Díaz",
+    ))
+
+    assert [linea.texto for linea in resultado.lineas_anonimizadas] == [
+        "[NOMBRE]", "[CORREO] · [TELEFONO]", "Analista contable", "Atentamente, [NOMBRE]",
+    ]
+    assert resultado.contacto.nombre == "Laura Gómez Díaz"
+    assert resultado.contacto.correo == "laura.gomez@example.com"
+    assert resultado.contacto.telefono == "310 555 1234"
+
+
+def test_anonimizar_dos_veces_no_cambia_el_resultado():
+    primera = anonimizar(lineas("JUAN PÉREZ | juan@example.com", "Juan Pérez - Desarrollador Backend", "Python"))
+    assert [l.texto for l in anonimizar(primera)] == [l.texto for l in primera]

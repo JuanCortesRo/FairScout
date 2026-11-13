@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
-  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert, Trophy, ArrowRight,
+  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Loader2, Clock, Sparkles, CloudOff, ShieldAlert, Trophy, ArrowRight,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
-import { exportarRankingCSV } from '@/lib/exportar';
+import ExportarRanking from '@/components/ExportarRanking';
 import { cn } from '@/lib/utils';
 
 function MiniCategorias({ categorias }) {
@@ -121,7 +121,7 @@ function AjustePesos() {
             onChange={(e) => setPesos({ obligatorios: Number(e.target.value) })}
             onMouseUp={() => registrar('Pesos ajustados', `Obligatorios ${pesos.obligatorios}% / deseables ${100 - pesos.obligatorios}%`)}
             className="w-full accent-[var(--primary)]" aria-label="Peso de los obligatorios" />
-          <p className="mt-1 text-xs">El backend recalcula el ranking sin volver a llamar a la IA.</p>
+          <p className="mt-1 text-xs">El ranking se actualiza al instante, sin volver a evaluar los CVs.</p>
         </div>
         <p className="border-t pt-3 text-xs">El puntaje <b>no</b> es una probabilidad de éxito.</p>
       </div>
@@ -192,7 +192,7 @@ export default function Ranking() {
         <PageHeader paso="Paso 3 de 3" titulo="Ranking de candidatos" />
         {vacante && avisoEvaluacion}
         {avisoErrores}
-        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los datos del servidor">{errorServidor}</Alerta>}
+        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los resultados">{errorServidor}</Alerta>}
         <Card>
           <EstadoVacio
             icono={vacante ? FileUp : Briefcase}
@@ -214,24 +214,17 @@ export default function Ranking() {
       <PageHeader
         paso="Paso 3 de 3"
         titulo="Ranking de candidatos"
-        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el backend calcula el orden, no la IA."
+        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el orden lo calculan reglas fijas, no la IA."
         acciones={(
           <>
-            {!enDemo && (
-              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar datos del servidor">
-                <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
-              </Button>
-            )}
-            <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
-              <Download /> Exportar CSV
-            </Button>
+            <ExportarRanking />
           </>
         )}
       />
 
       {avisoEvaluacion}
       {avisoErrores}
-      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
+      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los resultados">{errorServidor}</Alerta>}
 
       <div className="entrada-escalonada grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />
@@ -256,11 +249,11 @@ export default function Ranking() {
             ...(enRevision.length ? [{ valor: 'revision', etiqueta: 'En revisión', contador: enRevision.length }] : []),
           ]} />
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative">
+            {/* <label className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar candidato"
                 className="h-8 w-44 rounded-lg border border-input bg-background pr-2 pl-8 text-sm focus:border-ring focus:outline-none" />
-            </label>
+            </label> */}
             <select value={confianza} onChange={(e) => setConfianza(e.target.value)} aria-label="Filtrar por confianza"
               className="h-8 rounded-lg border border-input bg-background px-2 text-sm focus:border-ring focus:outline-none">
               <option value="todas">Toda confianza</option>
@@ -269,7 +262,6 @@ export default function Ranking() {
               <option value="baja">Confianza baja</option>
             </select>
             <Interruptor activo={soloRecomendados} onChange={setSoloRecomendados} etiqueta="Solo recomendados" />
-            <AjustePesos />
           </div>
         </div>
 

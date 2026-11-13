@@ -1,10 +1,25 @@
 from pathlib import Path
 
 import pymupdf
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import CandidatoDB, ContactoCandidatoDB, EvaluacionDB, VacanteDB
 from app.schemas import Ficha
+
+URL = "/api/vacantes/V1/cvs"
+
+
+def _vacante(vacante_id: str = "V1") -> VacanteDB:
+    return VacanteDB(id=vacante_id, titulo="Backend", descripcion="Vacante de prueba para subir CVs")
+
+
+@pytest.fixture(autouse=True)
+def vacante_v1(bd_aislada):
+    with bd_aislada() as db:
+        db.add(_vacante())
+        db.commit()
 
 
 def _pdf_bytes() -> bytes:
@@ -27,7 +42,7 @@ def test_subir_pdf_extrae_lineas_y_coordenadas(tmp_path, monkeypatch):
 
     with TestClient(app) as client:
         respuesta = client.post(
-            "/api/cvs",
+            URL,
             files={"archivos": ("cv.pdf", _pdf_bytes(), "application/pdf")},
         )
 
@@ -36,7 +51,7 @@ def test_subir_pdf_extrae_lineas_y_coordenadas(tmp_path, monkeypatch):
     assert archivo["lineas"][0]["id"] == "p1-l1"
     assert archivo["lineas"][0]["texto"] == "Experiencia con Python"
     assert len(archivo["lineas"][0]["bbox"]) == 4
-    assert (tmp_path / f"{archivo['id']}.pdf").exists()
+    assert not list(tmp_path.iterdir())   # el archivo original no se conserva
 
 
 def test_subir_pdf_devuelve_lineas_anonimizadas(tmp_path, monkeypatch):
@@ -59,7 +74,7 @@ def test_subir_pdf_devuelve_lineas_anonimizadas(tmp_path, monkeypatch):
     monkeypatch.setattr("app.routers.cvs.extraer_ficha", extraer_falso)
     with TestClient(app) as client:
         respuesta = client.post(
-            "/api/cvs",
+            URL,
             files={"archivos": ("cv.pdf", pdf_con_dato_personal(), "application/pdf")},
         )
 
@@ -74,7 +89,7 @@ def test_subir_pdf_invalido_devuelve_error(tmp_path, monkeypatch):
 
     with TestClient(app) as client:
         respuesta = client.post(
-            "/api/cvs",
+            URL,
             files={"archivos": ("cv.pdf", b"no es un PDF", "application/pdf")},
         )
 
@@ -100,15 +115,14 @@ def test_subir_docx_convierte_a_pdf_y_extrae_lineas(tmp_path, monkeypatch):
     monkeypatch.setattr("app.routers.cvs.extraer_ficha", extraer_falso)
     with TestClient(app) as client:
         respuesta = client.post(
-            "/api/cvs",
+            URL,
             files={"archivos": ("cv.docx", b"contenido docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
         )
 
     assert respuesta.status_code == 200
     archivo = respuesta.json()["archivos"][0]
     assert archivo["lineas"][0]["texto"] == "Experiencia con Python"
-    assert (tmp_path / f"{archivo['id']}.docx").exists()
-    assert not list(tmp_path.glob("*.pdf"))
+    assert not list(tmp_path.iterdir())   # ni el DOCX ni el PDF convertido se conservan
 
 
 def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_path, monkeypatch):
@@ -120,6 +134,9 @@ def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_pat
     engine = create_engine(f"sqlite:///{tmp_path / 'cvs.db'}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory() as db:
+        db.add(_vacante())
+        db.commit()
 
     def override_get_db():
         with factory() as db:
@@ -138,8 +155,8 @@ def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_pat
     app.dependency_overrides[get_db] = override_get_db
     try:
         with TestClient(app) as client:
-            subido = client.post("/api/cvs", files={"archivos": ("cv.pdf", contenido, "application/pdf")}).json()
-            listado = client.get("/api/cvs").json()
+            subido = client.post(URL, files={"archivos": ("cv.pdf", contenido, "application/pdf")}).json()
+            listado = client.get(URL).json()
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
@@ -149,3 +166,180 @@ def test_cv_con_prompt_injection_se_guarda_en_revision_sin_llamar_al_llm(tmp_pat
     assert "prompt_injection" in listado["archivos"][0]["alertas"]
     assert "lineas" not in listado["archivos"][0]
     assert "ficha" not in listado["archivos"][0]
+
+
+def test_los_cvs_quedan_en_su_vacante_y_no_aparecen_en_otra(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+
+    async def extraer_falso(lineas):
+        return Ficha(
+            experiencias=[], formacion=[], certificaciones=[], idiomas=[],
+            habilidades_tecnicas=["Python"], competencias_blandas=[],
+        )
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", extraer_falso)
+    with bd_aislada() as db:
+        db.add(_vacante("V2"))
+        db.commit()
+
+    with TestClient(app) as client:
+        subido = client.post(URL, files={"archivos": ("cv.pdf", _pdf_bytes(), "application/pdf")}).json()
+        en_v1 = client.get(URL).json()["archivos"]
+        en_v2 = client.get("/api/vacantes/V2/cvs").json()["archivos"]
+        candidato = client.get(f"/api/candidatos/{subido['archivos'][0]['id']}").json()
+
+    assert [c["id"] for c in en_v1] == [subido["archivos"][0]["id"]]
+    assert en_v2 == []
+    assert candidato["vacante_id"] == "V1"
+
+
+def test_subir_cvs_a_una_vacante_inexistente_devuelve_404(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    with TestClient(app) as client:
+        respuesta = client.post("/api/vacantes/NO/cvs", files={"archivos": ("cv.pdf", _pdf_bytes(), "application/pdf")})
+        listado = client.get("/api/vacantes/NO/cvs")
+
+    assert respuesta.status_code == 404
+    assert listado.status_code == 404
+    with bd_aislada() as db:
+        assert db.query(CandidatoDB).count() == 0
+
+
+async def _ficha_vacia(lineas):
+    return Ficha(
+        experiencias=[], formacion=[], certificaciones=[], idiomas=[],
+        habilidades_tecnicas=[], competencias_blandas=[],
+    )
+
+
+def _pdf_con_contacto() -> bytes:
+    documento = pymupdf.open()
+    pagina = documento.new_page()
+    for i, texto in enumerate(["LAURA GÓMEZ DÍAZ", "laura.gomez@example.com | 310 555 1234", "Analista contable"]):
+        pagina.insert_text((72, 72 + 18 * i), texto)
+    contenido = documento.tobytes()
+    documento.close()
+    return contenido
+
+
+def test_el_contacto_se_guarda_aparte_y_ninguna_respuesta_lo_devuelve(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", _ficha_vacia)
+
+    with TestClient(app) as client:
+        subido = client.post(URL, files={"archivos": ("Laura_Gomez_CV.pdf", _pdf_con_contacto(), "application/pdf")})
+        cv_id = subido.json()["archivos"][0]["id"]
+        respuestas = [subido.text, client.get(URL).text, client.get(f"/api/candidatos/{cv_id}").text]
+
+    for cuerpo in respuestas:
+        for dato in ("LAURA", "Laura", "laura.gomez@example.com", "310 555 1234"):
+            assert dato not in cuerpo
+    with bd_aislada() as db:
+        contacto = db.get(ContactoCandidatoDB, cv_id)
+        assert (contacto.nombre, contacto.correo, contacto.telefono) == (
+            "LAURA GÓMEZ DÍAZ", "laura.gomez@example.com", "310 555 1234",
+        )
+
+
+def test_borrar_un_candidato_borra_su_contacto_y_evaluaciones(tmp_path, monkeypatch, bd_aislada):
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", _ficha_vacia)
+
+    with TestClient(app) as client:
+        cv_id = client.post(URL, files={"archivos": ("cv.pdf", _pdf_con_contacto(), "application/pdf")}).json()["archivos"][0]["id"]
+        with bd_aislada() as db:
+            db.add(EvaluacionDB(id="E1", candidato_id=cv_id, vacante_id="V1", version_requisitos=1, resultado={}))
+            db.commit()
+
+        assert client.delete(f"/api/candidatos/{cv_id}").status_code == 204
+        assert client.get(f"/api/candidatos/{cv_id}").status_code == 404
+        assert client.delete(f"/api/candidatos/{cv_id}").status_code == 404
+        assert client.get(URL).json()["archivos"] == []
+
+    with bd_aislada() as db:
+        assert db.get(ContactoCandidatoDB, cv_id) is None
+        assert db.query(EvaluacionDB).count() == 0
+
+
+LINEAS_CV = [
+    "Analista contable",
+    "Experiencia: 5 años en conciliaciones bancarias y cierres mensuales",
+    "Formación: Contaduría Pública, Universidad Nacional",
+    "Habilidades: SAP, Excel avanzado, normas NIIF",
+]
+
+
+def _pdf(lineas, autor="") -> bytes:
+    documento = pymupdf.open()
+    pagina = documento.new_page()
+    for i, texto in enumerate(lineas):
+        pagina.insert_text((72, 72 + 18 * i), texto)
+    documento.set_metadata({"author": autor})   # cambia los bytes del archivo, no su texto
+    contenido = documento.tobytes()
+    documento.close()
+    return contenido
+
+
+@pytest.fixture
+def subir(tmp_path, monkeypatch):
+    llamadas = []
+
+    async def extraer_contando(lineas):
+        llamadas.append(1)
+        return await _ficha_vacia(lineas)
+
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", extraer_contando)
+    with TestClient(app) as client:
+        def _subir(contenido, url=URL):
+            return client.post(url, files={"archivos": ("cv.pdf", contenido, "application/pdf")}).json()["archivos"][0]
+        _subir.client = client
+        _subir.llamadas = llamadas
+        yield _subir
+
+
+def test_el_mismo_cv_no_se_procesa_dos_veces_aunque_cambien_los_bytes(subir, bd_aislada):
+    primero = subir(_pdf(LINEAS_CV))
+    repetido = subir(_pdf(LINEAS_CV))
+    reexportado = subir(_pdf(LINEAS_CV, autor="Otro programa"))
+
+    assert primero["estado"] == "processed"
+    for cv in (repetido, reexportado):
+        assert (cv["estado"], cv["duplicado_de"]) == ("duplicado", primero["id"])
+    assert len(subir.llamadas) == 1                     # los repetidos no llegan a la IA
+    with bd_aislada() as db:
+        assert db.query(CandidatoDB).count() == 1
+
+
+def test_otra_version_del_cv_se_procesa_y_se_marca_en_ambos(subir):
+    original = subir(_pdf(LINEAS_CV))
+    nueva = subir(_pdf([*LINEAS_CV, "Certificación: CPA 2025"]))
+
+    assert nueva["estado"] == "processed"
+    assert "posible_duplicado" in nueva["alertas"]
+    assert nueva["similares"][0]["candidato_id"] == original["id"]
+    assert nueva["similares"][0]["motivo"] == "texto" and nueva["similares"][0]["similitud"] >= 90
+    lista = {c["id"]: c for c in subir.client.get(URL).json()["archivos"]}
+    assert [s["candidato_id"] for s in lista[original["id"]]["similares"]] == [nueva["id"]]
+    assert "posible_duplicado" in lista[original["id"]]["alertas"]
+
+    subir.client.delete(f"/api/candidatos/{nueva['id']}")
+    sola = subir.client.get(f"/api/candidatos/{original['id']}").json()
+    assert sola["similares"] == [] and "posible_duplicado" not in sola["alertas"]
+
+
+def test_el_mismo_contacto_con_otro_cv_se_marca(subir):
+    primero = subir(_pdf(["ana@example.com", *LINEAS_CV]))
+    otro = subir(_pdf(["ANA@example.com", "Desarrolladora Python", "Experiencia: 3 años con Django y FastAPI"]))
+
+    assert otro["estado"] == "processed"
+    assert otro["similares"] == [{"candidato_id": primero["id"], "motivo": "contacto", "similitud": None}]
+
+
+def test_el_mismo_cv_puede_postularse_a_otra_vacante(subir, bd_aislada):
+    with bd_aislada() as db:
+        db.add(_vacante("V2"))
+        db.commit()
+    subir(_pdf(LINEAS_CV))
+    en_otra = subir(_pdf(LINEAS_CV), url="/api/vacantes/V2/cvs")
+
+    assert en_otra["estado"] == "processed" and en_otra["similares"] == []

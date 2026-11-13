@@ -2,7 +2,7 @@
 
 No cambiarla sin avisar. Al final van los modelos de entrada/salida de la API.
 """
-from datetime import date
+from datetime import date, datetime
 import re
 from typing import Literal
 
@@ -132,17 +132,28 @@ class VacanteSalida(BaseModel):
     descripcion: str | None = None
     version_requisitos: int = 1
     requisitos_confirmados: bool = False
+    fecha_creacion: datetime | None = None
     # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
     requisitos_bloqueados: list[RequisitoBloqueado] = []
 
 
+class CVSimilar(BaseModel):
+    """Otro CV de la vacante: otra versión del mismo (motivo "texto") o del mismo candidato ("contacto")."""
+    candidato_id: str
+    motivo: Literal["texto", "contacto"]
+    similitud: int | None = None   # % de texto en común, solo con motivo "texto"
+
+
 class CVSubido(BaseModel):
     id: str
-    nombre_archivo: str
+    vacante_id: str | None = None
     lineas: list[Linea] = []
     ficha: Ficha | None = None
-    estado: Literal["processed", "needs_review", "failed"] = "processed"
+    # "duplicado": el mismo CV ya estaba en la vacante (ver `duplicado_de`); no se procesa ni se guarda.
+    estado: Literal["processed", "needs_review", "failed", "duplicado"] = "processed"
     alertas: list[str] = []
+    duplicado_de: str | None = None
+    similares: list[CVSimilar] = []
 
 
 class CargaCVsSalida(BaseModel):
@@ -151,9 +162,10 @@ class CargaCVsSalida(BaseModel):
 
 class CVResumen(BaseModel):
     id: str
-    nombre_archivo: str
     estado: Literal["processed", "needs_review", "failed"]
     alertas: list[str] = []
+    similares: list[CVSimilar] = []
+    fecha_creacion: datetime | None = None
 
 
 class ListaCVsSalida(BaseModel):
@@ -175,12 +187,12 @@ class EvaluacionLoteSalida(BaseModel):
     evaluados: int
     omitidos: int                      # ya tenían evaluación con la versión vigente de los requisitos
     errores: list[ErrorEvaluacion] = []
+    ia_no_disponible: bool = False     # el lote se cortó porque la IA no respondía; se puede reintentar más tarde
 
 
 class CandidatoEnRevision(BaseModel):
     """CV que no se envió al LLM por una alerta crítica (prompt injection, posible dato personal)."""
     candidato_id: str
-    nombre_archivo: str
     alertas: list[str]
 
 
