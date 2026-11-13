@@ -7,6 +7,8 @@ import pytest
 from app.interview import agent
 from app.schemas import Ficha, Requisito
 
+_CARGAR_PROMPT_REAL = agent.cargar_prompt
+
 _TEXTOS = [
     "Cuéntame sobre un proyecto en Python que hayas liderado",
     "Describe cómo diseñaste una API que otros equipos usaran",
@@ -17,6 +19,7 @@ _TEXTOS = [
     "Háblame de una vez que tuviste que aprender una herramienta rápido",
     "Cuéntame cómo das y recibes retroalimentación en tu equipo",
 ]
+_CRITERIO = "Menciona un caso real, su acción personal y un resultado medible."
 _RESPUESTA = "Lideré la migración de un servicio a Python y reduje los errores un 30%."
 
 
@@ -51,7 +54,7 @@ def _cliente(monkeypatch, replies, permisivo=True):
     """Instala un cliente falso. `permisivo` desactiva el detector de datos protegidos real."""
     client = _Client(replies)
     monkeypatch.setattr(agent, "get_client", lambda: client)
-    monkeypatch.setattr(agent, "cargar_prompt", lambda _: "system")
+    monkeypatch.setattr(agent, "cargar_prompt", lambda nombre, version=None: "system")
     if permisivo:
         monkeypatch.setattr(agent, "detectar_dato_protegido", lambda _t: None)
     return client
@@ -63,7 +66,8 @@ def _detector_edad(monkeypatch):
 
 
 def _p(i, **extra):
-    return {"id": f"P{i}", "tema": f"Tema {i}", "texto": _TEXTOS[i % len(_TEXTOS)], **extra}
+    return {"id": f"P{i}", "tema": f"Tema {i}", "texto": _TEXTOS[i % len(_TEXTOS)],
+            "criterio_exito": _CRITERIO, **extra}
 
 
 def _plan(*items):
@@ -71,6 +75,7 @@ def _plan(*items):
 
 
 def _turno(calificacion="aceptable", siguiente=None, terminar=False, **evaluacion):
+    evaluacion.setdefault("evidencia_respuesta", "reduje los errores un 30%")
     return _Message(json.dumps({
         "evaluacion_respuesta": {"calificacion": calificacion, "comentario": "ok", **evaluacion},
         "pregunta_siguiente": siguiente, "terminar": terminar,
@@ -109,7 +114,8 @@ def test_plan_reintenta_json_y_filtra_protegidas_con_detector_real(monkeypatch):
 
 def test_plan_descarta_duplicados_y_renombra_ids_repetidos(monkeypatch):
     items = [_p(i) for i in range(1, 6)]
-    items.append({"id": "P1", "tema": "Liderazgo", "texto": "Cuéntame cómo lideraste a un equipo en crisis"})
+    items.append({"id": "P1", "tema": "Liderazgo", "texto": "Cuéntame cómo lideraste a un equipo en crisis",
+                  "criterio_exito": _CRITERIO})
     items.append({**_p(2), "id": "P9"})  # mismo texto que P2 -> se descarta
     _cliente(monkeypatch, [_plan(*items)])
     plan = anyio.run(agent.generar_plan, _ficha(), [])
@@ -128,7 +134,8 @@ def test_plan_rechaza_preguntas_compuestas(monkeypatch):
 
 def test_plan_ignora_items_invalidos_y_acepta_id_numerico(monkeypatch):
     corto = {"id": "X", "tema": "t", "texto": "corto"}
-    numerico = {"id": 7, "tema": "Python", "texto": "Háblame de tu experiencia con pruebas automáticas"}
+    numerico = {"id": 7, "tema": "Python", "texto": "Háblame de tu experiencia escribiendo pruebas automáticas en Python",
+                "criterio_exito": _CRITERIO}
     _cliente(monkeypatch, [_plan(*[_p(i) for i in range(1, 5)], corto, numerico)])
     plan = anyio.run(agent.generar_plan, _ficha(), [])
     ids = {p.id for p in plan}
@@ -155,7 +162,8 @@ def test_plan_agrega_requisitos_obligatorios_sin_cubrir(monkeypatch):
 
 
 def test_plan_no_duplica_requisito_ya_cubierto_por_el_modelo(monkeypatch):
-    cubierta = {"id": "A1", "tema": "Habilidad1", "texto": "Cuéntame un caso real usando Habilidad1"}
+    cubierta = {"id": "A1", "tema": "Habilidad1", "requisito_id": "R1", "criterio_exito": _CRITERIO,
+                "texto": "Cuéntame un caso real en el que usaste Habilidad1 en un proyecto"}
     _cliente(monkeypatch, [_plan(cubierta, *[_p(i) for i in range(1, 5)])])
     plan = anyio.run(agent.generar_plan, _ficha(), [_req(1)])
     assert "R1" not in {p.id for p in plan}
@@ -185,10 +193,11 @@ def test_plan_se_recupera_si_json_es_invalido_dos_veces(monkeypatch):
 
 def test_prompt_incluye_reglas_y_datos_delimitados(monkeypatch):
     client = _cliente(monkeypatch, [_plan(*[_p(i) for i in range(1, 6)])])
+    monkeypatch.setattr(agent, "cargar_prompt", _CARGAR_PROMPT_REAL)  # este test revisa el prompt real
     anyio.run(agent.generar_plan, _ficha(), [_req(1)])
     solicitud = client.messages.requests[0]
     assert "no confiables" in solicitud["system"]
-    assert "una sola pregunta" in solicitud["system"].lower()
+    assert "una sola idea" in solicitud["system"].lower()
     contenido = solicitud["messages"][0]["content"]
     assert contenido.startswith("<datos_no_confiables>")
     assert '"nombre": "Habilidad1"' in contenido  # JSON real, no repr de Python
@@ -243,7 +252,8 @@ def test_respuesta_none_se_trata_como_vacia(monkeypatch):
 
 
 def test_siguiente_valida_se_conserva(monkeypatch):
-    siguiente = {"id": "q2", "tema": "APIs", "texto": "Cuéntame cómo versionaste una API pública"}
+    siguiente = {"id": "q2", "tema": "APIs", "criterio_exito": _CRITERIO,
+                 "texto": "Cuéntame cómo versionaste una API pública que usaban otros equipos"}
     _cliente(monkeypatch, [_turno("solida", siguiente=siguiente)])
     _, pregunta, _ = _evaluar()
     assert pregunta is not None and pregunta.id == "q2"
@@ -281,8 +291,8 @@ def test_siguiente_compuesta_o_malformada_se_descarta(monkeypatch):
 
 
 def test_maximo_una_repregunta_por_pregunta(monkeypatch):
-    repregunta = {"id": "q1-R2", "tema": "Python", "es_repregunta": True,
-                  "texto": "¿Qué parte concreta del proyecto hiciste tú?"}
+    repregunta = {"id": "q1-R2", "tema": "Python", "es_repregunta": True, "criterio_exito": _CRITERIO,
+                  "texto": "¿Qué parte concreta del proyecto hiciste tú personalmente?"}
     _cliente(monkeypatch, [_turno(siguiente=repregunta)])
     _, pregunta, _ = _evaluar(pregunta=_pregunta(es_repregunta=True))
     assert pregunta is None
@@ -297,7 +307,8 @@ def test_maximo_una_repregunta_por_pregunta(monkeypatch):
 ])
 def test_terminar_se_interpreta_de_forma_robusta(monkeypatch, valor, esperado):
     _cliente(monkeypatch, [_turno(terminar=valor)])
-    _, _, terminar = _evaluar()
+    previos = [{"pregunta": {"texto": f"Pregunta previa {i}"}} for i in range(agent.MIN_TURNOS)]
+    _, _, terminar = _evaluar(historial=previos)  # antes del mínimo de turnos nunca se termina
     assert terminar is esperado
 
 
@@ -367,7 +378,8 @@ def test_historial_enviado_al_modelo_se_limita(monkeypatch):
 # --------------------------------------------------------------------------- informe
 
 def _hist(*califs, inconsistencias=()):
-    return [{"evaluacion": {"calificacion": c, "inconsistencias": list(inconsistencias) if i == 0 else []}}
+    return [{"evaluacion": {"calificacion": c, "evidencia_respuesta": "texto de la respuesta",
+                            "inconsistencias": list(inconsistencias) if i == 0 else []}}
             for i, c in enumerate(califs)]
 
 
@@ -375,6 +387,13 @@ def test_informe_avanza_con_respuestas_suficientes():
     informe = agent.construir_informe(_hist(*["solida"] * 3, *["aceptable"] * 2))
     assert informe["recomendacion"] == "avanzar"
     assert informe["respuestas_suficientes"] == 5 and informe["respuestas_debiles"] == 0
+
+
+def test_informe_revisa_sin_evidencia_textual():
+    historial = _hist(*["solida"] * 5)
+    for turno in historial:
+        turno["evaluacion"]["evidencia_respuesta"] = ""
+    assert agent.construir_informe(historial)["recomendacion"] == "revisar"
 
 
 def test_informe_revisa_con_inconsistencias():
