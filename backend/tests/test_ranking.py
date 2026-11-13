@@ -10,7 +10,7 @@ from app.main import app
 from app.models import CandidatoDB, RequisitoDB, VacanteDB
 from app.pipeline.scoring import alertas_para_puntaje
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida
-from app.schemas import EvaluacionRequisito, ExplicacionEvaluacion
+from app.schemas import EvaluacionRequisito
 
 LINEAS = [
     {"id": "p1-l1", "texto": "5 años desarrollando con Python y Django", "bbox": [0, 0, 1, 1]},
@@ -101,7 +101,7 @@ def client(session_factory, monkeypatch):
         llamadas.append(candidato_id)
         if candidato_id in FALLAN:
             raise RespuestaEvaluacionInvalida("El modelo devolvió una evaluación con formato inválido.")
-        return RESPUESTAS[candidato_id], ExplicacionEvaluacion()
+        return RESPUESTAS[candidato_id]
 
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(main_module, "init_db", lambda: None)
@@ -130,6 +130,11 @@ def test_evaluacion_devuelve_puntaje_calculado_en_codigo(client):
         "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje",
     }
     assert "1 cita(s) no encontradas en el CV" in cuerpo["motivos_confianza"]
+    # La explicación se arma en código después del puntaje: la cita falsa de AWS queda "por verificar".
+    assert cuerpo["explicacion"]["fortalezas"] == ["Python: Justificación de R1", "Inglés B2: Justificación de R3"]
+    assert cuerpo["explicacion"]["aspectos_por_verificar"] == [
+        "AWS: La cita propuesta no se encontró textualmente en el CV."
+    ]
 
 
 def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
@@ -229,4 +234,19 @@ def test_lote_exige_requisitos_confirmados(client, session_factory):
 
     assert client.post("/api/vacantes/V1/evaluar").status_code == 409
     assert client.post("/api/vacantes/NO/evaluar").status_code == 404
+    assert client.llamadas == []
+
+
+def test_no_se_evalua_con_un_requisito_protegido_guardado(client, session_factory):
+    with session_factory() as db:
+        vacante = db.get(VacanteDB, "V1")
+        vacante.requisitos.append(
+            RequisitoDB(id="R9", nombre="Sexo masculino", tipo="obligatorio", categoria="otro", peso=1.0)
+        )
+        db.commit()
+
+    r = client.post("/api/vacantes/V1/evaluar")
+
+    assert r.status_code == 422
+    assert "dato protegido (género)" in r.json()["detail"]
     assert client.llamadas == []

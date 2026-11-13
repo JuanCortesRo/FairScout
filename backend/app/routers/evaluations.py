@@ -18,7 +18,9 @@ from app.config import settings
 from app.db import get_db
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
+from app.pipeline.datos_protegidos import motivo_bloqueo
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida, evaluar
+from app.pipeline.explain import explicar
 from app.pipeline.scoring import alertas_para_puntaje, calcular_con_desglose
 from app.pipeline.verify import verificar_citas
 from app.schemas import (
@@ -114,10 +116,15 @@ def _requisitos_evaluables(vacante: VacanteDB) -> list[Requisito]:
         raise HTTPException(status_code=409, detail="Los requisitos de la vacante aún no están confirmados.")
     if not vacante.requisitos:
         raise HTTPException(status_code=422, detail="La vacante no tiene requisitos válidos.")
-    return [
+    requisitos = [
         Requisito(id=r.id, nombre=r.nombre, tipo=r.tipo, categoria=r.categoria, peso=r.peso)
         for r in vacante.requisitos
     ]
+    # Defensa en profundidad: nunca se evalúa con un requisito protegido, aunque haya llegado a la base de datos.
+    motivos = [m for m in map(motivo_bloqueo, requisitos) if m]
+    if motivos:
+        raise HTTPException(status_code=422, detail=" ".join(motivos))
+    return requisitos
 
 
 async def _evaluar_candidato(
@@ -127,7 +134,7 @@ async def _evaluar_candidato(
 ) -> EvaluacionSalida:
     ficha = Ficha.model_validate(candidato.ficha)
     lineas = [Linea.model_validate(linea) for linea in candidato.lineas_anonimizadas]
-    evaluaciones, explicacion = await evaluar(ficha, requisitos, lineas)
+    evaluaciones = await evaluar(ficha, requisitos, lineas)
     evaluaciones = verificar_citas(evaluaciones, lineas)
     resultado_candidato, desglose = calcular_con_desglose(
         evaluaciones, requisitos, candidato.id, alertas_para_puntaje(candidato.alertas or [])
@@ -138,7 +145,7 @@ async def _evaluar_candidato(
         vacante_id=vacante.id,
         version_requisitos=vacante.version_requisitos,
         evaluaciones=evaluaciones,
-        explicacion=explicacion,
+        explicacion=explicar(evaluaciones, requisitos),
         trazabilidad=TrazabilidadEvaluacion(
             modelo=settings.MODELO_EVALUACION,
             version_prompt=settings.PROMPT_VERSION,
