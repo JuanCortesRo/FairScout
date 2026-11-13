@@ -79,6 +79,7 @@ function desdeApi(cv, evaluacion) {
     alias: cv.id.slice(0, 6).toUpperCase(),
     estado_documento: cv.estado,            // processed | needs_review
     alertas: cv.alertas ?? [],
+    similares: cv.similares ?? [],
     lineas: cv.lineas ?? [],
     ficha: cv.ficha ?? null,
     evaluaciones: evaluacion?.evaluaciones ?? null,
@@ -230,15 +231,20 @@ export function AppProvider({ children }) {
         erroresEvaluacion: [],
       });
       set((s) => ({
-        archivos: cvs.archivos.map((cv) => ({
-          id: cv.id,
-          candidato_id: cv.id,
-          nombre: `CV ${cv.id.slice(0, 6).toUpperCase()}`,   // el nombre del archivo no se guarda
-          tamano: null,
-          estado: cv.estado === 'needs_review' ? 'revision' : cv.estado === 'failed' ? 'error' : 'listo',
-          alertas: cv.alertas ?? [],
-          error: cv.estado === 'needs_review' ? motivoRevision(cv.alertas ?? []) : null,
-        })),
+        archivos: [
+          // Los archivos que fallaron o ya estaban cargados no se guardan en el servidor: se conservan en la lista
+          // para que el reclutador vea qué pasó con cada uno.
+          ...s.archivos.filter((a) => !a.candidato_id && ['error', 'duplicado'].includes(a.estado)),
+          ...cvs.archivos.map((cv) => ({
+            id: cv.id,
+            candidato_id: cv.id,
+            nombre: `CV ${cv.id.slice(0, 6).toUpperCase()}`,   // el nombre del archivo no se guarda
+            tamano: null,
+            estado: cv.estado === 'needs_review' ? 'revision' : cv.estado === 'failed' ? 'error' : 'listo',
+            alertas: cv.alertas ?? [],
+            error: cv.estado === 'needs_review' ? motivoRevision(cv.alertas ?? []) : null,
+          })),
+        ],
       }));
     } catch (e) {
       if (solicitud !== rankingSeq.current) return;
@@ -310,17 +316,22 @@ export function AppProvider({ children }) {
     const anterior = ref.current.vacante;
     const version = vacante.version_requisitos
       ?? (anterior?.id === vacante.id ? anterior.version + 1 : 1);
-    // Requisitos nuevos ⇒ evaluaciones nuevas: las correcciones hechas sobre la versión anterior ya no aplican.
-    set(() => ({
+    // El servidor solo crea una versión nueva si cambió algo que afecta la evaluación (no los pesos ni el título).
+    const sinReevaluar = anterior?.id === vacante.id && anterior.requisitos_confirmados
+      && vacante.version_requisitos != null && vacante.version_requisitos === anterior.version;
+    set((s) => ({
       vacante: { ...vacante, version, confirmada_en: new Date().toISOString() },
       vacanteDesactivada: false,
-      correcciones: {},
+      // Requisitos nuevos ⇒ evaluaciones nuevas: las correcciones hechas sobre la versión anterior ya no aplican.
+      correcciones: sinReevaluar ? s.correcciones : {},
     }));
-    registrar('Requisitos confirmados', `Versión ${version} · ${vacante.requisitos.length} requisitos para "${vacante.titulo}"`);
+    registrar('Requisitos confirmados', sinReevaluar
+      ? `Versión ${version} sin cambios que requieran reevaluar los CVs`
+      : `Versión ${version} · ${vacante.requisitos.length} requisitos para "${vacante.titulo}"`);
     setTimeout(() => {
       void (async () => {
         await refrescar(vacante.id);
-        await evaluar({ vacanteId: vacante.id });
+        if (!sinReevaluar) await evaluar({ vacanteId: vacante.id });
       })();
     }, 0);
   }, [set, registrar, refrescar, evaluar]);
@@ -363,6 +374,12 @@ export function AppProvider({ children }) {
           candidato_id: null,
           alertas: r?.alertas ?? [],
           reintentable: !!causa?.startsWith('extraccion_llm'),
+        });
+      } else if (r.estado === 'duplicado') {
+        actualizarArchivo(archivo.id, {
+          estado: 'duplicado',
+          error: `Este CV ya está cargado como CV ${r.duplicado_de.slice(0, 6).toUpperCase()}; no se volvió a procesar.`,
+          reintentable: false,
         });
       } else if (r.estado === 'needs_review') {
         actualizarArchivo(archivo.id, { estado: 'revision', error: motivoRevision(r.alertas ?? []), candidato_id: r.id, alertas: r.alertas ?? [] });

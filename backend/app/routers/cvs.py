@@ -18,6 +18,8 @@ from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
 from app.models import CandidatoDB, ContactoCandidatoDB, VacanteDB
+from app.pipeline.anonymize import Contacto
+from app.pipeline.duplicados import CVExistente, buscar_coincidencias, relaciones, texto_comparable
 from app.schemas import CargaCVsSalida, CVResumen, CVSubido, Ficha, ListaCVsSalida
 
 router = APIRouter(tags=["cvs"])
@@ -67,16 +69,26 @@ async def subir_cvs(
             # El archivo original (con nombre, foto y datos de contacto) no se conserva: basta el texto anonimizado.
             ruta.unlink(missing_ok=True)
 
+        # Antes de la IA: el mismo CV no se vuelve a procesar; otra versión o el mismo contacto solo se marcan.
+        coincidencias = buscar_coincidencias(
+            texto_comparable(documento.lineas_anonimizadas), documento.contacto, _cvs_de_la_vacante(db, vacante_id)
+        )
+        if coincidencias.duplicado_de:
+            subidos.append(CVSubido(id=cv_id, estado="duplicado", duplicado_de=coincidencias.duplicado_de))
+            continue
+        similares = coincidencias.similares
+
         alertas = _tipos_de_alerta(documento)
         subidos.append(CVSubido(
             id=cv_id,
             lineas=documento.lineas_anonimizadas,
             estado=documento.estado,
-            alertas=alertas,
+            alertas=_con_similares(alertas, similares),
+            similares=similares,
         ))
         if not documento.puede_enviarse_al_llm:
             # Alerta crítica: no va al LLM, pero se guarda para que aparezca "en revisión" en el ranking.
-            _guardar_candidato(db, cv_id, vacante_id, documento, _FICHA_VACIA, alertas)
+            _guardar_candidato(db, cv_id, vacante_id, documento, _FICHA_VACIA, alertas, similares)
             continue
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
@@ -96,9 +108,10 @@ async def subir_cvs(
             lineas=documento.lineas_anonimizadas,
             ficha=ficha,
             estado=documento.estado,
-            alertas=alertas,
+            alertas=_con_similares(alertas, similares),
+            similares=similares,
         )
-        _guardar_candidato(db, cv_id, vacante_id, documento, ficha, alertas)
+        _guardar_candidato(db, cv_id, vacante_id, documento, ficha, alertas, similares)
     return CargaCVsSalida(archivos=subidos)
 
 
@@ -115,7 +128,25 @@ def _vacante_o_404(db: Session, vacante_id: str) -> VacanteDB:
     return vacante
 
 
-def _guardar_candidato(db: Session, cv_id: str, vacante_id: str, documento, ficha: Ficha, alertas: list[str]) -> None:
+def _cvs_de_la_vacante(db: Session, vacante_id: str) -> list[CVExistente]:
+    candidatos = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == vacante_id).all()
+    contactos = {
+        c.candidato_id: Contacto(nombre=c.nombre, correo=c.correo, telefono=c.telefono)
+        for c in db.query(ContactoCandidatoDB).filter(
+            ContactoCandidatoDB.candidato_id.in_([c.id for c in candidatos])
+        )
+    }
+    return [CVExistente(c.id, texto_comparable(c.lineas_anonimizadas), contactos.get(c.id)) for c in candidatos]
+
+
+def _con_similares(alertas: list[str], similares: list) -> list[str]:
+    """La alerta "posible_duplicado" se deriva al responder: desaparece sola si el otro CV se borra."""
+    return [*alertas, "posible_duplicado"] if similares else alertas
+
+
+def _guardar_candidato(
+    db: Session, cv_id: str, vacante_id: str, documento, ficha: Ficha, alertas: list[str], similares: list[dict]
+) -> None:
     db.merge(CandidatoDB(
         id=cv_id,
         vacante_id=vacante_id,
@@ -124,6 +155,7 @@ def _guardar_candidato(db: Session, cv_id: str, vacante_id: str, documento, fich
         ficha=ficha.model_dump(mode="json"),
         lineas_anonimizadas=[linea.model_dump(mode="json") for linea in documento.lineas_anonimizadas],
         alertas=alertas,
+        similares=similares,
     ))
     db.flush()  # el contacto referencia al candidato
     contacto = documento.contacto
@@ -140,11 +172,13 @@ def listar_cvs(vacante_id: str, db: Session = Depends(get_db)) -> ListaCVsSalida
     candidatos = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == vacante_id).order_by(
         CandidatoDB.fecha_creacion.desc().nulls_last(), CandidatoDB.id
     ).all()
+    similares = relaciones(candidatos)
     return ListaCVsSalida(archivos=[
         CVResumen(
             id=candidato.id,
             estado=candidato.estado,
-            alertas=candidato.alertas or [],
+            alertas=_con_similares(candidato.alertas or [], similares[candidato.id]),
+            similares=similares[candidato.id],
             fecha_creacion=candidato.fecha_creacion,
         )
         for candidato in candidatos
@@ -166,11 +200,14 @@ def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSub
     candidato = db.get(CandidatoDB, candidato_id)
     if candidato is None:
         raise HTTPException(status_code=404, detail="El candidato no existe.")
+    de_la_vacante = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == candidato.vacante_id).all()
+    similares = relaciones(de_la_vacante).get(candidato.id, [])
     return CVSubido(
         id=candidato.id,
         vacante_id=candidato.vacante_id,
         lineas=candidato.lineas_anonimizadas,
         ficha=candidato.ficha,
         estado=candidato.estado,
-        alertas=candidato.alertas or [],
+        alertas=_con_similares(candidato.alertas or [], similares),
+        similares=similares,
     )

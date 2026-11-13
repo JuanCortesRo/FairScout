@@ -384,3 +384,18 @@ def test_exportar_sin_evaluados_o_vacante_inexistente(client):
     assert client.get("/api/vacantes/V1/exportar").status_code == 409
     assert client.get("/api/vacantes/NO/exportar").status_code == 404
     assert client.get("/api/vacantes/V1/exportar", params={"top": 0}).status_code == 422
+
+
+def test_confirmar_los_requisitos_sin_cambios_no_vuelve_a_llamar_a_la_ia(client):
+    client.post("/api/vacantes/V1/evaluar")
+    llamadas = len(client.llamadas)
+    requisitos = [{"id": i, "nombre": n, "tipo": t, "categoria": c, "peso": 2.0} for i, n, t, c in REQUISITOS]
+
+    actualizada = client.put("/api/vacantes/V1", json={
+        "titulo": "Backend", "descripcion": "Vacante de prueba con otra descripción", "requisitos": requisitos,
+    }).json()
+    lote = client.post("/api/vacantes/V1/evaluar").json()
+
+    assert actualizada["version_requisitos"] == 1
+    assert (lote["evaluados"], lote["omitidos"]) == (0, 3)
+    assert len(client.llamadas) == llamadas

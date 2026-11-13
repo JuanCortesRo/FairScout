@@ -114,6 +114,11 @@ async def crear_vacante(
     )
 
 
+def _firma(requisitos) -> list[tuple]:
+    """Lo que la IA usa para evaluar cada requisito (sin el peso ni el orden)."""
+    return sorted((r.id, " ".join(r.nombre.split()), r.tipo, r.categoria) for r in requisitos)
+
+
 @router.put("/vacantes/{vacante_id}", response_model=VacanteSalida)
 def actualizar_vacante(
     vacante_id: str,
@@ -129,9 +134,10 @@ def actualizar_vacante(
 
     vacante.titulo = entrada.titulo
     vacante.descripcion = entrada.descripcion
-    # La primera confirmación del borrador es la versión 1; cada edición posterior crea una versión nueva
-    # (y deja sin vigencia las evaluaciones hechas con la anterior).
-    if vacante.requisitos_confirmados:
+    # La primera confirmación del borrador es la versión 1. Después, solo un cambio que altera la evaluación crea
+    # una versión nueva (y deja sin vigencia las evaluaciones anteriores, que se vuelven a pedir a la IA). Cambiar
+    # el título, la descripción o los pesos no: los pesos se aplican en código al calcular el ranking.
+    if vacante.requisitos_confirmados and _firma(vacante.requisitos) != _firma(entrada.requisitos):
         vacante.version_requisitos += 1
     vacante.requisitos_confirmados = True
     vacante.requisitos = [

@@ -258,3 +258,88 @@ def test_borrar_un_candidato_borra_su_contacto_y_evaluaciones(tmp_path, monkeypa
     with bd_aislada() as db:
         assert db.get(ContactoCandidatoDB, cv_id) is None
         assert db.query(EvaluacionDB).count() == 0
+
+
+LINEAS_CV = [
+    "Analista contable",
+    "Experiencia: 5 años en conciliaciones bancarias y cierres mensuales",
+    "Formación: Contaduría Pública, Universidad Nacional",
+    "Habilidades: SAP, Excel avanzado, normas NIIF",
+]
+
+
+def _pdf(lineas, autor="") -> bytes:
+    documento = pymupdf.open()
+    pagina = documento.new_page()
+    for i, texto in enumerate(lineas):
+        pagina.insert_text((72, 72 + 18 * i), texto)
+    documento.set_metadata({"author": autor})   # cambia los bytes del archivo, no su texto
+    contenido = documento.tobytes()
+    documento.close()
+    return contenido
+
+
+@pytest.fixture
+def subir(tmp_path, monkeypatch):
+    llamadas = []
+
+    async def extraer_contando(lineas):
+        llamadas.append(1)
+        return await _ficha_vacia(lineas)
+
+    monkeypatch.setattr("app.routers.cvs.settings.UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr("app.routers.cvs.extraer_ficha", extraer_contando)
+    with TestClient(app) as client:
+        def _subir(contenido, url=URL):
+            return client.post(url, files={"archivos": ("cv.pdf", contenido, "application/pdf")}).json()["archivos"][0]
+        _subir.client = client
+        _subir.llamadas = llamadas
+        yield _subir
+
+
+def test_el_mismo_cv_no_se_procesa_dos_veces_aunque_cambien_los_bytes(subir, bd_aislada):
+    primero = subir(_pdf(LINEAS_CV))
+    repetido = subir(_pdf(LINEAS_CV))
+    reexportado = subir(_pdf(LINEAS_CV, autor="Otro programa"))
+
+    assert primero["estado"] == "processed"
+    for cv in (repetido, reexportado):
+        assert (cv["estado"], cv["duplicado_de"]) == ("duplicado", primero["id"])
+    assert len(subir.llamadas) == 1                     # los repetidos no llegan a la IA
+    with bd_aislada() as db:
+        assert db.query(CandidatoDB).count() == 1
+
+
+def test_otra_version_del_cv_se_procesa_y_se_marca_en_ambos(subir):
+    original = subir(_pdf(LINEAS_CV))
+    nueva = subir(_pdf([*LINEAS_CV, "Certificación: CPA 2025"]))
+
+    assert nueva["estado"] == "processed"
+    assert "posible_duplicado" in nueva["alertas"]
+    assert nueva["similares"][0]["candidato_id"] == original["id"]
+    assert nueva["similares"][0]["motivo"] == "texto" and nueva["similares"][0]["similitud"] >= 90
+    lista = {c["id"]: c for c in subir.client.get(URL).json()["archivos"]}
+    assert [s["candidato_id"] for s in lista[original["id"]]["similares"]] == [nueva["id"]]
+    assert "posible_duplicado" in lista[original["id"]]["alertas"]
+
+    subir.client.delete(f"/api/candidatos/{nueva['id']}")
+    sola = subir.client.get(f"/api/candidatos/{original['id']}").json()
+    assert sola["similares"] == [] and "posible_duplicado" not in sola["alertas"]
+
+
+def test_el_mismo_contacto_con_otro_cv_se_marca(subir):
+    primero = subir(_pdf(["ana@example.com", *LINEAS_CV]))
+    otro = subir(_pdf(["ANA@example.com", "Desarrolladora Python", "Experiencia: 3 años con Django y FastAPI"]))
+
+    assert otro["estado"] == "processed"
+    assert otro["similares"] == [{"candidato_id": primero["id"], "motivo": "contacto", "similitud": None}]
+
+
+def test_el_mismo_cv_puede_postularse_a_otra_vacante(subir, bd_aislada):
+    with bd_aislada() as db:
+        db.add(_vacante("V2"))
+        db.commit()
+    subir(_pdf(LINEAS_CV))
+    en_otra = subir(_pdf(LINEAS_CV), url="/api/vacantes/V2/cvs")
+
+    assert en_otra["estado"] == "processed" and en_otra["similares"] == []

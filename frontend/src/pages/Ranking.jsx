@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
-  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert, Trophy, ArrowRight,
+  Loader2, Clock, Sparkles, CloudOff, ShieldAlert, Trophy, ArrowRight,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -217,11 +217,6 @@ export default function Ranking() {
         descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el orden lo calculan reglas fijas, no la IA."
         acciones={(
           <>
-            {!enDemo && (
-              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar resultados">
-                <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
-              </Button>
-            )}
             <ExportarRanking />
           </>
         )}

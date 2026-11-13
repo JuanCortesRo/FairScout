@@ -57,6 +57,7 @@ def _migrar_columnas_existentes() -> None:
         "candidatos": {
             "alertas": "JSON NOT NULL DEFAULT '[]'",
             "vacante_id": "VARCHAR(32)",
+            "similares": "JSON NOT NULL DEFAULT '[]'",
             "fecha_creacion": "TIMESTAMP WITH TIME ZONE",
         },
         "evaluaciones": {

@@ -63,6 +63,8 @@ class CandidatoDB(Base):
     lineas_anonimizadas: Mapped[list] = mapped_column(JSON, nullable=False)
     # Tipos de alerta del documento ("prompt_injection", "hidden_text", "ocr", ...). Bajan la confianza del puntaje.
     alertas: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # CVs de la misma vacante que parecen otra versión de este o del mismo candidato (ver pipeline/duplicados.py).
+    similares: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     fecha_creacion: Mapped[datetime | None] = _fecha_creacion()
 
 

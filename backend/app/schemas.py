@@ -137,13 +137,23 @@ class VacanteSalida(BaseModel):
     requisitos_bloqueados: list[RequisitoBloqueado] = []
 
 
+class CVSimilar(BaseModel):
+    """Otro CV de la vacante: otra versión del mismo (motivo "texto") o del mismo candidato ("contacto")."""
+    candidato_id: str
+    motivo: Literal["texto", "contacto"]
+    similitud: int | None = None   # % de texto en común, solo con motivo "texto"
+
+
 class CVSubido(BaseModel):
     id: str
     vacante_id: str | None = None
     lineas: list[Linea] = []
     ficha: Ficha | None = None
-    estado: Literal["processed", "needs_review", "failed"] = "processed"
+    # "duplicado": el mismo CV ya estaba en la vacante (ver `duplicado_de`); no se procesa ni se guarda.
+    estado: Literal["processed", "needs_review", "failed", "duplicado"] = "processed"
     alertas: list[str] = []
+    duplicado_de: str | None = None
+    similares: list[CVSimilar] = []
 
 
 class CargaCVsSalida(BaseModel):
@@ -154,6 +164,7 @@ class CVResumen(BaseModel):
     id: str
     estado: Literal["processed", "needs_review", "failed"]
     alertas: list[str] = []
+    similares: list[CVSimilar] = []
     fecha_creacion: datetime | None = None
 
 

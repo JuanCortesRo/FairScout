@@ -27,7 +27,8 @@ async def evaluar(
         raise RespuestaEvaluacionInvalida("No hay requisitos para evaluar.")
     contenido = "\n".join(f"[{linea.id}] {linea.texto}" for linea in lineas)
     ficha_json = ficha.model_dump_json()
-    requisitos_json = [requisito.model_dump() for requisito in requisitos]
+    # El peso no cambia si un requisito se cumple: no se envía, y cambiarlo no obliga a reevaluar.
+    requisitos_json = [requisito.model_dump(exclude={"peso"}) for requisito in requisitos]
     messages = [{
         "role": "user",
         "content": (

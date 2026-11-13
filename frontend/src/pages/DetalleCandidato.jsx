@@ -12,7 +12,7 @@ import { useApp } from '@/store';
 import { explicar } from '@/lib/scoring';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
-import { aniosExperiencia, nombreCertificacion } from '@/lib/ficha';
+import { aniosExperiencia, formatearExperiencia, nombreCertificacion } from '@/lib/ficha';
 import { crearInvitacionEntrevista, revocarInvitacionEntrevista } from '@/api';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
@@ -150,7 +150,7 @@ function Ficha({ ficha, onLinea }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-lg font-semibold leading-tight">{formatearExperiencia(aniosExperiencia(ficha))}</p><p className="mt-0.5 text-xs text-muted-foreground" title="Si dos cargos se cruzan en el tiempo, ese periodo se cuenta una sola vez.">de experiencia</p></div>
         <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.experiencias.length}</p><p className="text-xs text-muted-foreground">cargos registrados</p></div>
       </div>
       <Seccion icono={Briefcase} titulo="Experiencia">
@@ -205,6 +205,24 @@ function IdentidadOculta() {
   );
 }
 
+/** Otros CVs de la vacante que parecen otra versión de este o del mismo candidato. */
+function AvisoSimilares({ similares }) {
+  if (!similares?.length) return null;
+  return (
+    <Alerta tipo="warn" icono={Copy} className="mb-6" titulo="Posible duplicado">
+      <ul className="mt-1 space-y-0.5">
+        {similares.map((s) => (
+          <li key={s.candidato_id}>
+            {s.motivo === 'texto' ? `Comparte el ${s.similitud} % del texto con ` : 'Tiene el mismo correo o teléfono que '}
+            <Link to={`/candidato/${s.candidato_id}`} className="font-medium underline">Candidato {s.candidato_id.slice(0, 6).toUpperCase()}</Link>.
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1">Si es el mismo candidato, conserva la versión que prefieras y elimina la otra desde la carga de CVs.</p>
+    </Alerta>
+  );
+}
+
 /** CV en revisión humana (no se envió a la IA) o procesado pero todavía sin evaluar. */
 function SinEvaluacion({ c, nombre, onVolver }) {
   const revision = c.estado_documento === 'needs_review';
@@ -222,6 +240,7 @@ function SinEvaluacion({ c, nombre, onVolver }) {
           {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
         </div>
       </Card>
+      <AvisoSimilares similares={c.similares} />
       <Alerta tipo={revision ? 'warn' : 'info'} icono={revision ? ShieldAlert : CircleAlert} className="mb-6"
         titulo={revision ? 'En revisión humana: este CV no se envió a la IA' : 'Este CV todavía no se ha evaluado'}>
         {revision
@@ -408,6 +427,7 @@ export default function DetalleCandidato() {
         </div>
       </Card>
 
+      <AvisoSimilares similares={c.similares} />
       {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
           Se encontró una instrucción escrita en blanco y en tamaño mínimo. La IA ignora cualquier instrucción escrita dentro del CV, así que no tuvo efecto.

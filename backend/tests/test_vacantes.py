@@ -124,12 +124,18 @@ def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
     assert respuesta.json()["titulo"] == "Senior Python"
     assert respuesta.json()["version_requisitos"] == 1
     assert respuesta.json()["requisitos_confirmados"] is True
-    assert client.put(f"/api/vacantes/{creada['id']}", json=actualizada).json()["version_requisitos"] == 2
     with session_factory() as db:
         vacante = db.get(VacanteDB, creada["id"])
         assert vacante.titulo == "Senior Python"
         assert vacante.descripcion.endswith("También usamos Docker.")
         assert vacante.requisitos[0].nombre == "5 años con Python"
+
+    # Confirmar de nuevo sin cambios, o cambiando solo el peso o el título, no crea una versión (no se reevalúa).
+    assert client.put(f"/api/vacantes/{creada['id']}", json=actualizada).json()["version_requisitos"] == 1
+    solo_peso = {**actualizada, "titulo": "Otro título", "requisitos": [{**actualizada["requisitos"][0], "peso": 3.0}]}
+    assert client.put(f"/api/vacantes/{creada['id']}", json=solo_peso).json()["version_requisitos"] == 1
+    otro_texto = {**actualizada, "requisitos": [{**actualizada["requisitos"][0], "nombre": "6 años con Python"}]}
+    assert client.put(f"/api/vacantes/{creada['id']}", json=otro_texto).json()["version_requisitos"] == 2
 
 
 def test_listar_y_obtener_vacantes_persistidas(monkeypatch, client):

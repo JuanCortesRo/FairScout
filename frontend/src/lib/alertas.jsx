@@ -1,4 +1,4 @@
-import { ShieldAlert, ScanText, CalendarX, Quote, EyeOff, ImageOff, UserRoundX } from 'lucide-react';
+import { ShieldAlert, ScanText, CalendarX, Quote, EyeOff, ImageOff, UserRoundX, Copy } from 'lucide-react';
 
 // Tipos de alerta del documento (backend: suspicious_content.py, document_processor.py) y de la demo.
 // Bajan la confianza o mandan el CV a revisión humana; nunca cambian el puntaje.
@@ -9,5 +9,6 @@ export const ALERTAS = {
   fotografia_o_imagen: { texto: 'El documento tiene una imagen o foto; no se usa para evaluar', corto: 'Foto ignorada', icono: ImageOff, clase: 'text-muted-foreground bg-muted' },
   ocr: { texto: 'Documento escaneado: su texto puede tener errores de lectura', corto: 'Documento escaneado', icono: ScanText, clase: 'text-info bg-info-soft' },
   inconsistencia_fechas: { texto: 'Fechas de experiencia solapadas o imposibles', corto: 'Fechas inconsistentes', icono: CalendarX, clase: 'text-warn bg-warn-soft' },
+  posible_duplicado: { texto: 'Parece otra versión de un CV ya cargado o del mismo candidato', corto: 'Posible duplicado', icono: Copy, clase: 'text-warn bg-warn-soft' },
   cita_no_verificada: { texto: 'Una cita no se encontró textualmente en el CV', corto: 'Cita no verificada', icono: Quote, clase: 'text-warn bg-warn-soft' },
 };
