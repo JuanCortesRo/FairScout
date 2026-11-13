@@ -1,3 +1,5 @@
+import pytest
+
 from app.pipeline.anonymize import anonimizar, anonimizar_con_metadatos
 from app.schemas import Linea
 
@@ -112,3 +114,20 @@ def test_anonimiza_identidad_de_genero_y_direccion_completa():
         "Correo electrónico: [CORREO]",
         "Licencia de conducir: Vigente",
     ]
+
+
+@pytest.mark.parametrize("texto,esperado", [
+    ("Edad: 28", "[EDAD]"),
+    ("28 años de edad", "[EDAD] años de edad"),
+    ("35 years old", "[EDAD] years old"),
+    ("Tengo 30 años", "Tengo [EDAD] años"),
+    ("Colombiana, 28 años", "Colombiana, [EDAD] años"),
+    # Años de experiencia: no son edad y no se tocan.
+    ("5 años en Python", "5 años en Python"),
+    ("Experiencia: 10 años", "Experiencia: 10 años"),
+    ("10 years of experience in accounting", "10 years of experience in accounting"),
+    ("Saved $10 million amortized over 10 years", "Saved $10 million amortized over 10 years"),
+    ("Más de 20 años liderando equipos, 3 años en AWS", "Más de 20 años liderando equipos, 3 años en AWS"),
+])
+def test_edad_sin_borrar_anos_de_experiencia(texto, esperado):
+    assert anonimizar(lineas(texto))[0].texto == esperado
