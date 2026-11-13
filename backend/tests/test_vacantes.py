@@ -122,8 +122,69 @@ def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
 
     assert respuesta.status_code == 200
     assert respuesta.json()["titulo"] == "Senior Python"
+    assert respuesta.json()["version_requisitos"] == 2
+    assert respuesta.json()["requisitos_confirmados"] is True
     with session_factory() as db:
         vacante = db.get(VacanteDB, creada["id"])
         assert vacante.titulo == "Senior Python"
         assert vacante.descripcion.endswith("También usamos Docker.")
         assert vacante.requisitos[0].nombre == "5 años con Python"
+
+
+def test_listar_y_obtener_vacantes_persistidas(monkeypatch, client):
+    falso, _ = _cliente_falso(json.dumps(VALIDA))
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+    creada = client.post("/api/vacantes", json=DESCRIPCION).json()
+
+    lista = client.get("/api/vacantes")
+    detalle = client.get(f"/api/vacantes/{creada['id']}")
+
+    assert lista.status_code == 200
+    assert len(lista.json()) == 1
+    assert lista.json()[0]["id"] == creada["id"]
+    assert detalle.json()["descripcion"] == DESCRIPCION["descripcion"]
+    assert detalle.json()["version_requisitos"] == 1
+    assert detalle.json()["requisitos_confirmados"] is False
+    assert client.get("/api/vacantes/inexistente").status_code == 404
+
+
+CON_PROTEGIDOS = {"titulo": "Recepcionista", "requisitos": [
+    {"id": "R1", "nombre": "2 años en atención al cliente", "tipo": "obligatorio", "categoria": "experiencia", "peso": 1.0},
+    {"id": "R2", "nombre": "Menor de 30 años", "tipo": "obligatorio", "categoria": "blanda", "peso": 1.0},
+    {"id": "R3", "nombre": "Buena presencia", "tipo": "deseable", "categoria": "blanda", "peso": 1.0}]}
+
+
+def test_vacante_descarta_requisitos_protegidos_que_proponga_el_llm(monkeypatch, client, session_factory):
+    falso, _ = _cliente_falso(json.dumps(CON_PROTEGIDOS))
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+
+    r = client.post("/api/vacantes", json=DESCRIPCION)
+
+    assert r.status_code == 200
+    assert [req["id"] for req in r.json()["requisitos"]] == ["R1"]
+    bloqueados = r.json()["requisitos_bloqueados"]
+    assert [b["requisito"]["id"] for b in bloqueados] == ["R2", "R3"]
+    assert "(edad)" in bloqueados[0]["motivo"]
+    with session_factory() as db:
+        assert [req.id for req in db.get(VacanteDB, r.json()["id"]).requisitos] == ["R1"]
+
+
+def test_actualizar_vacante_rechaza_requisito_protegido(monkeypatch, client, session_factory):
+    falso, _ = _cliente_falso(json.dumps(VALIDA))
+    monkeypatch.setattr(requirements, "get_client", lambda: falso)
+    creada = client.post("/api/vacantes", json=DESCRIPCION).json()
+
+    r = client.put(f"/api/vacantes/{creada['id']}", json={
+        "titulo": "Desarrollador Python",
+        "descripcion": DESCRIPCION["descripcion"],
+        "requisitos": VALIDA["requisitos"] + [
+            {"id": "R2", "nombre": "Nacionalidad colombiana", "tipo": "obligatorio", "categoria": "otro", "peso": 1.0},
+        ],
+    })
+
+    assert r.status_code == 422
+    assert r.json()["detail"].startswith("El requisito R2 «Nacionalidad colombiana» usa un dato protegido (nacionalidad).")
+    with session_factory() as db:
+        vacante = db.get(VacanteDB, creada["id"])
+        assert [req.id for req in vacante.requisitos] == ["R1"]
+        assert vacante.requisitos_confirmados is False

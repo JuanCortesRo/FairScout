@@ -11,9 +11,7 @@ class _Message:
         "text": (
             '{"evaluaciones":[{"requisito_id":"R1","resultado":"cumple",'
             '"cita":"Experiencia con Python","lineas":["p1-l1"],'
-            '"justificacion":"La experiencia está indicada."}],'
-            '"explicacion":{"fortalezas":["Python"],"brechas":[],'
-            '"aspectos_por_verificar":[]}}'
+            '"justificacion":"La experiencia está indicada."}]}'
         ),
     })()]
 
@@ -35,11 +33,10 @@ def test_evaluar_valida_la_respuesta_del_modelo(monkeypatch):
         habilidades_tecnicas=["Python"], competencias_blandas=[],
     )
     requisitos = [Requisito(id="R1", nombre="Python", tipo="obligatorio", categoria="tecnica")]
-    evaluaciones, explicacion = anyio.run(
+    evaluaciones = anyio.run(
         evaluar,
         ficha,
         requisitos,
         [Linea(id="p1-l1", texto="Experiencia con Python", bbox=(0, 0, 1, 1))],
     )
     assert evaluaciones[0].resultado == "cumple"
-    assert explicacion.fortalezas == ["Python"]

@@ -4,7 +4,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.llm import cargar_prompt, extract_json, get_client, texto_de_respuesta
-from app.schemas import EvaluacionRequisito, ExplicacionEvaluacion, Ficha, Linea, Requisito
+from app.schemas import EvaluacionRequisito, Ficha, Linea, Requisito
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ async def evaluar(
     ficha: Ficha,
     requisitos: list[Requisito],
     lineas: list[Linea],
-) -> tuple[list[EvaluacionRequisito], ExplicacionEvaluacion]:
+) -> list[EvaluacionRequisito]:
     """Paso 5 (LLM, llamada 2, MODELO_EVALUACION). Evalúa cada requisito con resultado, cita, líneas y
     justificación. Razona por significado, no por palabras clave: tecnología parecida ≠ misma (AWS ≠ Azure).
     Few-shot con 3-5 ejemplos. Ver secciones 7 y 8. Prompt en app/prompts/evaluacion_v1.md.
@@ -66,8 +66,7 @@ async def evaluar(
                 }
                 if item.resultado not in permitidos:
                     raise ValueError(f"Resultado inválido para {item.requisito_id}.")
-            explicacion = ExplicacionEvaluacion.model_validate(salida.get("explicacion", {}))
-            return evaluaciones, explicacion
+            return evaluaciones
         except (KeyError, ValueError, ValidationError) as error:
             log.warning("Evaluación inválida (intento %d): %s", intento + 1, type(error).__name__)
             messages += [

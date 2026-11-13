@@ -1,8 +1,9 @@
 import re
+from datetime import date
 
 from rapidfuzz import fuzz
 
-from app.schemas import Ficha
+from app.schemas import ExperienciaLaboral, Ficha, calcular_experiencia_total
 
 _MESES = {
     "ene": "01", "jan": "01", "feb": "02", "mar": "03", "abr": "04", "apr": "04",
@@ -66,10 +67,39 @@ def limpiar_ficha(ficha: Ficha) -> Ficha:
         })
         for idioma in ficha.idiomas
     ]
+    hoy = date.today()
+    mes_actual = f"{hoy.year:04d}-{hoy.month:02d}"
+    experiencias_calculables = []
+    fechas_inconsistentes = False
+    for experiencia in experiencias:
+        inicio = experiencia.inicio
+        fin = experiencia.fin
+        if inicio is None:
+            continue
+        if inicio > mes_actual:
+            fechas_inconsistentes = True
+            continue
+        if fin not in (None, "actual") and fin > mes_actual:
+            fechas_inconsistentes = True
+            fin = mes_actual
+        if fin not in (None, "actual") and fin < inicio:
+            fechas_inconsistentes = True
+        experiencias_calculables.append(ExperienciaLaboral(
+            cargo=experiencia.cargo or "Experiencia",
+            empresa=experiencia.empresa or "No especificada",
+            fecha_inicio=inicio,
+            fecha_fin=fin,
+            es_actual=fin == "actual",
+            descripcion=experiencia.descripcion,
+            evidencias=experiencia.lineas,
+        ))
+    anios_experiencia, errores_fecha = calcular_experiencia_total(experiencias_calculables)
     return ficha.model_copy(update={
         "experiencias": experiencias,
         "formacion": formacion,
         "idiomas": idiomas,
         "habilidades_tecnicas": _deduplicar(ficha.habilidades_tecnicas),
         "competencias_blandas": _deduplicar(ficha.competencias_blandas),
+        "anios_experiencia": anios_experiencia,
+        "inconsistencia_fechas": fechas_inconsistentes or bool(errores_fecha),
     })

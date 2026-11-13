@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  Bot, Send, User, MessagesSquare, ArrowLeft, CircleCheck, Circle, TriangleAlert, ThumbsUp, ThumbsDown, RotateCcw, Square, ShieldCheck, Info, ChevronRight, ListChecks,
+  Bot, Send, User, MessagesSquare, ArrowLeft, CircleCheck, Circle, TriangleAlert, ThumbsUp, ThumbsDown, RotateCcw, Square, ShieldCheck, Info, ChevronRight, ListChecks, Loader2,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, EstadoVacio, EstadoBadge, Confianza, Alerta, AnilloPuntaje } from '@/components/ui/kit';
@@ -34,8 +34,11 @@ function Selector() {
   const recomendados = ranking.filter((r) => r.resultado.recomendado_entrevista);
   return (
     <>
-      <PageHeader titulo="Entrevista con IA" paso="Bonus"
-        descripcion="Un agente hace de 5 a 10 preguntas dinámicas, compara las respuestas con el CV, detecta inconsistencias y recomienda avanzar o no." />
+      <PageHeader titulo="Entrevista simulada" paso="Bonus"
+        descripcion="Flujo de demostración con preguntas y respuestas evaluadas en el navegador; todavía no está conectado a un agente backend." />
+      <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Esta función aún es una simulación">
+        Las preguntas y la evaluación son reglas locales, no una entrevista real con IA.
+      </Alerta>
       {ranking.length === 0 ? (
         <Card>
           <EstadoVacio icono={MessagesSquare} titulo="Aún no hay candidatos" descripcion="La entrevista se inicia desde un candidato evaluado.">
@@ -74,15 +77,30 @@ function Selector() {
 
 export default function Entrevista() {
   const { id } = useParams();
-  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar } = useApp();
+  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo } = useApp();
   const navigate = useNavigate();
   const item = ranking.find((r) => r.candidato.candidato_id === id);
   const [texto, setTexto] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
+  const [cargandoCandidato, setCargandoCandidato] = useState(false);
+  const [errorCandidato, setErrorCandidato] = useState('');
   const fin = useRef(null);
 
   const estado = useMemo(() => (item ? (entrevistas[id] ?? nuevoEstado(item.resultado)) : null), [item, entrevistas, id]);
   const resumen = useMemo(() => (estado?.terminada && item ? resumir(estado, item.resultado) : null), [estado, item]);
+
+  useEffect(() => {
+    if (!id || enDemo || !item || item.candidato.ficha) return undefined;
+    let vigente = true;
+    setCargandoCandidato(true);
+    setErrorCandidato('');
+    cargarCandidato(id).catch((e) => {
+      if (vigente) setErrorCandidato(e.message);
+    }).finally(() => {
+      if (vigente) setCargandoCandidato(false);
+    });
+    return () => { vigente = false; };
+  }, [id, enDemo, item, cargarCandidato]);
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [estado?.mensajes.length, escribiendo]);
 
@@ -97,12 +115,18 @@ export default function Entrevista() {
     );
   }
   const { candidato: c, resultado: r } = item;
+  if (cargandoCandidato || (!c.ficha && !errorCandidato)) {
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando el CV para la simulación">Espera mientras se consulta el perfil en el servidor.</Alerta>;
+  }
+  if (errorCandidato) {
+    return <Alerta tipo="error" icono={Info} titulo="No se pudo cargar el CV">{errorCandidato}</Alerta>;
+  }
 
   const terminar = (e) => {
     const final = { ...e, terminada: true, mensajes: [...e.mensajes, { rol: 'agente', texto: 'Gracias por tu tiempo. La entrevista terminó; el equipo de selección revisará el resumen.' }] };
     guardarEntrevista(id, final);
     const res = resumir(final, r);
-    registrar('Entrevista con IA', `Candidato ${id}: ${res.avanzar ? 'avanzar' : 'no avanzar'} · ${res.inconsistencias.length} inconsistencia(s)`);
+    registrar('Entrevista simulada', `Candidato ${id}: ${res.avanzar ? 'avanzar' : 'no avanzar'} · ${res.inconsistencias.length} inconsistencia(s)`);
   };
 
   const enviar = (ev) => {
@@ -143,6 +167,10 @@ export default function Entrevista() {
         </button>
         <Button variant="ghost" size="sm" onClick={reiniciar}><RotateCcw /> Reiniciar</Button>
       </div>
+
+      <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Entrevista simulada">
+        El flujo usa reglas locales y no un agente conectado al backend. Sus respuestas se mantienen solo durante esta sesión.
+      </Alerta>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
         <Card className="flex h-[calc(100vh-10rem)] min-h-[520px] flex-col overflow-hidden">

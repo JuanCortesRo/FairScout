@@ -2,6 +2,12 @@
 const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 export class ErrorConexion extends Error {}
+export class ErrorAPI extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
 
 async function request(path, options = {}) {
   let response;
@@ -13,10 +19,15 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const detalle = data?.detail;
-    throw new Error(typeof detalle === 'string' ? detalle : `El servidor respondió con un error (${response.status}).`);
+    const texto = typeof detalle === 'string'
+      ? detalle
+      : Array.isArray(detalle) ? detalle.map((d) => d.msg).join('. ') : null;
+    throw new ErrorAPI(texto || `El servidor respondió con un error (${response.status}).`, response.status);
   }
   return data;
 }
+
+const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 export async function salud() {
   const controller = new AbortController();
@@ -33,24 +44,41 @@ export async function salud() {
   }
 }
 
-export function crearVacante(descripcion) {
-  return request('/vacantes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ descripcion }),
-  });
-}
+/** Propone requisitos con el LLM y crea la vacante (sin confirmar). */
+export const crearVacante = (descripcion) => request('/vacantes', json('POST', { descripcion }));
 
-export function actualizarVacante(id, vacante) {
-  return request(`/vacantes/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(vacante),
-  });
-}
+/** Confirma los requisitos editados: crea una nueva versión de la vacante. */
+export const actualizarVacante = (id, vacante) => request(`/vacantes/${id}`, json('PUT', vacante));
 
+/** Vacantes guardadas en el servidor, con sus requisitos y versión vigente. */
+export const listarVacantes = () => request('/vacantes');
+export const obtenerVacante = (id) => request(`/vacantes/${id}`);
+
+/** Sube CVs: se leen, se anonimizan y se extrae su ficha. */
 export function subirCVs(archivos) {
   const form = new FormData();
   archivos.forEach((a) => form.append('archivos', a));
   return request('/cvs', { method: 'POST', body: form });
 }
+
+/** Metadatos de los CVs guardados; el documento completo se pide al abrir su detalle. */
+export const listarCVs = () => request('/cvs');
+export const obtenerCandidato = (id) => request(`/candidatos/${id}`);
+
+/** Evalúa en lote los CVs procesados que aún no tienen evaluación con la versión vigente. */
+export const evaluarLote = (vacanteId, reevaluar = false) =>
+  request(`/vacantes/${vacanteId}/evaluar${reevaluar ? '?reevaluar=true' : ''}`, { method: 'POST' });
+
+/** Ranking calculado por el backend para el peso de obligatorios seleccionado. */
+export const obtenerRanking = (vacanteId, pesoObligatorios = 60) => {
+  const params = new URLSearchParams({
+    vacante_id: vacanteId,
+    peso_obligatorios: String(pesoObligatorios),
+  });
+  return request(`/ranking?${params}`);
+};
+
+/** Evaluación vigente de cada candidato: resultado por requisito, citas, explicación y trazabilidad. */
+export const listarEvaluaciones = (vacanteId) => request(`/vacantes/${vacanteId}/evaluaciones`);
+export const obtenerEvaluacion = (vacanteId, candidatoId) =>
+  request(`/vacantes/${vacanteId}/candidatos/${candidatoId}/evaluacion`);

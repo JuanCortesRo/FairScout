@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: float = 60.0
     UPLOADS_DIR: str = "uploads"
     LIBREOFFICE_PATH: str = ""
+    EVALUACIONES_CONCURRENTES: int = 5   # llamadas al LLM en paralelo al evaluar un lote
 
     @model_validator(mode="after")
     def validar_modelos(self) -> "Settings":

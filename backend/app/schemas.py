@@ -41,6 +41,8 @@ class Ficha(BaseModel):          # salida del LLM, llamada 1
     idiomas: list[Idioma]
     habilidades_tecnicas: list[str]
     competencias_blandas: list[str]
+    anios_experiencia: float | None = None
+    inconsistencia_fechas: bool = False
 
 class Requisito(BaseModel):
     id: str
@@ -85,14 +87,26 @@ class EvaluacionSalida(BaseModel):
     evaluaciones: list[EvaluacionRequisito]
     explicacion: ExplicacionEvaluacion
     trazabilidad: TrazabilidadEvaluacion
+    # Calculado en código por pipeline/scoring.py, nunca por el LLM.
+    resultado: "ResultadoCandidato"
+    motivos_confianza: list[str] = Field(default_factory=list)
 
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
     puntaje: float                     # 0-100
-    estado: Literal["cumple", "cumple_parcialmente", "no_cumple"]
+    estado: Literal["cumple", "cumple_parcialmente", "pendiente_verificar", "no_cumple"]
     confianza: Literal["alta", "media", "baja"]
     recomendado_entrevista: bool
     motivo_estado: str                 # p. ej. "Falta obligatorio: inglés B2"
+
+
+class DetalleRanking(BaseModel):
+    puntaje_obligatorios: float | None
+    puntaje_deseables: float | None
+    cobertura: float
+    motivos_confianza: list[str]
+    categorias: dict[str, float]
+    citas_sin_verificar: int
 
 
 # ── Entrada/salida de la API (no forman parte de la sección 8) ──────────────
@@ -106,10 +120,20 @@ class VacanteActualizacion(BaseModel):
     requisitos: list[Requisito]
 
 
+class RequisitoBloqueado(BaseModel):
+    requisito: Requisito
+    motivo: str
+
+
 class VacanteSalida(BaseModel):
     titulo: str
     requisitos: list[Requisito]
     id: str | None = None
+    descripcion: str | None = None
+    version_requisitos: int = 1
+    requisitos_confirmados: bool = False
+    # Propuestos por el LLM pero descartados por usar un dato protegido (edad, género, nacionalidad...).
+    requisitos_bloqueados: list[RequisitoBloqueado] = []
 
 
 class CVSubido(BaseModel):
@@ -125,14 +149,47 @@ class CargaCVsSalida(BaseModel):
     archivos: list[CVSubido]
 
 
+class CVResumen(BaseModel):
+    id: str
+    nombre_archivo: str
+    estado: Literal["processed", "needs_review", "failed"]
+    alertas: list[str] = []
+
+
+class ListaCVsSalida(BaseModel):
+    archivos: list[CVResumen]
+
+
 class EvaluacionEntrada(BaseModel):
     candidato_id: str = Field(..., min_length=1)
     vacante_id: str = Field(..., min_length=1)
 
 
+class ErrorEvaluacion(BaseModel):
+    candidato_id: str
+    detalle: str
+
+
+class EvaluacionLoteSalida(BaseModel):
+    vacante_id: str
+    evaluados: int
+    omitidos: int                      # ya tenían evaluación con la versión vigente de los requisitos
+    errores: list[ErrorEvaluacion] = []
+
+
+class CandidatoEnRevision(BaseModel):
+    """CV que no se envió al LLM por una alerta crítica (prompt injection, posible dato personal)."""
+    candidato_id: str
+    nombre_archivo: str
+    alertas: list[str]
+
+
 class RankingSalida(BaseModel):
     vacante_id: str | None = None
-    candidatos: list[ResultadoCandidato]
+    peso_obligatorios: float = 60      # % del puntaje para obligatorios; los deseables valen el resto
+    candidatos: list[ResultadoCandidato]   # todos, ordenados por estado y puntaje (sin top-N)
+    detalles: dict[str, DetalleRanking] = Field(default_factory=dict)
+    en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
 
 
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Wand2, Plus, Trash2, ShieldAlert, ArrowRight, Pencil, FileText, ListChecks, Loader2, Rocket, CircleAlert, Info,
@@ -7,41 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, TipoBadge, Alerta, Ayuda, CategoriaTag } from '@/components/ui/kit';
 import { actualizarVacante, crearVacante, ErrorConexion } from '@/api';
 import { useApp } from '@/store';
-import { DESCRIPCION_EJEMPLO, VACANTE_EJEMPLO } from '@/data/demo';
-import { detectarDatoProtegido } from '@/lib/protegidos';
+import { DESCRIPCION_EJEMPLO } from '@/data/demo';
 import { CATEGORIAS, TIPOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 
-const espera = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Extracción aproximada sin backend: viñetas → requisitos, encabezados → tipo. */
-function extraerLocal(texto) {
-  if (texto.trim() === DESCRIPCION_EJEMPLO.trim()) return structuredClone(VACANTE_EJEMPLO);
-  const lineas = texto.split('\n').map((l) => l.trim()).filter(Boolean);
-  let tipo = 'obligatorio';
-  const requisitos = [];
-  for (const l of lineas) {
-    const low = l.toLowerCase();
-    if (/^(deseable|plus|valoramos|nice to have)/.test(low)) { tipo = 'deseable'; continue; }
-    if (/^(no aplica|descalifica|excluyente)/.test(low)) { tipo = 'descalificante'; }
-    if (/^(requisitos|requirements|obligatorio)/.test(low)) { tipo = 'obligatorio'; continue; }
-    if (!/^[-•*]/.test(l) && tipo !== 'descalificante') continue;
-    const nombre = l.replace(/^[-•*]\s*/, '').replace(/^no aplica:\s*/i, '').replace(/\.$/, '');
-    let categoria = 'tecnica';
-    if (/(año|experiencia|years)/i.test(nombre)) categoria = 'experiencia';
-    if (/(título|profesional en|carrera|grado|degree)/i.test(nombre)) categoria = 'formacion';
-    if (/(certifica)/i.test(nombre)) categoria = 'certificacion';
-    if (/(inglés|ingles|english|idioma|francés|portugués)/i.test(nombre)) categoria = 'idioma';
-    if (/(liderazgo|comunicación|trabajo en equipo|leadership)/i.test(nombre)) categoria = 'blanda';
-    requisitos.push({ id: `R${requisitos.length + 1}`, nombre, tipo, categoria, peso: 1 });
-  }
-  return { titulo: lineas[0]?.slice(0, 80) ?? 'Nueva vacante', requisitos };
-}
-
-function FilaRequisito({ r, onChange, onDelete }) {
-  const protegido = detectarDatoProtegido(r.nombre);
+function FilaRequisito({ r, onChange, onDelete, error }) {
   return (
-    <tr className={cn('border-b align-top transition-colors last:border-0', protegido && 'bg-bad-soft/60')}>
+    <tr className={cn('border-b align-top transition-colors last:border-0', error && 'bg-bad-soft/60')}>
       <td className="py-3 pr-2 pl-4 text-xs font-semibold text-muted-foreground tabular-nums">{r.id}</td>
       <td className="py-2 pr-3">
         <input
@@ -50,11 +22,11 @@ function FilaRequisito({ r, onChange, onDelete }) {
           aria-label={`Nombre del requisito ${r.id}`}
           placeholder="Describe el requisito"
           className={cn('w-full min-w-[220px] rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm transition-colors hover:border-input focus:border-ring focus:bg-card focus:outline-none',
-            !r.nombre.trim() && 'border-bad/40')}
+            (!r.nombre.trim() || error) && 'border-bad/40')}
         />
-        {protegido && (
+        {error && (
           <p className="mt-1 flex items-center gap-1.5 px-2 text-xs font-medium text-bad">
-            <ShieldAlert className="size-3.5" /> Usa un dato protegido ({protegido}). No puede ser criterio de selección.
+            <ShieldAlert className="size-3.5" /> {error}
           </p>
         )}
       </td>
@@ -90,12 +62,15 @@ function Resumen({ vacante, onEditar }) {
   const navigate = useNavigate();
   const { candidatos } = useApp();
   const grupos = ['obligatorio', 'deseable', 'descalificante'].map((t) => ({ tipo: t, items: vacante.requisitos.filter((r) => r.tipo === t) }));
+  const fechaConfirmacion = vacante.confirmada_en
+    ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'recuperada del servidor';
   return (
     <>
       <PageHeader
         paso="Paso 1 de 3"
         titulo={vacante.titulo}
-        descripcion={`Requisitos confirmados (versión ${vacante.version}) el ${new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}.`}
+        descripcion={`Requisitos confirmados (versión ${vacante.version}) · ${fechaConfirmacion}.`}
         acciones={(
           <>
             <Button variant="outline" size="lg" onClick={onEditar}><Pencil /> Editar requisitos</Button>
@@ -133,7 +108,7 @@ function Resumen({ vacante, onEditar }) {
 }
 
 export default function NuevaVacante() {
-  const { vacante, confirmarVacante, backend, cargarDemo, registrar, notificar } = useApp();
+  const { vacante, confirmarVacante, backend, enDemo, cargarDemo, registrar, notificar, cargandoServidor } = useApp();
   const navigate = useNavigate();
   const [editando, setEditando] = useState(!vacante);
   const [descripcion, setDescripcion] = useState(vacante?.descripcion ?? '');
@@ -143,42 +118,51 @@ export default function NuevaVacante() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [intentado, setIntentado] = useState(false);
+  const [bloqueados, setBloqueados] = useState([]);
 
-  const protegidos = useMemo(() => (requisitos ?? []).filter((r) => detectarDatoProtegido(r.nombre)), [requisitos]);
+  useEffect(() => {
+    if (!vacante?.requisitos) return;
+    setDescripcion((actual) => actual || vacante.descripcion || '');
+    setTitulo((actual) => actual || vacante.titulo);
+    setRequisitos((actual) => actual ?? structuredClone(vacante.requisitos));
+    setVacanteId((actual) => actual ?? vacante.id);
+    if (vacante.requisitos_confirmados) setEditando(false);
+    else setEditando(true);
+  }, [vacante]);
+
   const vacios = (requisitos ?? []).filter((r) => !r.nombre.trim());
   const sinObligatorios = requisitos && !requisitos.some((r) => r.tipo === 'obligatorio');
   const problemas = [
-    protegidos.length && `${protegidos.length} requisito(s) usan datos protegidos. Quítalos o reescríbelos.`,
     vacios.length && `${vacios.length} requisito(s) no tienen descripción.`,
     sinObligatorios && 'Agrega al menos un requisito obligatorio.',
     !titulo.trim() && 'La vacante necesita un título.',
   ].filter(Boolean);
 
-  if (vacante && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} />;
+  if ((cargandoServidor || backend === 'verificando') && !vacante?.requisitos) {
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Recuperando vacantes del servidor">Espera un momento para continuar.</Alerta>;
+  }
+
+  if (vacante?.requisitos_confirmados && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} />;
 
   const extraer = async () => {
     setError('');
+    if (backend !== 'conectado') {
+      setError('El servidor no está disponible. Inicia el backend para que la IA proponga los requisitos.');
+      return;
+    }
     setCargando(true);
     try {
-      let res;
-      if (backend === 'conectado') {
-        res = await crearVacante(descripcion);
-      } else {
-        await espera(1100);
-        res = extraerLocal(descripcion);
-      }
-      if (!res.requisitos.length) {
-        setError('No encontramos requisitos en el texto. Escribe cada requisito en una línea que empiece con "-" o agrégalos a mano.');
-      }
-      if (res.id) setVacanteId(res.id);
+      const res = await crearVacante(descripcion);
+      if (!res.requisitos.length) setError('La IA no encontró requisitos en el texto. Agrégalos a mano.');
+      setVacanteId(res.id);
       setTitulo(res.titulo);
       setRequisitos(res.requisitos.map((r) => ({ ...r, peso: r.peso ?? 1 })));
-      const bloqueados = res.requisitos.filter((r) => detectarDatoProtegido(r.nombre));
-      bloqueados.forEach((r) => registrar('Requisito bloqueado', `"${r.nombre}" usa un dato protegido (${detectarDatoProtegido(r.nombre)})`));
+      // El backend descarta los requisitos con datos protegidos antes de guardarlos.
+      const descartados = res.requisitos_bloqueados ?? [];
+      setBloqueados(descartados);
+      descartados.forEach((b) => registrar('Requisito bloqueado', `"${b.requisito.nombre}": ${b.motivo}`));
     } catch (e) {
-      setError(e instanceof ErrorConexion
-        ? 'No pudimos conectar con el servidor. Puedes reintentar o usar la extracción local.'
-        : e.message);
+      setError(e instanceof ErrorConexion ? 'No pudimos conectar con el servidor. Intenta de nuevo.' : e.message);
     } finally {
       setCargando(false);
     }
@@ -192,10 +176,15 @@ export default function NuevaVacante() {
 
   const confirmar = async () => {
     setIntentado(true);
+    setError('');
     if (problemas.length) return;
+    let vacanteGuardada = null;
     try {
-      if (backend === 'conectado' && vacanteId) {
-        await actualizarVacante(vacanteId, { titulo: titulo.trim(), descripcion, requisitos });
+      // En la demo los requisitos solo viven en el navegador.
+      if (!enDemo) {
+        if (backend !== 'conectado') throw new ErrorConexion();
+        if (!vacanteId) throw new Error('Primero pide a la IA que proponga los requisitos para crear la vacante en el servidor.');
+        vacanteGuardada = await actualizarVacante(vacanteId, { titulo: titulo.trim(), descripcion, requisitos });
       }
     } catch (e) {
       setError(e instanceof ErrorConexion
@@ -204,10 +193,17 @@ export default function NuevaVacante() {
       return;
     }
     if (vacante) registrar('Corrección humana', `Requisitos editados (${requisitos.length} en total)`);
-    confirmarVacante({ id: vacanteId, titulo: titulo.trim(), descripcion, requisitos });
+    confirmarVacante({
+      id: vacanteId,
+      titulo: titulo.trim(),
+      descripcion,
+      requisitos,
+      version_requisitos: vacanteGuardada?.version_requisitos,
+      requisitos_confirmados: true,
+    });
     setEditando(false);
-    notificar('Requisitos confirmados. Ya puedes cargar CVs.', 'ok');
-    navigate('/cvs');
+    notificar(enDemo ? 'Requisitos actualizados en la demo.' : 'Requisitos confirmados. Ya puedes cargar CVs.', 'ok');
+    navigate(enDemo ? '/ranking' : '/cvs');
   };
 
   const conteo = (t) => requisitos?.filter((r) => r.tipo === t).length ?? 0;
@@ -218,7 +214,7 @@ export default function NuevaVacante() {
         paso="Paso 1 de 3"
         titulo={vacante ? 'Editar requisitos de la vacante' : 'Crea la vacante'}
         descripcion="Pega la descripción del cargo. La IA propone los requisitos y tú los ajustas antes de evaluar cualquier CV."
-        acciones={!vacante && (
+        acciones={!vacante && backend !== 'conectado' && (
           <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}>
             <Rocket /> Ver demo completa
           </Button>
@@ -250,14 +246,21 @@ export default function NuevaVacante() {
               </Button>
             </div>
             {error && (
-              <Alerta tipo="error" icono={CircleAlert} className="mt-4" titulo="No se pudieron proponer los requisitos">
+              <Alerta tipo="error" icono={CircleAlert} className="mt-4" titulo="Algo no salió bien">
                 <p>{error}</p>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={extraer}>Reintentar</Button>
-                  <Button size="sm" variant="ghost" onClick={() => { const r = extraerLocal(descripcion); setTitulo(r.titulo); setRequisitos(r.requisitos); setError(''); }}>
-                    Usar extracción local
-                  </Button>
-                </div>
+                {!requisitos && (
+                  <div className="mt-2 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={extraer}>Reintentar</Button>
+                    {backend !== 'conectado' && <Button size="sm" variant="ghost" onClick={() => { cargarDemo(); navigate('/ranking'); }}>Ver la demo</Button>}
+                  </div>
+                )}
+              </Alerta>
+            )}
+            {bloqueados.length > 0 && (
+              <Alerta tipo="warn" icono={ShieldAlert} className="mt-4" titulo={`La IA propuso ${bloqueados.length} requisito(s) con datos protegidos y se descartaron`}>
+                <ul className="mt-1 list-disc pl-4">
+                  {bloqueados.map((b) => <li key={b.requisito.id}><b>{b.requisito.nombre}</b>: {b.motivo}</li>)}
+                </ul>
               </Alerta>
             )}
           </div>
@@ -330,6 +333,7 @@ export default function NuevaVacante() {
                   <tbody>
                     {requisitos.map((r) => (
                       <FilaRequisito key={r.id} r={r} onChange={(c) => cambiar(r.id, c)}
+                        error={error.includes(`requisito ${r.id} «${r.nombre}»`) ? error : ''}
                         onDelete={() => setRequisitos((rs) => rs.filter((x) => x.id !== r.id))} />
                     ))}
                   </tbody>
@@ -338,11 +342,6 @@ export default function NuevaVacante() {
               <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4">
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={agregar}><Plus /> Agregar requisito</Button>
-                  {protegidos.length > 0 && (
-                    <Button variant="destructive" onClick={() => setRequisitos((rs) => rs.filter((r) => !detectarDatoProtegido(r.nombre)))}>
-                      <ShieldAlert /> Quitar protegidos ({protegidos.length})
-                    </Button>
-                  )}
                 </div>
                 <div className="flex gap-2">
                   {vacante && <Button variant="ghost" size="lg" onClick={() => setEditando(false)}>Cancelar</Button>}

@@ -44,6 +44,9 @@ def _migrar_columnas_existentes() -> None:
             "requisitos_confirmados": "BOOLEAN NOT NULL DEFAULT FALSE",
             "version_requisitos": "INTEGER NOT NULL DEFAULT 1",
         },
+        "candidatos": {
+            "alertas": "JSON NOT NULL DEFAULT '[]'",
+        },
     }
     inspector = inspect(engine)
     with engine.begin() as conexion:
