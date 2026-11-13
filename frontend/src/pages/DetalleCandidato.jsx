@@ -13,6 +13,7 @@ import { explicar } from '@/lib/scoring';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 import { aniosExperiencia, nombreCertificacion } from '@/lib/ficha';
+import { crearInvitacionEntrevista, revocarInvitacionEntrevista } from '@/api';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
 function VisorCV({ candidato, activas, citadas, alClicLinea }) {
@@ -240,6 +241,8 @@ export default function DetalleCandidato() {
   const [correccion, setCorreccion] = useState(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState('');
+  const [invitacion, setInvitacion] = useState(null);
+  const [creandoInvitacion, setCreandoInvitacion] = useState(false);
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
   useEffect(() => {
     if (!id || enDemo) return undefined;
@@ -303,6 +306,27 @@ export default function DetalleCandidato() {
   const anterior = ranking[posicion - 2];
   const siguiente = ranking[posicion];
 
+  const invitar = async () => {
+    if (!vacante?.id || creandoInvitacion) return;
+    setCreandoInvitacion(true);
+    try {
+      setInvitacion(await crearInvitacionEntrevista(vacante.id, c.candidato_id));
+    } catch (error) {
+      notificar(error.message, 'error');
+    } finally {
+      setCreandoInvitacion(false);
+    }
+  };
+  const revocar = async () => {
+    try {
+      await revocarInvitacionEntrevista(invitacion.id);
+      setInvitacion({ ...invitacion, estado: 'revocada' });
+      notificar('La invitación fue revocada.', 'ok');
+    } catch (error) {
+      notificar(error.message, 'error');
+    }
+  };
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -346,7 +370,9 @@ export default function DetalleCandidato() {
                       : 'Hay evidencia parcial sobre uno o más requisitos obligatorios.'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => navigate(`/entrevista/${c.candidato_id}`)}><MessagesSquare /> Iniciar entrevista</Button>
+                <Button size="sm" onClick={invitar} disabled={enDemo || creandoInvitacion}>
+                  <MessagesSquare /> {creandoInvitacion ? 'Creando enlace…' : 'Invitar a entrevista'}
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => { if (!seleccion.includes(c.candidato_id)) toggleSeleccion(c.candidato_id); navigate('/comparador'); }}>
                   <Columns3 /> Comparar
                 </Button>
@@ -430,6 +456,24 @@ export default function DetalleCandidato() {
       </div>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">{AVISO_DECISION}</p>
+
+      <Modal abierto={!!invitacion} onClose={() => setInvitacion(null)} titulo="Invitación creada"
+        pie={(
+          <>
+            {invitacion?.estado === 'pending' && <Button variant="outline" onClick={revocar}>Revocar enlace</Button>}
+            <Button onClick={() => setInvitacion(null)}>Cerrar</Button>
+          </>
+        )}>
+        {invitacion && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Comparte este enlace con el candidato. Expira el {new Date(invitacion.expira_at).toLocaleString()}.</p>
+            <div className="flex gap-2">
+              <input readOnly value={invitacion.public_url} className="min-w-0 flex-1 rounded-lg border bg-muted px-3 py-2 text-sm" />
+              <Button variant="outline" onClick={() => navigator.clipboard.writeText(invitacion.public_url)}>Copiar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal abierto={!!correccion} onClose={() => setCorreccion(null)} titulo={`Corregir ${correccion?.req.id ?? ''}`}
         pie={(

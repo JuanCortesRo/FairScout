@@ -82,3 +82,28 @@ export const obtenerRanking = (vacanteId, pesoObligatorios = 60) => {
 export const listarEvaluaciones = (vacanteId) => request(`/vacantes/${vacanteId}/evaluaciones`);
 export const obtenerEvaluacion = (vacanteId, candidatoId) =>
   request(`/vacantes/${vacanteId}/candidatos/${candidatoId}/evaluacion`);
+
+/** Entrevistas persistidas y generadas por el agente del backend. */
+export const crearEntrevista = (candidatoId, vacanteId) =>
+  request('/entrevistas', json('POST', { candidato_id: candidatoId, vacante_id: vacanteId }));
+export const obtenerEntrevista = (entrevistaId) => request(`/entrevistas/${entrevistaId}`);
+export const responderEntrevista = (entrevistaId, respuesta) =>
+  request(`/entrevistas/${entrevistaId}/respuestas`, json('POST', { respuesta }));
+export const finalizarEntrevista = (entrevistaId) =>
+  request(`/entrevistas/${entrevistaId}/finalizar`, { method: 'POST' });
+export const reiniciarEntrevista = (entrevistaId) =>
+  request(`/entrevistas/${entrevistaId}/reiniciar`, { method: 'POST' });
+
+/** Invitaciones públicas: nunca devuelven evaluaciones ni recomendaciones. */
+export const crearInvitacionEntrevista = (vacanteId, candidatoId) =>
+  request(`/vacantes/${vacanteId}/candidatos/${candidatoId}/entrevista`, { method: 'POST' });
+export const listarInvitacionesEntrevista = (vacanteId) =>
+  request(`/vacantes/${vacanteId}/entrevistas`);
+export const revocarInvitacionEntrevista = (entrevistaId) =>
+  request(`/entrevistas/${entrevistaId}/revocar`, { method: 'POST' });
+export const consultarEntrevistaPublica = (token) =>
+  request(`/publico/entrevistas/${encodeURIComponent(token)}`);
+export const iniciarEntrevistaPublica = (token, aceptaPrivacidad) =>
+  request(`/publico/entrevistas/${encodeURIComponent(token)}/iniciar`, json('POST', { consentimiento: aceptaPrivacidad }));
+export const responderEntrevistaPublica = (token, texto) =>
+  request(`/publico/entrevistas/${encodeURIComponent(token)}/responder`, json('POST', { texto }));

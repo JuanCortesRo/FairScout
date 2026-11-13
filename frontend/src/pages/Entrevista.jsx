@@ -7,6 +7,10 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, EstadoVacio, EstadoBadge, Confianza, Alerta, AnilloPuntaje } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { crearPlan, evaluarRespuesta, siguienteTurno, resumir } from '@/lib/entrevistador';
+import {
+  crearEntrevista, obtenerEntrevista, responderEntrevista,
+  finalizarEntrevista, reiniciarEntrevista,
+} from '@/api';
 import { AVISO_DECISION } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 
@@ -28,20 +32,55 @@ function nuevoEstado(resultado) {
   };
 }
 
+function estadoDesdeApi(respuesta) {
+  const mensajes = (respuesta.mensajes ?? []).map((mensaje) => ({
+    ...mensaje,
+    preguntaId: mensaje.pregunta_id,
+    evaluacion: mensaje.evaluacion,
+  }));
+  const actual = respuesta.pregunta ?? respuesta.pregunta_siguiente;
+  return {
+    id: respuesta.id,
+    plan: [],
+    indice: respuesta.progreso?.respondidas ?? 0,
+    turnos: respuesta.historial ?? [],
+    repreguntas: 0,
+    terminada: respuesta.estado !== 'en_curso',
+    actual,
+    mensajes,
+    progreso: respuesta.progreso ?? {},
+    inconsistencias: respuesta.inconsistencias ?? [],
+    informe: respuesta.informe,
+  };
+}
+
+function resumenDesdeApi(estado, resultado) {
+  const informe = estado.informe;
+  if (!estado.terminada || !informe) return null;
+  const avanzar = informe.recomendacion === 'avanzar';
+  return {
+    avanzar,
+    inconsistencias: estado.inconsistencias,
+    confianza: estado.informe.confianza ?? resultado.confianza,
+    justificacion: informe.justificacion
+      ?? (avanzar ? 'La entrevista no detectó contradicciones relevantes.' : 'La entrevista requiere revisión adicional.'),
+    verificados: informe.fortalezas ?? [],
+    buenas: informe.respuestas_suficientes ?? 0,
+    total: informe.total_respuestas ?? estado.progreso.respondidas ?? 0,
+  };
+}
+
 function Selector() {
   const { ranking, nombreVisible, entrevistas } = useApp();
   const navigate = useNavigate();
   const recomendados = ranking.filter((r) => r.resultado.recomendado_entrevista);
   return (
     <>
-      <PageHeader titulo="Entrevista simulada" paso="Bonus"
-        descripcion="Flujo de demostración con preguntas y respuestas evaluadas en el navegador; todavía no está conectado a un agente backend." />
-      <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Esta función aún es una simulación">
-        Las preguntas y la evaluación son reglas locales, no una entrevista real con IA.
-      </Alerta>
+      <PageHeader titulo="Entrevistas" paso="Bonus"
+        descripcion="Crea invitaciones públicas desde el detalle de cada candidato." />
       {ranking.length === 0 ? (
         <Card>
-          <EstadoVacio icono={MessagesSquare} titulo="Aún no hay candidatos" descripcion="La entrevista se inicia desde un candidato evaluado.">
+          <EstadoVacio icono={MessagesSquare} titulo="Aún no hay candidatos" descripcion="Las invitaciones se crean desde un candidato evaluado.">
             <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Ir al ranking</Link>
           </EstadoVacio>
         </Card>
@@ -53,7 +92,7 @@ function Selector() {
               const e = entrevistas[c.candidato_id];
               return (
                 <li key={c.candidato_id}>
-                  <button onClick={() => navigate(`/entrevista/${c.candidato_id}`)} className="group flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent/50">
+                  <button onClick={() => navigate(`/candidato/${c.candidato_id}`)} className="group flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-accent/50">
                     <span className="w-8 text-sm font-semibold text-muted-foreground tabular-nums">#{posicion}</span>
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{nombreVisible(c)}</p>
@@ -77,17 +116,24 @@ function Selector() {
 
 export default function Entrevista() {
   const { id } = useParams();
-  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo } = useApp();
+  const { ranking, entrevistas, guardarEntrevista, nombreVisible, registrar, cargarCandidato, enDemo, vacante, backend } = useApp();
   const navigate = useNavigate();
   const item = ranking.find((r) => r.candidato.candidato_id === id);
   const [texto, setTexto] = useState('');
   const [escribiendo, setEscribiendo] = useState(false);
   const [cargandoCandidato, setCargandoCandidato] = useState(false);
   const [errorCandidato, setErrorCandidato] = useState('');
+  const [entrevistaApi, setEntrevistaApi] = useState(null);
+  const [cargandoEntrevista, setCargandoEntrevista] = useState(false);
+  const [errorEntrevista, setErrorEntrevista] = useState('');
   const fin = useRef(null);
 
-  const estado = useMemo(() => (item ? (entrevistas[id] ?? nuevoEstado(item.resultado)) : null), [item, entrevistas, id]);
-  const resumen = useMemo(() => (estado?.terminada && item ? resumir(estado, item.resultado) : null), [estado, item]);
+  const estadoLocal = useMemo(() => (item ? (entrevistas[id] ?? nuevoEstado(item.resultado)) : null), [item, entrevistas, id]);
+  const estado = enDemo ? estadoLocal : (entrevistaApi ? estadoDesdeApi(entrevistaApi) : null);
+  const resumen = useMemo(() => {
+    if (!estado?.terminada || !item) return null;
+    return enDemo ? resumir(estado, item.resultado) : resumenDesdeApi(estado, item.resultado);
+  }, [estado, item, enDemo]);
 
   useEffect(() => {
     if (!id || enDemo || !item || item.candidato.ficha) return undefined;
@@ -101,6 +147,30 @@ export default function Entrevista() {
     });
     return () => { vigente = false; };
   }, [id, enDemo, item, cargarCandidato]);
+
+  useEffect(() => {
+    if (!id || enDemo || !item || !vacante?.id) return undefined;
+    let vigente = true;
+    const clave = `fairscout:entrevista:${id}:${vacante.id}`;
+    setCargandoEntrevista(true);
+    setErrorEntrevista('');
+    const cargar = async () => {
+      try {
+        const guardada = localStorage.getItem(clave);
+        const respuesta = guardada
+          ? await obtenerEntrevista(guardada)
+          : await crearEntrevista(id, vacante.id);
+        if (!guardada) localStorage.setItem(clave, respuesta.id);
+        if (vigente) setEntrevistaApi(respuesta);
+      } catch (e) {
+        if (vigente) setErrorEntrevista(e.message);
+      } finally {
+        if (vigente) setCargandoEntrevista(false);
+      }
+    };
+    void cargar();
+    return () => { vigente = false; };
+  }, [id, enDemo, item, vacante?.id]);
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [estado?.mensajes.length, escribiendo]);
 
@@ -121,19 +191,50 @@ export default function Entrevista() {
   if (errorCandidato) {
     return <Alerta tipo="error" icono={Info} titulo="No se pudo cargar el CV">{errorCandidato}</Alerta>;
   }
+  if (!enDemo && (cargandoEntrevista || !entrevistaApi) && !errorEntrevista) {
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Preparando la entrevista">El agente está generando la primera pregunta.</Alerta>;
+  }
+  if (!enDemo && errorEntrevista) {
+    return <Alerta tipo="error" icono={Info} titulo="No se pudo iniciar la entrevista">{errorEntrevista}</Alerta>;
+  }
 
-  const terminar = (e) => {
+  const terminar = async (e) => {
+    if (!enDemo) {
+      setEscribiendo(true);
+      try {
+        const respuesta = await finalizarEntrevista(entrevistaApi.id);
+        setEntrevistaApi(respuesta);
+      } catch (error) {
+        setErrorEntrevista(error.message);
+      } finally {
+        setEscribiendo(false);
+      }
+      return;
+    }
     const final = { ...e, terminada: true, mensajes: [...e.mensajes, { rol: 'agente', texto: 'Gracias por tu tiempo. La entrevista terminó; el equipo de selección revisará el resumen.' }] };
     guardarEntrevista(id, final);
     const res = resumir(final, r);
     registrar('Entrevista simulada', `Candidato ${id}: ${res.avanzar ? 'avanzar' : 'no avanzar'} · ${res.inconsistencias.length} inconsistencia(s)`);
   };
 
-  const enviar = (ev) => {
+  const enviar = async (ev) => {
     ev?.preventDefault();
     const respuesta = texto.trim();
     if (!respuesta || escribiendo || estado.terminada) return;
     setTexto('');
+    if (!enDemo) {
+      setEscribiendo(true);
+      try {
+        const siguiente = await responderEntrevista(entrevistaApi.id, respuesta);
+        setEntrevistaApi(siguiente);
+      } catch (error) {
+        setErrorEntrevista(error.message);
+        setTexto(respuesta);
+      } finally {
+        setEscribiendo(false);
+      }
+      return;
+    }
     const evaluacion = evaluarRespuesta(estado.actual, respuesta, c);
     const turnos = [...estado.turnos, { pregunta: estado.actual, respuesta, evaluacion, esRepregunta: !!estado.actual.esRepregunta }];
     const parcial = { ...estado, turnos, mensajes: [...estado.mensajes, { rol: 'candidato', texto: respuesta, evaluacion }] };
@@ -154,10 +255,28 @@ export default function Entrevista() {
     }, 900);
   };
 
-  const reiniciar = () => guardarEntrevista(id, nuevoEstado(r));
-  const inconsistencias = estado.turnos.flatMap((t) => t.evaluacion.inconsistencias);
+  const reiniciar = async () => {
+    if (enDemo) {
+      guardarEntrevista(id, nuevoEstado(r));
+      return;
+    }
+    setEscribiendo(true);
+    try {
+      const nueva = await reiniciarEntrevista(entrevistaApi.id);
+      localStorage.setItem(`fairscout:entrevista:${id}:${vacante.id}`, nueva.id);
+      setEntrevistaApi(nueva);
+      setErrorEntrevista('');
+    } catch (error) {
+      setErrorEntrevista(error.message);
+    } finally {
+      setEscribiendo(false);
+    }
+  };
+  const inconsistencias = enDemo
+    ? estado.turnos.flatMap((t) => t.evaluacion.inconsistencias)
+    : estado.inconsistencias;
   const cubiertos = new Set(estado.turnos.map((t) => t.pregunta.id));
-  const nPreg = estado.turnos.length;
+  const nPreg = enDemo ? estado.turnos.length : (estado.progreso.respondidas ?? 0);
 
   return (
     <>
@@ -168,9 +287,15 @@ export default function Entrevista() {
         <Button variant="ghost" size="sm" onClick={reiniciar}><RotateCcw /> Reiniciar</Button>
       </div>
 
-      <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Entrevista simulada">
-        El flujo usa reglas locales y no un agente conectado al backend. Sus respuestas se mantienen solo durante esta sesión.
-      </Alerta>
+      {enDemo ? (
+        <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Entrevista simulada">
+          El flujo usa reglas locales porque estás utilizando datos de demostración.
+        </Alerta>
+      ) : (
+        <Alerta tipo="info" icono={ShieldCheck} className="mb-4" titulo="Entrevista conectada al agente">
+          Las preguntas, evaluaciones e historial se generan y guardan en el backend.
+        </Alerta>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
         <Card className="flex h-[calc(100vh-10rem)] min-h-[520px] flex-col overflow-hidden">
@@ -303,7 +428,7 @@ export default function Entrevista() {
             </div>
           </Card>
 
-          {!estado.terminada && nPreg === 0 && (
+          {enDemo && !estado.terminada && nPreg === 0 && (
             <Alerta tipo="info" icono={Info}>
               En la demo, una persona del equipo responde como candidato. Prueba decir un número de años distinto al del CV para ver la detección de inconsistencias.
             </Alerta>

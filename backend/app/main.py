@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db
-from app.routers import cvs, evaluations, health, ranking, vacantes
+from app.routers import cvs, evaluations, health, interviews, ranking, vacantes
 
 
 @asynccontextmanager
@@ -33,5 +33,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for modulo in (health, vacantes, cvs, evaluations, ranking):
+for modulo in (health, vacantes, cvs, evaluations, interviews, ranking):
     app.include_router(modulo.router, prefix="/api")

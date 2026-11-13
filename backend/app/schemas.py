@@ -192,6 +192,65 @@ class RankingSalida(BaseModel):
     en_revision: list[CandidatoEnRevision] = []   # fuera del ranking: requieren revisión humana
 
 
+class EntrevistaEntrada(BaseModel):
+    candidato_id: str = Field(..., min_length=1)
+    vacante_id: str = Field(..., min_length=1)
+
+
+class RespuestaEntrevistaEntrada(BaseModel):
+    respuesta: str = Field(..., min_length=1, max_length=10000)
+
+
+class CrearInvitacionEntrevistaSalida(BaseModel):
+    id: str
+    public_url: str
+    token: str
+    expira_at: str
+    estado: Literal["pending", "en_curso", "finalizada", "expirada", "revocada"]
+
+
+class EntrevistaPrivadaResumen(BaseModel):
+    id: str
+    candidato_id: str
+    vacante_id: str
+    estado: Literal["pending", "en_curso", "finalizada", "expirada", "revocada"]
+    expira_at: str | None = None
+    consent_at: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+class ConsentimientoEntrevistaEntrada(BaseModel):
+    consentimiento: bool
+
+
+class RespuestaPublicaEntrevistaEntrada(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000)
+
+
+class EntrevistaPublicaSalida(BaseModel):
+    estado: Literal["pending", "en_curso", "finalizada"]
+    expira_at: str
+    vacante_titulo: str | None = None
+    pregunta: dict | None = None
+    progreso: dict = Field(default_factory=dict)
+
+class EntrevistaSalida(BaseModel):
+    id: str
+    candidato_id: str
+    vacante_id: str
+    pregunta: dict | None = None
+    pregunta_siguiente: dict | None = None
+    mensajes: list[dict] = Field(default_factory=list)
+    historial: list[dict] = Field(default_factory=list)
+    evaluacion_respuesta: dict | None = None
+    inconsistencias: list[str] = Field(default_factory=list)
+    progreso: dict = Field(default_factory=dict)
+    estado: str
+    informe: dict | None = None
+    recomendacion: str | None = None
+
+
 # Contratos versionados de vacancy.json, requirements.json y candidate.json.
 _YEAR_MONTH = re.compile(r"^(?:19|20)\d{2}-(?:0[1-9]|1[0-2])$")
 _EVIDENCE_ID = re.compile(r"^p\d+-l\d+$")

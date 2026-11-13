@@ -7,6 +7,7 @@ import DetalleCandidato from './pages/DetalleCandidato.jsx';
 import Comparador from './pages/Comparador.jsx';
 import Auditoria from './pages/Auditoria.jsx';
 import Entrevista from './pages/Entrevista.jsx';
+import EntrevistaPublica from './pages/EntrevistaPublica.jsx';
 import { EstadoVacio } from './components/ui/kit.jsx';
 import { buttonVariants } from './components/ui/button.jsx';
 import { Compass } from 'lucide-react';
@@ -14,6 +15,7 @@ import { Compass } from 'lucide-react';
 export default function App() {
   return (
     <Routes>
+      <Route path="entrevista/:token" element={<EntrevistaPublica />} />
       <Route element={<Layout />}>
         <Route index element={<Navigate to="/vacante" replace />} />
         <Route path="vacante" element={<NuevaVacante />} />
@@ -22,7 +24,6 @@ export default function App() {
         <Route path="candidato/:id" element={<DetalleCandidato />} />
         <Route path="comparador" element={<Comparador />} />
         <Route path="entrevista" element={<Entrevista />} />
-        <Route path="entrevista/:id" element={<Entrevista />} />
         <Route path="auditoria" element={<Auditoria />} />
         <Route path="*" element={(
           <EstadoVacio icono={Compass} titulo="Página no encontrada" descripcion="La dirección no existe. Vuelve al inicio del flujo.">

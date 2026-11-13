@@ -14,7 +14,7 @@ const FLUJO = [
 ];
 const ANALISIS = [
   { to: '/comparador', label: 'Comparador', icono: Columns3 },
-  { to: '/entrevista', label: 'Entrevista simulada', icono: MessagesSquare, etiqueta: 'Bonus' },
+  { to: '/entrevista', label: 'Entrevistas', icono: MessagesSquare, etiqueta: 'Bonus' },
   { to: '/auditoria', label: 'Auditoría', icono: ShieldCheck },
 ];
 
