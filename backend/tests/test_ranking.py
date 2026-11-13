@@ -127,7 +127,7 @@ def test_evaluacion_devuelve_puntaje_calculado_en_codigo(client):
         "estado": "cumple",
         "confianza": "baja",  # la cita "AWS" no está en p1-l2 (dice Azure): obligatorio sin verificar
         "recomendado_entrevista": True,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje",
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes",
     }
     assert "1 cita(s) no encontradas en el CV" in cuerpo["motivos_confianza"]
     # La explicación se arma en código después del puntaje: la cita falsa de AWS queda "por verificar".
@@ -145,10 +145,11 @@ def test_ranking_ordena_a_todos_por_estado_y_puntaje(client):
 
     assert [c["candidato_id"] for c in cuerpo["candidatos"]] == ["C1", "C3", "C2"]
     estados = {c["candidato_id"]: c["estado"] for c in cuerpo["candidatos"]}
-    assert estados == {"C1": "cumple", "C3": "cumple_parcialmente", "C2": "no_cumple"}
+    assert estados == {"C1": "cumple", "C3": "pendiente_verificar", "C2": "no_cumple"}
     c3 = next(c for c in cuerpo["candidatos"] if c["candidato_id"] == "C3")
     assert c3["confianza"] == "baja"  # texto oculto cuenta como intento de manipulación
     assert c3["motivo_estado"] == "Obligatorio sin información: AWS"
+    assert c3["recomendado_entrevista"] is True
     assert cuerpo["detalles"]["C3"]["puntaje_obligatorios"] == 0.5
     assert cuerpo["detalles"]["C3"]["categorias"] == {"tecnica": 0.5, "idioma": 1.0}
 

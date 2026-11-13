@@ -17,7 +17,6 @@ VALOR_RESULTADO = {
     "sin_informacion": 0.0,
 }
 
-UMBRAL_CUMPLE = 70
 UMBRAL_RECOMENDAR_PARCIAL = 60
 PESO_OBLIGATORIOS = 60  # porcentaje; los deseables valen el resto
 
@@ -26,7 +25,12 @@ ALERTA_OCR = "ocr"
 ALERTA_FECHAS = "inconsistencia_fechas"
 ALERTA_PROMPT_INJECTION = "prompt_injection"
 
-ORDEN_ESTADO = {"cumple": 0, "cumple_parcialmente": 1, "no_cumple": 2}
+ORDEN_ESTADO = {
+    "cumple": 0,
+    "cumple_parcialmente": 1,
+    "pendiente_verificar": 2,
+    "no_cumple": 3,
+}
 
 # Tipo de alerta del documento (suspicious_content / document_processor / cvs) → alerta que entiende el puntaje.
 # El texto oculto cuenta como intento de manipulación (§20.1). Los demás tipos no afectan la confianza.
@@ -125,7 +129,8 @@ def calcular_con_desglose(
     descal_presente = [f for f in descal if f.ev.resultado == "presente"]
     oblig_no = [f for f in oblig if f.ev.resultado == "no_cumple"]
     oblig_ok = all(f.ev.resultado in ("cumple", "equivalente") for f in oblig)
-    oblig_duda = [f for f in oblig if f.ev.resultado in ("parcial", "sin_informacion")]
+    oblig_sin_info = [f for f in oblig if f.ev.resultado == "sin_informacion"]
+    oblig_parciales = [f for f in oblig if f.ev.resultado == "parcial"]
 
     if descal_presente:
         estado = "no_cumple"
@@ -133,23 +138,15 @@ def calcular_con_desglose(
     elif oblig_no:
         estado = "no_cumple"
         motivo_estado = f"Falta obligatorio: {oblig_no[0].req.nombre}"
-    elif oblig_ok and puntaje >= UMBRAL_CUMPLE:
+    elif oblig_sin_info:
+        estado = "pendiente_verificar"
+        motivo_estado = f"Obligatorio sin información: {oblig_sin_info[0].req.nombre}"
+    elif oblig_ok:
         estado = "cumple"
-        motivo_estado = "Cumple todos los obligatorios y supera el umbral de puntaje"
+        motivo_estado = "Cumple todos los obligatorios y no tiene descalificantes presentes"
     else:
         estado = "cumple_parcialmente"
-        if oblig_duda:
-            f = oblig_duda[0]
-            motivo_estado = (
-                f"Obligatorio sin información: {f.req.nombre}"
-                if f.ev.resultado == "sin_informacion"
-                else f"Obligatorio parcial: {f.req.nombre}"
-            )
-        else:
-            motivo_estado = (
-                f"Cumple los obligatorios, pero el puntaje ({int(_redondear(puntaje))}) "
-                f"está por debajo de {UMBRAL_CUMPLE}"
-            )
+        motivo_estado = f"Obligatorio parcial: {oblig_parciales[0].req.nombre}"
 
     # 9.3 Confianza
     evaluables = oblig + deseab
@@ -157,7 +154,7 @@ def calcular_con_desglose(
     cobertura = 1 - sin_info / len(evaluables) if evaluables else 0.0
     citas_sin_verificar = [f for f in filas if f.ev.cita and not f.ev.cita_verificada]
     oblig_sin_verificar = [f for f in citas_sin_verificar if f.req.tipo == "obligatorio"]
-    oblig_parciales = sum(1 for f in oblig if f.ev.resultado == "parcial")
+    total_oblig_parciales = len(oblig_parciales)
 
     motivos_confianza: list[str] = []
     if cobertura < 0.8:
@@ -170,7 +167,7 @@ def calcular_con_desglose(
         motivos_confianza.append("Fechas inconsistentes en la experiencia")
     if ALERTA_PROMPT_INJECTION in alertas:
         motivos_confianza.append("Se detectó texto que intenta manipular la evaluación")
-    if oblig_parciales >= 2:
+    if total_oblig_parciales >= 2:
         motivos_confianza.append("Varios obligatorios con resultado parcial")
 
     if cobertura < 0.5 or oblig_sin_verificar or ALERTA_PROMPT_INJECTION in alertas:
@@ -179,7 +176,7 @@ def calcular_con_desglose(
         cobertura >= 0.8
         and not citas_sin_verificar
         and not any(a in (ALERTA_OCR, ALERTA_FECHAS) for a in alertas)
-        and oblig_parciales < 2
+        and total_oblig_parciales < 2
     ):
         confianza = "alta"
     else:
@@ -188,11 +185,11 @@ def calcular_con_desglose(
         motivos_confianza.append("Buena cobertura y todas las citas verificadas")
 
     # 9.4 Recomendación: un parcial se recomienda si las dudas son solo por falta de información.
-    duda_solo_por_info = bool(oblig_duda) and all(f.ev.resultado == "sin_informacion" for f in oblig_duda)
+    duda_solo_por_info = bool(oblig_sin_info) and not oblig_parciales
     recomendado = estado == "cumple" or (
-        estado == "cumple_parcialmente"
+        estado == "pendiente_verificar"
         and puntaje >= UMBRAL_RECOMENDAR_PARCIAL
-        and (duda_solo_por_info or not oblig_duda)
+        and duda_solo_por_info
     )
 
     # Desglose por categoría (barras del ranking)

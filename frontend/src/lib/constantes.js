@@ -6,6 +6,7 @@ import {
 export const ESTADOS = {
   cumple: { texto: 'Cumple', icono: CircleCheck, clase: 'bg-ok-soft text-ok ring-ok/25' },
   cumple_parcialmente: { texto: 'Cumple parcialmente', icono: CircleAlert, clase: 'bg-warn-soft text-warn ring-warn/30' },
+  pendiente_verificar: { texto: 'Pendiente de verificar', icono: CircleHelp, clase: 'bg-info-soft text-info ring-info/25' },
   no_cumple: { texto: 'No cumple', icono: CircleX, clase: 'bg-bad-soft text-bad ring-bad/25' },
 };
 

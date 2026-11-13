@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Users, CircleCheck, CircleAlert, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
   Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -72,12 +72,14 @@ export default function Ranking() {
     total: ranking.length,
     cumple: ranking.filter((r) => r.resultado.estado === 'cumple').length,
     parcial: ranking.filter((r) => r.resultado.estado === 'cumple_parcialmente').length,
+    pendiente: ranking.filter((r) => r.resultado.estado === 'pendiente_verificar').length,
     no: ranking.filter((r) => r.resultado.estado === 'no_cumple').length,
     recomendados: ranking.filter((r) => r.resultado.recomendado_entrevista).length,
   }), [ranking]);
 
   const filtrados = useMemo(() => ranking.filter(({ candidato, resultado }) => {
     if (pestana === 'aptos' && resultado.estado === 'no_cumple') return false;
+    if (pestana === 'pendiente_verificar' && resultado.estado !== 'pendiente_verificar') return false;
     if (pestana === 'no_cumple' && resultado.estado !== 'no_cumple') return false;
     if (confianza !== 'todas' && resultado.confianza !== confianza) return false;
     if (soloRecomendados && !resultado.recomendado_entrevista) return false;
@@ -159,10 +161,11 @@ export default function Ranking() {
       {avisoErrores}
       {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />
         <Kpi icono={CircleCheck} tono="ok" etiqueta="Cumplen" valor={stats.cumple} />
         <Kpi icono={CircleAlert} tono="warn" etiqueta="Cumplen parcialmente" valor={stats.parcial} />
+        <Kpi icono={CircleHelp} tono="info" etiqueta="Pendientes de verificar" valor={stats.pendiente} />
         <Kpi icono={CircleX} tono="bad" etiqueta="No cumplen" valor={stats.no} />
         <Kpi icono={Star} tono="info" etiqueta="Recomendados a entrevista" valor={stats.recomendados} />
       </div>
@@ -170,7 +173,8 @@ export default function Ranking() {
       <Card className="mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <Pestanas valor={pestana} onChange={setPestana} opciones={[
-            { valor: 'aptos', etiqueta: 'Para revisar', contador: stats.cumple + stats.parcial },
+            { valor: 'aptos', etiqueta: 'Para revisar', contador: stats.cumple + stats.parcial + stats.pendiente },
+            { valor: 'pendiente_verificar', etiqueta: 'Pendientes', contador: stats.pendiente },
             { valor: 'no_cumple', etiqueta: 'No cumplen', contador: stats.no },
             { valor: 'todos', etiqueta: 'Todos', contador: stats.total },
             ...(enRevision.length ? [{ valor: 'revision', etiqueta: 'En revisión', contador: enRevision.length }] : []),
@@ -196,6 +200,11 @@ export default function Ranking() {
         {pestana === 'no_cumple' && (
           <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
             Estos candidatos siguen visibles para revisión humana. Si crees que la evaluación se equivocó, abre el detalle y revisa la evidencia.
+          </p>
+        )}
+        {pestana === 'pendiente_verificar' && (
+          <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+            Falta información del CV sobre requisitos obligatorios. Verifica esos puntos antes de decidir si cumple o no.
           </p>
         )}
 

@@ -94,7 +94,7 @@ class EvaluacionSalida(BaseModel):
 class ResultadoCandidato(BaseModel):   # calculado por Python, paso 7
     candidato_id: str
     puntaje: float                     # 0-100
-    estado: Literal["cumple", "cumple_parcialmente", "no_cumple"]
+    estado: Literal["cumple", "cumple_parcialmente", "pendiente_verificar", "no_cumple"]
     confianza: Literal["alta", "media", "baja"]
     recomendado_entrevista: bool
     motivo_estado: str                 # p. ej. "Falta obligatorio: inglés B2"

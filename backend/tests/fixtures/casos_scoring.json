@@ -99,7 +99,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -213,7 +213,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -550,7 +550,7 @@
       "esperado": {
         "candidato_id": "cand-obligatorio_sin_informacion",
         "puntaje": 70,
-        "estado": "cumple_parcialmente",
+        "estado": "pendiente_verificar",
         "confianza": "media",
         "recomendado_entrevista": true,
         "motivo_estado": "Obligatorio sin información: Inglés B2"
@@ -683,6 +683,336 @@
       }
     },
     {
+      "nombre": "obligatorio_parcial_y_sin_informacion@60",
+      "peso_obligatorios": 60,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "parcial",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-obligatorio_parcial_y_sin_informacion",
+        "puntaje": 55,
+        "estado": "pendiente_verificar",
+        "confianza": "media",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Obligatorio sin información: Inglés B2"
+      },
+      "desglose": {
+        "cobertura": 0.75,
+        "motivos_confianza": [
+          "Cobertura de información del 75%"
+        ],
+        "categorias": {
+          "tecnica": 0.75,
+          "idioma": 0,
+          "blanda": 1
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
+      "nombre": "no_cumple_confirmado_y_sin_informacion@60",
+      "peso_obligatorios": 60,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-no_cumple_confirmado_y_sin_informacion",
+        "puntaje": 40,
+        "estado": "no_cumple",
+        "confianza": "media",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Falta obligatorio: AWS"
+      },
+      "desglose": {
+        "cobertura": 0.75,
+        "motivos_confianza": [
+          "Cobertura de información del 75%"
+        ],
+        "categorias": {
+          "tecnica": 0.5,
+          "idioma": 0,
+          "blanda": 1
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
+      "nombre": "todos_sin_informacion@60",
+      "peso_obligatorios": 60,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-todos_sin_informacion",
+        "puntaje": 0,
+        "estado": "pendiente_verificar",
+        "confianza": "baja",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Obligatorio sin información: AWS"
+      },
+      "desglose": {
+        "cobertura": 0,
+        "motivos_confianza": [
+          "Cobertura de información del 0%"
+        ],
+        "categorias": {
+          "tecnica": 0,
+          "idioma": 0,
+          "blanda": 0
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
       "nombre": "dos_obligatorios_parciales@60",
       "peso_obligatorios": 60,
       "requisitos": [
@@ -797,6 +1127,120 @@
       }
     },
     {
+      "nombre": "obligatorios_cumplen_deseables_no@60",
+      "peso_obligatorios": 60,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-obligatorios_cumplen_deseables_no",
+        "puntaje": 60,
+        "estado": "cumple",
+        "confianza": "alta",
+        "recomendado_entrevista": true,
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
+      },
+      "desglose": {
+        "cobertura": 1,
+        "motivos_confianza": [
+          "Buena cobertura y todas las citas verificadas"
+        ],
+        "categorias": {
+          "tecnica": 0.5,
+          "idioma": 1,
+          "blanda": 0
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
       "nombre": "bajo_umbral_sin_dudas@60",
       "peso_obligatorios": 60,
       "requisitos": [
@@ -892,10 +1336,10 @@
       "esperado": {
         "candidato_id": "cand-bajo_umbral_sin_dudas",
         "puntaje": 48,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "alta",
-        "recomendado_entrevista": false,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (48) está por debajo de 70"
+        "recomendado_entrevista": true,
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1009,7 +1453,7 @@
         "estado": "cumple",
         "confianza": "baja",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1123,7 +1567,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1228,7 +1672,7 @@
       "esperado": {
         "candidato_id": "cand-poca_cobertura",
         "puntaje": 30,
-        "estado": "cumple_parcialmente",
+        "estado": "pendiente_verificar",
         "confianza": "baja",
         "recomendado_entrevista": false,
         "motivo_estado": "Obligatorio sin información: Inglés B2"
@@ -1335,7 +1779,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 0.75,
@@ -1449,7 +1893,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1509,10 +1953,10 @@
       "esperado": {
         "candidato_id": "cand-solo_deseables",
         "puntaje": 66.7,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (67) está por debajo de 70"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1597,10 +2041,10 @@
       "esperado": {
         "candidato_id": "cand-sin_requisitos",
         "puntaje": 0,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "baja",
-        "recomendado_entrevista": false,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (0) está por debajo de 70"
+        "recomendado_entrevista": true,
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 0,
@@ -1790,7 +2234,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -1906,7 +2350,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -2022,7 +2466,7 @@
         "estado": "cumple",
         "confianza": "baja",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -2136,7 +2580,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -2250,7 +2694,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -2587,7 +3031,7 @@
       "esperado": {
         "candidato_id": "cand-obligatorio_sin_informacion",
         "puntaje": 60,
-        "estado": "cumple_parcialmente",
+        "estado": "pendiente_verificar",
         "confianza": "media",
         "recomendado_entrevista": true,
         "motivo_estado": "Obligatorio sin información: Inglés B2"
@@ -2720,6 +3164,336 @@
       }
     },
     {
+      "nombre": "obligatorio_parcial_y_sin_informacion@80",
+      "peso_obligatorios": 80,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "parcial",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-obligatorio_parcial_y_sin_informacion",
+        "puntaje": 40,
+        "estado": "pendiente_verificar",
+        "confianza": "media",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Obligatorio sin información: Inglés B2"
+      },
+      "desglose": {
+        "cobertura": 0.75,
+        "motivos_confianza": [
+          "Cobertura de información del 75%"
+        ],
+        "categorias": {
+          "tecnica": 0.75,
+          "idioma": 0,
+          "blanda": 1
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
+      "nombre": "no_cumple_confirmado_y_sin_informacion@80",
+      "peso_obligatorios": 80,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-no_cumple_confirmado_y_sin_informacion",
+        "puntaje": 20,
+        "estado": "no_cumple",
+        "confianza": "media",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Falta obligatorio: AWS"
+      },
+      "desglose": {
+        "cobertura": 0.75,
+        "motivos_confianza": [
+          "Cobertura de información del 75%"
+        ],
+        "categorias": {
+          "tecnica": 0.5,
+          "idioma": 0,
+          "blanda": 1
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
+      "nombre": "todos_sin_informacion@80",
+      "peso_obligatorios": 80,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-todos_sin_informacion",
+        "puntaje": 0,
+        "estado": "pendiente_verificar",
+        "confianza": "baja",
+        "recomendado_entrevista": false,
+        "motivo_estado": "Obligatorio sin información: AWS"
+      },
+      "desglose": {
+        "cobertura": 0,
+        "motivos_confianza": [
+          "Cobertura de información del 0%"
+        ],
+        "categorias": {
+          "tecnica": 0,
+          "idioma": 0,
+          "blanda": 0
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
       "nombre": "dos_obligatorios_parciales@80",
       "peso_obligatorios": 80,
       "requisitos": [
@@ -2834,6 +3608,120 @@
       }
     },
     {
+      "nombre": "obligatorios_cumplen_deseables_no@80",
+      "peso_obligatorios": 80,
+      "requisitos": [
+        {
+          "id": "o1",
+          "nombre": "AWS",
+          "tipo": "obligatorio",
+          "categoria": "tecnica",
+          "peso": 1
+        },
+        {
+          "id": "o2",
+          "nombre": "Inglés B2",
+          "tipo": "obligatorio",
+          "categoria": "idioma",
+          "peso": 1
+        },
+        {
+          "id": "d1",
+          "nombre": "Docker",
+          "tipo": "deseable",
+          "categoria": "tecnica",
+          "peso": 2
+        },
+        {
+          "id": "d2",
+          "nombre": "Liderazgo",
+          "tipo": "deseable",
+          "categoria": "blanda",
+          "peso": 1
+        },
+        {
+          "id": "x1",
+          "nombre": "Sin disponibilidad",
+          "tipo": "descalificante",
+          "categoria": "otro",
+          "peso": 1
+        }
+      ],
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": [],
+      "esperado": {
+        "candidato_id": "cand-obligatorios_cumplen_deseables_no",
+        "puntaje": 80,
+        "estado": "cumple",
+        "confianza": "alta",
+        "recomendado_entrevista": true,
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
+      },
+      "desglose": {
+        "cobertura": 1,
+        "motivos_confianza": [
+          "Buena cobertura y todas las citas verificadas"
+        ],
+        "categorias": {
+          "tecnica": 0.5,
+          "idioma": 1,
+          "blanda": 0
+        },
+        "citas_sin_verificar": 0
+      }
+    },
+    {
       "nombre": "bajo_umbral_sin_dudas@80",
       "peso_obligatorios": 80,
       "requisitos": [
@@ -2929,10 +3817,10 @@
       "esperado": {
         "candidato_id": "cand-bajo_umbral_sin_dudas",
         "puntaje": 64,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (64) está por debajo de 70"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3046,7 +3934,7 @@
         "estado": "cumple",
         "confianza": "baja",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3160,7 +4048,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3265,7 +4153,7 @@
       "esperado": {
         "candidato_id": "cand-poca_cobertura",
         "puntaje": 40,
-        "estado": "cumple_parcialmente",
+        "estado": "pendiente_verificar",
         "confianza": "baja",
         "recomendado_entrevista": false,
         "motivo_estado": "Obligatorio sin información: Inglés B2"
@@ -3372,7 +4260,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 0.75,
@@ -3486,7 +4374,7 @@
         "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3546,10 +4434,10 @@
       "esperado": {
         "candidato_id": "cand-solo_deseables",
         "puntaje": 66.7,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "alta",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (67) está por debajo de 70"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3634,10 +4522,10 @@
       "esperado": {
         "candidato_id": "cand-sin_requisitos",
         "puntaje": 0,
-        "estado": "cumple_parcialmente",
+        "estado": "cumple",
         "confianza": "baja",
-        "recomendado_entrevista": false,
-        "motivo_estado": "Cumple los obligatorios, pero el puntaje (0) está por debajo de 70"
+        "recomendado_entrevista": true,
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 0,
@@ -3827,7 +4715,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -3943,7 +4831,7 @@
         "estado": "cumple",
         "confianza": "media",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -4059,7 +4947,7 @@
         "estado": "cumple",
         "confianza": "baja",
         "recomendado_entrevista": true,
-        "motivo_estado": "Cumple todos los obligatorios y supera el umbral de puntaje"
+        "motivo_estado": "Cumple todos los obligatorios y no tiene descalificantes presentes"
       },
       "desglose": {
         "cobertura": 1,
@@ -4448,6 +5336,162 @@
       "alertas": []
     },
     {
+      "candidato_id": "cand-obligatorio_parcial_y_sin_informacion",
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "parcial",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": []
+    },
+    {
+      "candidato_id": "cand-no_cumple_confirmado_y_sin_informacion",
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": []
+    },
+    {
+      "candidato_id": "cand-todos_sin_informacion",
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "sin_informacion",
+          "cita": null,
+          "lineas": [],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": false
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": []
+    },
+    {
       "candidato_id": "cand-dos_obligatorios_parciales",
       "evaluaciones": [
         {
@@ -4483,6 +5527,62 @@
         {
           "requisito_id": "d2",
           "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "x1",
+          "resultado": "ausente",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de x1",
+          "cita_verificada": true
+        }
+      ],
+      "alertas": []
+    },
+    {
+      "candidato_id": "cand-obligatorios_cumplen_deseables_no",
+      "evaluaciones": [
+        {
+          "requisito_id": "o1",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "o2",
+          "resultado": "cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de o2",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d1",
+          "resultado": "no_cumple",
+          "cita": "texto citado",
+          "lineas": [
+            "p1-l1"
+          ],
+          "justificacion": "Justificación de d1",
+          "cita_verificada": true
+        },
+        {
+          "requisito_id": "d2",
+          "resultado": "no_cumple",
           "cita": "texto citado",
           "lineas": [
             "p1-l1"
@@ -5101,16 +6201,20 @@
     "cand-obligatorio_equivalente",
     "cand-resultado_desconocido",
     "cand-requisito_sin_evaluar",
+    "cand-obligatorios_cumplen_deseables_no",
+    "cand-bajo_umbral_sin_dudas",
     "cand-obligatorio_parcial",
     "cand-dos_obligatorios_parciales",
-    "cand-obligatorio_sin_informacion",
     "cand-redondeo_punto_medio",
-    "cand-bajo_umbral_sin_dudas",
     "cand-solo_obligatorios",
+    "cand-obligatorio_sin_informacion",
+    "cand-obligatorio_parcial_y_sin_informacion",
     "cand-poca_cobertura",
     "cand-solo_deseables",
     "cand-sin_requisitos",
+    "cand-todos_sin_informacion",
     "cand-descalificante_presente",
-    "cand-obligatorio_no_cumple"
+    "cand-obligatorio_no_cumple",
+    "cand-no_cumple_confirmado_y_sin_informacion"
   ]
 }

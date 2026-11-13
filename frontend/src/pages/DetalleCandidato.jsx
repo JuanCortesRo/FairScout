@@ -338,8 +338,12 @@ export default function DetalleCandidato() {
               <p className="font-semibold">{r.recomendado_entrevista ? 'Recomendado para entrevista' : 'No recomendado para entrevista'}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {r.recomendado_entrevista
-                  ? (r.estado === 'cumple' ? 'Cumple todos los obligatorios.' : 'La duda viene de falta de información: vale la pena verificarla en entrevista.')
-                  : r.estado === 'no_cumple' ? 'No cumple un obligatorio o tiene un descalificante.' : 'Las brechas en obligatorios pesan más que la falta de información.'}
+                  ? (r.estado === 'cumple' ? 'Cumple todos los obligatorios.' : 'Falta información de requisitos obligatorios que puede verificarse en entrevista.')
+                  : r.estado === 'no_cumple'
+                    ? 'Hay evidencia de que no cumple un obligatorio o de un descalificante presente.'
+                    : r.estado === 'pendiente_verificar'
+                      ? 'Falta información sobre requisitos obligatorios; verifica esos puntos antes de decidir.'
+                      : 'Hay evidencia parcial sobre uno o más requisitos obligatorios.'}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => navigate(`/entrevista/${c.candidato_id}`)}><MessagesSquare /> Iniciar entrevista</Button>

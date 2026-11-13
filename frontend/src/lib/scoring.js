@@ -21,7 +21,6 @@ export function alertasParaPuntaje(tipos = []) {
   return [...new Set(tipos.map((t) => ALERTA_DOCUMENTO_A_PUNTAJE[t]).filter(Boolean))];
 }
 
-const UMBRAL_CUMPLE = 70;
 const UMBRAL_RECOMENDAR_PARCIAL = 60;
 
 function promedioPonderado(items, pesoDe) {
@@ -60,7 +59,8 @@ export function calcularResultado(candidato, requisitos, pesos) {
   const descalPresente = descal.filter((f) => f.ev.resultado === 'presente');
   const obligNo = oblig.filter((f) => f.ev.resultado === 'no_cumple');
   const obligOk = oblig.every((f) => ['cumple', 'equivalente'].includes(f.ev.resultado));
-  const obligDuda = oblig.filter((f) => ['parcial', 'sin_informacion'].includes(f.ev.resultado));
+  const obligSinInfo = oblig.filter((f) => f.ev.resultado === 'sin_informacion');
+  const obligParciales = oblig.filter((f) => f.ev.resultado === 'parcial');
 
   let estado;
   let motivo_estado;
@@ -70,19 +70,15 @@ export function calcularResultado(candidato, requisitos, pesos) {
   } else if (obligNo.length) {
     estado = 'no_cumple';
     motivo_estado = `Falta obligatorio: ${obligNo[0].req.nombre}`;
-  } else if (obligOk && puntaje >= UMBRAL_CUMPLE) {
+  } else if (obligSinInfo.length) {
+    estado = 'pendiente_verificar';
+    motivo_estado = `Obligatorio sin información: ${obligSinInfo[0].req.nombre}`;
+  } else if (obligOk) {
     estado = 'cumple';
-    motivo_estado = 'Cumple todos los obligatorios y supera el umbral de puntaje';
+    motivo_estado = 'Cumple todos los obligatorios y no tiene descalificantes presentes';
   } else {
     estado = 'cumple_parcialmente';
-    if (obligDuda.length) {
-      const f = obligDuda[0];
-      motivo_estado = f.ev.resultado === 'sin_informacion'
-        ? `Obligatorio sin información: ${f.req.nombre}`
-        : `Obligatorio parcial: ${f.req.nombre}`;
-    } else {
-      motivo_estado = `Cumple los obligatorios, pero el puntaje (${Math.round(puntaje)}) está por debajo de ${UMBRAL_CUMPLE}`;
-    }
+    motivo_estado = `Obligatorio parcial: ${obligParciales[0].req.nombre}`;
   }
 
   // 9.3 Confianza
@@ -93,7 +89,7 @@ export function calcularResultado(candidato, requisitos, pesos) {
   const citasSinVerificar = conCita.filter((f) => !f.ev.cita_verificada);
   const obligSinVerificar = citasSinVerificar.filter((f) => f.req.tipo === 'obligatorio');
   const alertas = alertasParaPuntaje(candidato.alertas ?? []);
-  const obligParciales = oblig.filter((f) => f.ev.resultado === 'parcial').length;
+  const totalObligParciales = obligParciales.length;
 
   const motivosConfianza = [];
   if (cobertura < 0.8) motivosConfianza.push(`Cobertura de información del ${Math.round(cobertura * 100)}%`);
@@ -101,18 +97,18 @@ export function calcularResultado(candidato, requisitos, pesos) {
   if (alertas.includes('ocr')) motivosConfianza.push('El documento necesitó OCR');
   if (alertas.includes('inconsistencia_fechas')) motivosConfianza.push('Fechas inconsistentes en la experiencia');
   if (alertas.includes('prompt_injection')) motivosConfianza.push('Se detectó texto que intenta manipular la evaluación');
-  if (obligParciales >= 2) motivosConfianza.push('Varios obligatorios con resultado parcial');
+  if (totalObligParciales >= 2) motivosConfianza.push('Varios obligatorios con resultado parcial');
 
   let confianza;
   if (cobertura < 0.5 || obligSinVerificar.length || alertas.includes('prompt_injection')) confianza = 'baja';
-  else if (cobertura >= 0.8 && !citasSinVerificar.length && !alertas.some((a) => ['ocr', 'inconsistencia_fechas'].includes(a)) && obligParciales < 2) confianza = 'alta';
+  else if (cobertura >= 0.8 && !citasSinVerificar.length && !alertas.some((a) => ['ocr', 'inconsistencia_fechas'].includes(a)) && totalObligParciales < 2) confianza = 'alta';
   else confianza = 'media';
   if (!motivosConfianza.length) motivosConfianza.push('Buena cobertura y todas las citas verificadas');
 
   // 9.4 Recomendación
-  const dudaSoloPorInfo = obligDuda.length > 0 && obligDuda.every((f) => f.ev.resultado === 'sin_informacion');
+  const dudaSoloPorInfo = obligSinInfo.length > 0 && obligParciales.length === 0;
   const recomendado_entrevista = estado === 'cumple'
-    || (estado === 'cumple_parcialmente' && puntaje >= UMBRAL_RECOMENDAR_PARCIAL && (dudaSoloPorInfo || obligDuda.length === 0));
+    || (estado === 'pendiente_verificar' && puntaje >= UMBRAL_RECOMENDAR_PARCIAL && dudaSoloPorInfo);
 
   // Desglose por categoría (barras del ranking)
   const porCategoria = {};
@@ -143,7 +139,7 @@ export function calcularResultado(candidato, requisitos, pesos) {
   };
 }
 
-const ORDEN_ESTADO = { cumple: 0, cumple_parcialmente: 1, no_cumple: 2 };
+const ORDEN_ESTADO = { cumple: 0, cumple_parcialmente: 1, pendiente_verificar: 2, no_cumple: 3 };
 
 /** Ranking de todos los candidatos: primero por estado, luego por puntaje. */
 export function rankear(candidatos, requisitos, pesos) {
