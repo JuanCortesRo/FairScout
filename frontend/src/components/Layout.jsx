@@ -82,7 +82,7 @@ function Sidebar({ onNavigate }) {
           </div>
         </div>
         <div>
-          <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Análisis y gobierno</p>
+          <p className="px-3 pb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">Análisis</p>
           <div className="space-y-1">
             {ANALISIS.map((it) => <ItemNav key={it.to} item={it} onNavigate={onNavigate} />)}
           </div>

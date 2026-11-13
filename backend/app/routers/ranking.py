@@ -5,8 +5,9 @@ así que cambiar `peso_obligatorios` reordena al instante. Solo cuentan las eval
 vigente de los requisitos; de cada candidato se usa la más reciente.
 
 Los CVs con alerta crítica (`needs_review`) nunca pasan por el LLM: se listan aparte en `en_revision`.
-Por ahora los CVs no están ligados a una vacante, así que `en_revision` incluye todos los que estén en revisión.
 """
+from dataclasses import dataclass
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.db import get_db
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.scoring import (
     PESO_OBLIGATORIOS,
+    Desglose,
     alertas_para_puntaje,
     calcular_con_desglose,
     ordenar_ranking,
@@ -25,6 +27,7 @@ from app.schemas import (
     EvaluacionRequisito,
     RankingSalida,
     Requisito,
+    ResultadoCandidato,
 )
 
 router = APIRouter(tags=["ranking"])
@@ -42,42 +45,18 @@ def obtener_ranking(
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
 
-    requisitos = [
-        Requisito(id=r.id, nombre=r.nombre, tipo=r.tipo, categoria=r.categoria, peso=r.peso)
-        for r in vacante.requisitos
-    ]
-    filas = db.scalars(
-        select(EvaluacionDB).where(
-            EvaluacionDB.vacante_id == vacante.id,
-            EvaluacionDB.version_requisitos == vacante.version_requisitos,
+    filas = calcular_ranking(db, vacante, peso_obligatorios)
+    detalles = {
+        f.resultado.candidato_id: DetalleRanking(
+            puntaje_obligatorios=f.desglose.puntaje_obligatorios,
+            puntaje_deseables=f.desglose.puntaje_deseables,
+            cobertura=f.desglose.cobertura,
+            motivos_confianza=f.desglose.motivos_confianza,
+            categorias=f.desglose.categorias,
+            citas_sin_verificar=f.desglose.citas_sin_verificar,
         )
-    ).all()
-
-    # La evaluación más reciente de cada candidato (la fecha ISO en UTC se ordena como texto).
-    vigentes: dict[str, EvaluacionDB] = {}
-    for fila in filas:
-        actual = vigentes.get(fila.candidato_id)
-        if actual is None or _fecha(fila) > _fecha(actual):
-            vigentes[fila.candidato_id] = fila
-
-    resultados = []
-    detalles = {}
-    for candidato_id, fila in vigentes.items():
-        candidato = db.get(CandidatoDB, candidato_id)
-        evaluaciones = [EvaluacionRequisito.model_validate(e) for e in fila.resultado["evaluaciones"]]
-        alertas = alertas_para_puntaje(candidato.alertas or []) if candidato else []
-        resultado, desglose = calcular_con_desglose(
-            evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios
-        )
-        resultados.append(resultado)
-        detalles[candidato_id] = DetalleRanking(
-            puntaje_obligatorios=desglose.puntaje_obligatorios,
-            puntaje_deseables=desglose.puntaje_deseables,
-            cobertura=desglose.cobertura,
-            motivos_confianza=desglose.motivos_confianza,
-            categorias=desglose.categorias,
-            citas_sin_verificar=desglose.citas_sin_verificar,
-        )
+        for f in filas
+    }
 
     en_revision = db.scalars(
         select(CandidatoDB)
@@ -88,13 +67,56 @@ def obtener_ranking(
     return RankingSalida(
         vacante_id=vacante.id,
         peso_obligatorios=peso_obligatorios,
-        candidatos=ordenar_ranking(resultados),
+        candidatos=[f.resultado for f in filas],
         detalles=detalles,
         en_revision=[
             CandidatoEnRevision(candidato_id=c.id, alertas=c.alertas or [])
             for c in en_revision
         ],
     )
+
+
+@dataclass(frozen=True)
+class FilaRanking:
+    resultado: ResultadoCandidato
+    desglose: Desglose
+    evaluacion: EvaluacionDB      # la evaluación vigente guardada (citas, justificaciones y explicación)
+
+
+def requisitos_de(vacante: VacanteDB) -> list[Requisito]:
+    return [
+        Requisito(id=r.id, nombre=r.nombre, tipo=r.tipo, categoria=r.categoria, peso=r.peso)
+        for r in vacante.requisitos
+    ]
+
+
+def calcular_ranking(db: Session, vacante: VacanteDB, peso_obligatorios: float) -> list[FilaRanking]:
+    """Candidatos evaluados con la versión vigente de los requisitos, ya ordenados como en el ranking."""
+    requisitos = requisitos_de(vacante)
+    evaluaciones_db = db.scalars(
+        select(EvaluacionDB).where(
+            EvaluacionDB.vacante_id == vacante.id,
+            EvaluacionDB.version_requisitos == vacante.version_requisitos,
+        )
+    ).all()
+
+    # La evaluación más reciente de cada candidato (la fecha ISO en UTC se ordena como texto).
+    vigentes: dict[str, EvaluacionDB] = {}
+    for fila in evaluaciones_db:
+        actual = vigentes.get(fila.candidato_id)
+        if actual is None or _fecha(fila) > _fecha(actual):
+            vigentes[fila.candidato_id] = fila
+
+    filas: dict[str, FilaRanking] = {}
+    for candidato_id, fila in vigentes.items():
+        candidato = db.get(CandidatoDB, candidato_id)
+        evaluaciones = [EvaluacionRequisito.model_validate(e) for e in fila.resultado["evaluaciones"]]
+        alertas = alertas_para_puntaje(candidato.alertas or []) if candidato else []
+        resultado, desglose = calcular_con_desglose(
+            evaluaciones, requisitos, candidato_id, alertas, peso_obligatorios
+        )
+        filas[candidato_id] = FilaRanking(resultado, desglose, fila)
+    return [filas[r.candidato_id] for r in ordenar_ranking([f.resultado for f in filas.values()])]
 
 
 def _fecha(fila: EvaluacionDB) -> str:

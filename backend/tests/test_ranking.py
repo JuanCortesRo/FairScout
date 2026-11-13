@@ -331,3 +331,56 @@ def test_entrevista_exige_que_el_cv_sea_de_la_vacante(client, monkeypatch):
     assert propia.json()["pregunta"]["id"] == "P0"
     assert ajena.status_code == 409
     assert invitacion_ajena.status_code == 409
+
+
+def _libro_exportado(respuesta):
+    import io
+
+    from openpyxl import load_workbook
+    return load_workbook(io.BytesIO(respuesta.content))
+
+
+def test_exportar_el_ranking_en_xlsx_con_el_contacto_y_registra_la_exportacion(client, session_factory):
+    from app.models import ContactoCandidatoDB, ExportacionDB
+
+    client.post("/api/vacantes/V1/evaluar")
+    with session_factory() as db:
+        db.add(ContactoCandidatoDB(candidato_id="C1", nombre="Laura Gómez", correo="laura@example.com", telefono="310 555 1234"))
+        db.commit()
+
+    respuesta = client.get("/api/vacantes/V1/exportar")
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml")
+    assert 'filename="ranking_backend_' in respuesta.headers["content-disposition"]
+    libro = _libro_exportado(respuesta)
+    assert libro.sheetnames == ["Ranking", "Evidencia", "Información"]
+    filas = list(libro["Ranking"].iter_rows(min_row=2, values_only=True))
+    assert [f[1] for f in filas] == ["Candidato C1", "Candidato C3", "Candidato C2"]   # mismo orden que el ranking
+    assert filas[0][2:5] == ("Laura Gómez", "laura@example.com", "310 555 1234")
+    assert filas[1][2:5] == (None, None, None)
+    assert libro["Evidencia"].max_row == 1 + 3 * len(REQUISITOS)
+    assert "datos personales" in libro["Información"]["B6"].value
+    # El contacto solo sale en el archivo: el ranking de la API no lo trae.
+    assert "Laura" not in client.get("/api/ranking", params={"vacante_id": "V1"}).text
+    with session_factory() as db:
+        exportacion = db.query(ExportacionDB).one()
+        assert (exportacion.vacante_id, exportacion.top, exportacion.candidatos) == ("V1", None, ["C1", "C3", "C2"])
+
+
+def test_exportar_solo_el_top_n(client, session_factory):
+    from app.models import ExportacionDB
+
+    client.post("/api/vacantes/V1/evaluar")
+
+    libro = _libro_exportado(client.get("/api/vacantes/V1/exportar", params={"top": 1}))
+
+    assert [f[1] for f in libro["Ranking"].iter_rows(min_row=2, values_only=True)] == ["Candidato C1"]
+    with session_factory() as db:
+        assert db.query(ExportacionDB).one().top == 1
+
+
+def test_exportar_sin_evaluados_o_vacante_inexistente(client):
+    assert client.get("/api/vacantes/V1/exportar").status_code == 409
+    assert client.get("/api/vacantes/NO/exportar").status_code == 404
+    assert client.get("/api/vacantes/V1/exportar", params={"top": 0}).status_code == 422

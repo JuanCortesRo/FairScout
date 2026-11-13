@@ -84,6 +84,25 @@ export const obtenerRanking = (vacanteId, pesoObligatorios = 60) => {
   return request(`/ranking?${params}`);
 };
 
+/** Ranking en .xlsx con los datos de contacto (solo existen en este archivo). Devuelve el archivo y su nombre. */
+export async function exportarRanking(vacanteId, { top = null, pesoObligatorios = 60 } = {}) {
+  const params = new URLSearchParams({ peso_obligatorios: String(pesoObligatorios) });
+  if (top) params.set('top', String(top));
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/api/vacantes/${vacanteId}/exportar?${params}`);
+  } catch {
+    throw new ErrorConexion('No se pudo conectar con el servidor.');
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const detalle = typeof data?.detail === 'string' ? data.detail : `El servidor respondió con un error (${response.status}).`;
+    throw new ErrorAPI(detalle, response.status);
+  }
+  const nombre = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'ranking.xlsx';
+  return { archivo: await response.blob(), nombre };
+}
+
 /** Evaluación vigente de cada candidato: resultado por requisito, citas, explicación y trazabilidad. */
 export const listarEvaluaciones = (vacanteId) => request(`/vacantes/${vacanteId}/evaluaciones`);
 export const obtenerEvaluacion = (vacanteId, candidatoId) =>

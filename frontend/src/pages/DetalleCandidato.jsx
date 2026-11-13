@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, MessagesSquare, Columns3, BadgeCheck, CircleAlert, FileText, ListChecks, Lightbulb, IdCard, ThumbsUp, ThumbsDown,
-  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX, EyeOff,
+  Quote, ShieldAlert, Briefcase, GraduationCap, Languages, Award, Wrench, Heart, TrendingUp, TrendingDown, SearchCheck, PenLine, Gauge, UserX, EyeOff, Copy, Check,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -256,6 +256,7 @@ export default function DetalleCandidato() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState('');
   const [invitacion, setInvitacion] = useState(null);
+  const [copiado, setCopiado] = useState(false);
   const [creandoInvitacion, setCreandoInvitacion] = useState(false);
   useEffect(() => { setActivas([]); setReqActivo(null); }, [id]);
   useEffect(() => {
@@ -494,7 +495,20 @@ export default function DetalleCandidato() {
             <p className="text-sm text-muted-foreground">Comparte este enlace con el candidato. Expira el {new Date(invitacion.expira_at).toLocaleString()}.</p>
             <div className="flex gap-2">
               <input readOnly value={invitacion.public_url} className="min-w-0 flex-1 rounded-lg border bg-muted px-3 py-2 text-sm" />
-              <Button variant="outline" onClick={() => navigator.clipboard.writeText(invitacion.public_url)}>Copiar</Button>
+              <Button
+                variant="outline"
+                aria-label={copiado ? 'Enlace copiado' : 'Copiar enlace'}
+                title={copiado ? 'Copiado' : 'Copiar enlace'}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(invitacion.public_url);
+                  setCopiado(true);
+                  setTimeout(() => setCopiado(false), 1500);
+                }}
+                className={cn('h-auto self-stretch px-3 transition-colors duration-300',
+                  copiado && 'border-ok/40 bg-ok-soft text-ok hover:bg-ok-soft hover:text-ok')}
+              >
+                {copiado ? <Check className="size-4 animate-in zoom-in-50" /> : <Copy className="size-4" />}
+              </Button>
             </div>
           </div>
         )}

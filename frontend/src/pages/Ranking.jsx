@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
   Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert, Trophy, ArrowRight,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
-import { exportarRankingCSV } from '@/lib/exportar';
+import ExportarRanking from '@/components/ExportarRanking';
 import { cn } from '@/lib/utils';
 
 function MiniCategorias({ categorias }) {
@@ -222,9 +222,7 @@ export default function Ranking() {
                 <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
               </Button>
             )}
-            <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
-              <Download /> Exportar CSV
-            </Button>
+            <ExportarRanking />
           </>
         )}
       />

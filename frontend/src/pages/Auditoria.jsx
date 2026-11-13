@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Settings2, Zap, FlaskConical, History, FileText, Trash2, Download, CircleCheck, User, Bot, ShieldCheck,  Lock, EyeOff, Quote, ShieldAlert, Scale, Ban,
+  Settings2, Zap, FlaskConical, History, FileText, Trash2, CircleCheck, User, Bot, ShieldCheck,  Lock, EyeOff, Quote, ShieldAlert, Scale, Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, Modal, Pill } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { PRUEBAS_SESGO } from '@/data/demo';
-import { exportarRankingCSV } from '@/lib/exportar';
+import ExportarRanking from '@/components/ExportarRanking';
 import { cn } from '@/lib/utils';
 
 const PASOS = [
@@ -63,9 +63,7 @@ export default function Auditoria() {
         descripcion="Consulta la trazabilidad de las evaluaciones. El registro de eventos de esta sesión todavía no se persiste en el backend."
         acciones={vacante && (
           <>
-            <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
-              <Download /> Exportar resultados
-            </Button>
+            <ExportarRanking etiqueta="Exportar resultados" />
             <Button variant="destructive" size="lg" onClick={() => setConfirmarBorrado(true)}><Trash2 /> {enDemo ? 'Salir de la demo' : 'Cerrar vacante'}</Button>
           </>
         )}

@@ -94,6 +94,21 @@ class EvaluacionDB(Base):
     fecha_creacion: Mapped[datetime | None] = _fecha_creacion()
 
 
+class ExportacionDB(Base):
+    """Registro de cada ranking exportado: el archivo lleva datos de contacto y sale del sistema."""
+
+    __tablename__ = "exportaciones"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    vacante_id: Mapped[str] = mapped_column(
+        ForeignKey("vacantes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_ahora)
+    top: Mapped[int | None] = mapped_column(Integer, nullable=True)       # None = todos
+    peso_obligatorios: Mapped[float] = mapped_column(nullable=False)
+    candidatos: Mapped[list] = mapped_column(JSON, nullable=False, default=list)   # ids incluidos, en orden
+
+
 class EntrevistaDB(Base):
     """Estado durable de una entrevista (el contenido no guarda datos originales del CV)."""
 
