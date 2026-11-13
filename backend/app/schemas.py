@@ -139,6 +139,7 @@ class VacanteSalida(BaseModel):
 
 class CVSubido(BaseModel):
     id: str
+    vacante_id: str | None = None
     nombre_archivo: str
     lineas: list[Linea] = []
     ficha: Ficha | None = None

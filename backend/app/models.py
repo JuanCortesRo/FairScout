@@ -52,6 +52,10 @@ class CandidatoDB(Base):
     __tablename__ = "candidatos"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    # Nullable solo por los CVs subidos antes de que existieran varias vacantes (no aparecen en ninguna).
+    vacante_id: Mapped[str | None] = mapped_column(
+        ForeignKey("vacantes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     documento_id: Mapped[str] = mapped_column(String(32), nullable=False)
     nombre_archivo: Mapped[str] = mapped_column(String(300), nullable=False)
     estado: Mapped[str] = mapped_column(String(30), nullable=False)

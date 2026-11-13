@@ -280,7 +280,7 @@ export default function DetalleCandidato() {
     return (
       <Card>
         <EstadoVacio icono={UserX} titulo="No se pudo cargar este candidato" descripcion={errorDetalle}>
-          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+          <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Volver a vacantes</Link>
         </EstadoVacio>
       </Card>
     );
@@ -292,7 +292,7 @@ export default function DetalleCandidato() {
       <Card>
         <EstadoVacio icono={UserX} titulo="No encontramos este candidato"
           descripcion={vacante ? 'Puede que se haya eliminado o que el enlace sea incorrecto.' : 'No hay una vacante activa con candidatos evaluados.'}>
-          <Link to="/ranking" className={buttonVariants({ size: 'lg' })}>Volver al ranking</Link>
+          <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Volver a vacantes</Link>
         </EstadoVacio>
       </Card>
     );

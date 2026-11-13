@@ -204,12 +204,12 @@ export default function Auditoria() {
         pie={(
           <>
             <Button variant="ghost" onClick={() => setConfirmarBorrado(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => { reiniciar(); setConfirmarBorrado(false); navigate('/vacante'); }}><Trash2 /> {enDemo ? 'Salir de la demo' : 'Cerrar vacante'}</Button>
+            <Button variant="destructive" onClick={() => { reiniciar(); setConfirmarBorrado(false); navigate(enDemo ? '/vacante' : '/vacantes'); }}><Trash2 /> {enDemo ? 'Salir de la demo' : 'Cerrar vacante'}</Button>
           </>
         )}>
         {enDemo
           ? 'Se descartan los datos de ejemplo, las entrevistas y el registro de auditoría de la demo.'
-          : <>Se olvidan en este navegador la vacante, las correcciones, las entrevistas y el registro de auditoría. Los {candidatos.length} CVs y sus evaluaciones siguen guardados en el servidor; el backend todavía no tiene una opción para borrarlos.</>}
+          : <>Se olvidan en este navegador la vacante, las correcciones, las entrevistas y el registro de auditoría. Los {candidatos.length} CVs y sus evaluaciones siguen guardados en el servidor; para borrarlos, elimina la vacante desde la lista de Vacantes.</>}
       </Modal>
     </>
   );

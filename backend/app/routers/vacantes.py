@@ -55,6 +55,16 @@ def obtener_vacante(vacante_id: str, db: Session = Depends(get_db)) -> VacanteSa
     return _salida(vacante)
 
 
+@router.delete("/vacantes/{vacante_id}", status_code=204)
+def eliminar_vacante(vacante_id: str, db: Session = Depends(get_db)) -> None:
+    """Borra la vacante con sus requisitos, CVs, evaluaciones y entrevistas (llaves foráneas en cascada)."""
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+    db.delete(vacante)
+    db.commit()
+
+
 @router.post("/vacantes", response_model=VacanteSalida)
 async def crear_vacante(
     entrada: VacanteEntrada,
@@ -130,8 +140,11 @@ def actualizar_vacante(
 
     vacante.titulo = entrada.titulo
     vacante.descripcion = entrada.descripcion
+    # La primera confirmación del borrador es la versión 1; cada edición posterior crea una versión nueva
+    # (y deja sin vigencia las evaluaciones hechas con la anterior).
+    if vacante.requisitos_confirmados:
+        vacante.version_requisitos += 1
     vacante.requisitos_confirmados = True
-    vacante.version_requisitos += 1
     vacante.requisitos = [
         RequisitoDB(
             id=requisito.id,

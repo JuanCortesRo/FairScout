@@ -80,7 +80,9 @@ def obtener_ranking(
         )
 
     en_revision = db.scalars(
-        select(CandidatoDB).where(CandidatoDB.estado == "needs_review").order_by(CandidatoDB.id)
+        select(CandidatoDB)
+        .where(CandidatoDB.vacante_id == vacante.id, CandidatoDB.estado == "needs_review")
+        .order_by(CandidatoDB.id)
     ).all()
 
     return RankingSalida(

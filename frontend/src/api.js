@@ -54,15 +54,18 @@ export const actualizarVacante = (id, vacante) => request(`/vacantes/${id}`, jso
 export const listarVacantes = () => request('/vacantes');
 export const obtenerVacante = (id) => request(`/vacantes/${id}`);
 
-/** Sube CVs: se leen, se anonimizan y se extrae su ficha. */
-export function subirCVs(archivos) {
+/** Borra la vacante junto con sus CVs, evaluaciones y entrevistas. */
+export const eliminarVacante = (id) => request(`/vacantes/${id}`, { method: 'DELETE' });
+
+/** Sube CVs a una vacante: se leen, se anonimizan y se extrae su ficha. */
+export function subirCVs(vacanteId, archivos) {
   const form = new FormData();
   archivos.forEach((a) => form.append('archivos', a));
-  return request('/cvs', { method: 'POST', body: form });
+  return request(`/vacantes/${vacanteId}/cvs`, { method: 'POST', body: form });
 }
 
-/** Metadatos de los CVs guardados; el documento completo se pide al abrir su detalle. */
-export const listarCVs = () => request('/cvs');
+/** Metadatos de los CVs de una vacante; el documento completo se pide al abrir su detalle. */
+export const listarCVs = (vacanteId) => request(`/vacantes/${vacanteId}/cvs`);
 export const obtenerCandidato = (id) => request(`/candidatos/${id}`);
 
 /** Evalúa en lote los CVs procesados que aún no tienen evaluación con la versión vigente. */

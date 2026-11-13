@@ -49,6 +49,8 @@ async def crear_evaluacion(
         raise HTTPException(status_code=404, detail="El candidato no existe.")
     if vacante is None:
         raise HTTPException(status_code=404, detail="La vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El CV no está listo para evaluación.")
     requisitos = _requisitos_evaluables(vacante)
@@ -67,7 +69,7 @@ async def evaluar_todos(
     reevaluar: bool = False,
     db: Session = Depends(get_db),
 ) -> EvaluacionLoteSalida:
-    """Evalúa todos los CVs procesados contra la vacante, con varias llamadas al LLM en paralelo.
+    """Evalúa todos los CVs procesados de la vacante, con varias llamadas al LLM en paralelo.
 
     Por defecto omite a quien ya tiene una evaluación con la versión vigente de los requisitos
     (`reevaluar=true` los evalúa de nuevo). Un candidato que falla se reporta en `errores` y no detiene el lote.
@@ -78,7 +80,9 @@ async def evaluar_todos(
     requisitos = _requisitos_evaluables(vacante)
 
     candidatos = db.scalars(
-        select(CandidatoDB).where(CandidatoDB.estado == "processed").order_by(CandidatoDB.id)
+        select(CandidatoDB)
+        .where(CandidatoDB.vacante_id == vacante.id, CandidatoDB.estado == "processed")
+        .order_by(CandidatoDB.id)
     ).all()
     ya_evaluados = set() if reevaluar else set(db.scalars(
         select(EvaluacionDB.candidato_id).where(

@@ -1,4 +1,4 @@
-"""POST /api/cvs: recibe hojas de vida, las guarda y extrae sus líneas.
+"""POST /api/vacantes/{id}/cvs: recibe hojas de vida para una vacante, las guarda y extrae sus líneas.
 
 Los PDF se procesan inmediatamente con PyMuPDF para conservar el texto y las
 coordenadas de cada línea. Los DOCX se convierten primero con LibreOffice.
@@ -16,7 +16,7 @@ from app.pipeline.document_processor import DocumentoNoProcesable, process_docum
 from app.pipeline.extract import RespuestaLLMInvalida, extraer_ficha
 from app.pipeline.postprocess import limpiar_ficha
 from app.llm import LLMNoConfigurado
-from app.models import CandidatoDB
+from app.models import CandidatoDB, VacanteDB
 from app.schemas import CargaCVsSalida, CVResumen, CVSubido, Ficha, ListaCVsSalida
 
 router = APIRouter(tags=["cvs"])
@@ -32,11 +32,13 @@ def _tipos_de_alerta(documento) -> list[str]:
     return list(dict.fromkeys(tipos))
 
 
-@router.post("/cvs", response_model=CargaCVsSalida)
+@router.post("/vacantes/{vacante_id}/cvs", response_model=CargaCVsSalida)
 async def subir_cvs(
+    vacante_id: str,
     archivos: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
 ) -> CargaCVsSalida:
+    _vacante_o_404(db, vacante_id)
     invalidos = [a.filename for a in archivos if Path(a.filename or "").suffix.lower() not in EXTENSIONES_PERMITIDAS]
     if invalidos:
         raise HTTPException(
@@ -76,7 +78,7 @@ async def subir_cvs(
         ))
         if not documento.puede_enviarse_al_llm:
             # Alerta crítica: no va al LLM, pero se guarda para que aparezca "en revisión" en el ranking.
-            _guardar_candidato(db, cv_id, archivo.filename, documento, _FICHA_VACIA, alertas)
+            _guardar_candidato(db, cv_id, vacante_id, archivo.filename, documento, _FICHA_VACIA, alertas)
             continue
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
@@ -99,7 +101,7 @@ async def subir_cvs(
             estado=documento.estado,
             alertas=alertas,
         )
-        _guardar_candidato(db, cv_id, archivo.filename, documento, ficha, alertas)
+        _guardar_candidato(db, cv_id, vacante_id, archivo.filename, documento, ficha, alertas)
     return CargaCVsSalida(archivos=subidos)
 
 
@@ -109,9 +111,19 @@ _FICHA_VACIA = Ficha(
 )
 
 
-def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, ficha: Ficha, alertas: list[str]) -> None:
+def _vacante_o_404(db: Session, vacante_id: str) -> VacanteDB:
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+    return vacante
+
+
+def _guardar_candidato(
+    db: Session, cv_id: str, vacante_id: str, nombre_archivo: str, documento, ficha: Ficha, alertas: list[str]
+) -> None:
     db.merge(CandidatoDB(
         id=cv_id,
+        vacante_id=vacante_id,
         documento_id=cv_id,
         nombre_archivo=nombre_archivo,
         estado=documento.estado,
@@ -123,9 +135,10 @@ def _guardar_candidato(db: Session, cv_id: str, nombre_archivo: str, documento, 
     db.commit()
 
 
-@router.get("/cvs", response_model=ListaCVsSalida)
-def listar_cvs(db: Session = Depends(get_db)) -> ListaCVsSalida:
-    candidatos = db.query(CandidatoDB).order_by(
+@router.get("/vacantes/{vacante_id}/cvs", response_model=ListaCVsSalida)
+def listar_cvs(vacante_id: str, db: Session = Depends(get_db)) -> ListaCVsSalida:
+    _vacante_o_404(db, vacante_id)
+    candidatos = db.query(CandidatoDB).filter(CandidatoDB.vacante_id == vacante_id).order_by(
         CandidatoDB.fecha_creacion.desc().nulls_last(), CandidatoDB.id
     ).all()
     return ListaCVsSalida(archivos=[
@@ -147,6 +160,7 @@ def obtener_candidato(candidato_id: str, db: Session = Depends(get_db)) -> CVSub
         raise HTTPException(status_code=404, detail="El candidato no existe.")
     return CVSubido(
         id=candidato.id,
+        vacante_id=candidato.vacante_id,
         nombre_archivo=candidato.nombre_archivo,
         lineas=candidato.lineas_anonimizadas,
         ficha=candidato.ficha,

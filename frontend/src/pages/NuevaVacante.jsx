@@ -352,7 +352,7 @@ export default function NuevaVacante() {
                   </Alerta>
                 </div>
               )}
-              {vacante && (
+              {vacante?.requisitos_confirmados && (
                 <div className="px-5 pb-5">
                   <Alerta tipo="info" icono={Info}>
                     Al confirmar se crea la versión {vacante.version + 1} de los requisitos y se reevalúan los CVs. El cambio queda registrado en la auditoría.

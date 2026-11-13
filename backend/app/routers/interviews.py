@@ -121,11 +121,13 @@ async def iniciar_entrevista(entrada: EntrevistaEntrada, db: Session = Depends(g
     vacante = db.get(VacanteDB, entrada.vacante_id)
     if candidato is None or vacante is None:
         raise HTTPException(status_code=404, detail="El candidato o la vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El candidato no está listo para entrevista.")
     pendientes = db.query(EntrevistaDB).filter(
-        EntrevistaDB.vacante_id == vacante_id,
-        EntrevistaDB.candidato_id == candidato_id,
+        EntrevistaDB.vacante_id == vacante.id,
+        EntrevistaDB.candidato_id == candidato.id,
         EntrevistaDB.estado.in_(("pending", "en_curso")),
     ).all()
     for pendiente in pendientes:
@@ -158,6 +160,8 @@ async def crear_invitacion(
     vacante = db.get(VacanteDB, vacante_id)
     if candidato is None or vacante is None:
         raise HTTPException(status_code=404, detail="El candidato o la vacante no existe.")
+    if candidato.vacante_id != vacante.id:
+        raise HTTPException(status_code=409, detail="El CV no pertenece a esta vacante.")
     if candidato.estado != "processed":
         raise HTTPException(status_code=409, detail="El candidato no está listo para entrevista.")
     try:

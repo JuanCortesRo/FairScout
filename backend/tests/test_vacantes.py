@@ -122,8 +122,9 @@ def test_actualizar_vacante_y_requisitos(monkeypatch, client, session_factory):
 
     assert respuesta.status_code == 200
     assert respuesta.json()["titulo"] == "Senior Python"
-    assert respuesta.json()["version_requisitos"] == 2
+    assert respuesta.json()["version_requisitos"] == 1
     assert respuesta.json()["requisitos_confirmados"] is True
+    assert client.put(f"/api/vacantes/{creada['id']}", json=actualizada).json()["version_requisitos"] == 2
     with session_factory() as db:
         vacante = db.get(VacanteDB, creada["id"])
         assert vacante.titulo == "Senior Python"

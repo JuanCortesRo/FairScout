@@ -4,6 +4,7 @@ import { rankear } from '@/lib/scoring';
 import { ARCHIVOS_CON_ERROR, VACANTE_EJEMPLO, DESCRIPCION_EJEMPLO, generarLoteDemo } from '@/data/demo';
 import {
   ErrorAPI,
+  eliminarVacante as eliminarVacanteApi,
   evaluarLote,
   listarCVs,
   listarEvaluaciones,
@@ -21,7 +22,8 @@ const Ctx = createContext(null);
 
 const INICIAL = {
   origen: null,             // 'backend' | 'demo'
-  vacante: null,            // { id, titulo, descripcion, requisitos, version, confirmada_en }
+  vacante: null,            // { id, titulo, descripcion, requisitos, version, confirmada_en }; solo completa
+  vacanteIdGuardada: null,  // vacante abierta en la sesión anterior, mientras llega del servidor
   vacanteDesactivada: false,
   pesos: { obligatorios: 60 },
   candidatos: [],           // solo se guarda en modo demo; con backend se pide a la API
@@ -44,13 +46,17 @@ function cargar() {
       modoCiego: preferencias.modoCiego ?? INICIAL.modoCiego,
       pesos: preferencias.pesos ?? INICIAL.pesos,
       seleccion: preferencias.seleccion ?? INICIAL.seleccion,
-      vacante: preferencias.vacanteId ? { id: preferencias.vacanteId } : null,
+      vacanteIdGuardada: preferencias.vacanteId ?? null,
       vacanteDesactivada: preferencias.vacanteDesactivada ?? false,
     };
   } catch {
     return INICIAL;
   }
 }
+
+// Lo que pertenece a una vacante y se descarta al cambiar de vacante.
+const ESTADO_POR_VACANTE = { archivos: [], seleccion: [], correcciones: {}, entrevistas: {}, lote: null };
+const SERVIDOR_VACIO = { candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [] };
 
 const EXTENSIONES = ['.pdf', '.docx'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -151,9 +157,8 @@ function conCorrecciones(c, correcciones) {
 export function AppProvider({ children }) {
   const [estado, setEstado] = useState(cargar);
   const [backend, setBackend] = useState('verificando'); // verificando | conectado | desconectado
-  const [servidor, setServidor] = useState({
-    candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [],
-  });
+  const [servidor, setServidor] = useState(SERVIDOR_VACIO);
+  const [vacantes, setVacantes] = useState([]);
   const [evaluando, setEvaluando] = useState(false);
   const [erroresEvaluacion, setErroresEvaluacion] = useState([]);
   const [avisos, setAvisos] = useState([]);
@@ -171,11 +176,11 @@ export function AppProvider({ children }) {
       modoCiego: estado.modoCiego,
       pesos: estado.pesos,
       seleccion: estado.seleccion,
-      vacanteId: estado.origen === 'demo' ? null : estado.vacante?.id ?? null,
+      vacanteId: estado.origen === 'demo' ? null : estado.vacante?.id ?? estado.vacanteIdGuardada ?? null,
       vacanteDesactivada: estado.vacanteDesactivada,
     };
     try { localStorage.setItem(CLAVE, JSON.stringify(preferencias)); } catch { /* Las preferencias son opcionales. */ }
-  }, [estado.modoCiego, estado.pesos, estado.seleccion, estado.origen, estado.vacante?.id, estado.vacanteDesactivada]);
+  }, [estado.modoCiego, estado.pesos, estado.seleccion, estado.origen, estado.vacante?.id, estado.vacanteIdGuardada, estado.vacanteDesactivada]);
 
   const set = useCallback((fn) => setEstado((s) => ({ ...s, ...fn(s) })), []);
 
@@ -195,14 +200,16 @@ export function AppProvider({ children }) {
     const solicitud = ++rankingSeq.current;
     setServidor((s) => ({ ...s, cargando: true, error: null }));
     try {
-      const vacantes = await listarVacantes();
-      const idPreferido = vacanteIdPreferida ?? ref.current.vacante?.id;
+      const lista = await listarVacantes();
+      if (solicitud !== rankingSeq.current) return;
+      setVacantes(lista);
+      const idPreferido = vacanteIdPreferida ?? ref.current.vacante?.id ?? ref.current.vacanteIdGuardada;
       const vacanteRespuesta = idPreferido
-        ? vacantes.find((v) => v.id === idPreferido) ?? vacantes[0] ?? null
-        : ref.current.vacanteDesactivada ? null : vacantes[0] ?? null;
+        ? lista.find((v) => v.id === idPreferido) ?? lista[0] ?? null
+        : ref.current.vacanteDesactivada ? null : lista[0] ?? null;
       const vacante = vacanteRespuesta ? desdeVacante(vacanteRespuesta) : null;
       const [cvs, evaluaciones, respuestaRanking] = await Promise.all([
-        listarCVs(),
+        vacante?.id ? listarCVs(vacante.id) : Promise.resolve({ archivos: [] }),
         vacante?.id ? listarEvaluaciones(vacante.id) : Promise.resolve([]),
         vacante?.id ? obtenerRanking(vacante.id, ref.current.pesos.obligatorios) : Promise.resolve({ candidatos: [], en_revision: [] }),
       ]);
@@ -210,7 +217,7 @@ export function AppProvider({ children }) {
       const porCandidato = new Map(evaluaciones.map((e) => [e.candidato_id, e]));
       const candidatos = cvs.archivos.map((cv) => desdeApi(cv, porCandidato.get(cv.id)));
       const ranking = desdeRanking(respuestaRanking, candidatos, vacante?.requisitos ?? []);
-      setEstado((s) => ({ ...s, origen: 'backend', vacante, vacanteDesactivada: !vacante }));
+      setEstado((s) => ({ ...s, origen: 'backend', vacante, vacanteIdGuardada: null, vacanteDesactivada: !vacante }));
       setServidor({
         candidatos,
         ranking,
@@ -342,7 +349,7 @@ export function AppProvider({ children }) {
   const subirUno = useCallback(async (archivo, file) => {
     actualizarArchivo(archivo.id, { estado: 'procesando', error: null });
     try {
-      const { archivos } = await subirCVs([file]);
+      const { archivos } = await subirCVs(ref.current.vacante.id, [file]);
       const r = archivos[0];
       if (!r || r.estado === 'failed') {
         // Un documento ilegible falla igual al reintentar; un fallo de la IA sí puede resolverse reintentando.
@@ -387,6 +394,10 @@ export function AppProvider({ children }) {
       notificar('El servidor no está disponible. Inícialo para procesar los CVs.', 'error');
       return [];
     }
+    if (!ref.current.vacante?.id) {
+      notificar('Primero crea o abre una vacante: cada CV se carga dentro de una vacante.', 'error');
+      return [];
+    }
     const rechazados = [];
     const nuevos = [];
     const existentes = ref.current.archivos;
@@ -425,6 +436,54 @@ export function AppProvider({ children }) {
     archivosRef.current.delete(id);
     set((s) => ({ archivos: s.archivos.filter((x) => x.id !== id) }));
   }, [set]);
+
+  // ── Varias vacantes ────────────────────────────────────────────────────────
+  /** Abre una vacante guardada: los CVs, el ranking y las entrevistas pasan a ser los de esa vacante. */
+  const abrirVacante = useCallback((vacanteApi) => {
+    archivosRef.current.clear();
+    setEstado((s) => ({
+      ...s,
+      ...ESTADO_POR_VACANTE,
+      origen: 'backend',
+      vacante: desdeVacante(vacanteApi),
+      vacanteDesactivada: false,
+      candidatos: [],
+    }));
+    setServidor(SERVIDOR_VACIO);
+    setErroresEvaluacion([]);
+    setTimeout(() => refrescar(vacanteApi.id), 0);
+  }, [refrescar]);
+
+  /** Deja el formulario listo para crear otra vacante; las existentes siguen en el servidor. */
+  const nuevaVacante = useCallback(() => {
+    archivosRef.current.clear();
+    setEstado((s) => ({
+      ...s,
+      ...ESTADO_POR_VACANTE,
+      origen: backend === 'conectado' ? 'backend' : s.origen,
+      vacante: null,
+      vacanteIdGuardada: null,
+      vacanteDesactivada: true,
+      candidatos: [],
+    }));
+    setServidor(SERVIDOR_VACIO);
+    setErroresEvaluacion([]);
+  }, [backend]);
+
+  /** Borra en el servidor la vacante con sus CVs, evaluaciones y entrevistas. */
+  const eliminarVacante = useCallback(async (vacanteApi) => {
+    try {
+      await eliminarVacanteApi(vacanteApi.id);
+    } catch (e) {
+      notificar(`No se pudo eliminar la vacante: ${e.message}`, 'error');
+      return false;
+    }
+    registrar('Vacante eliminada', `"${vacanteApi.titulo}" con sus CVs, evaluaciones y entrevistas`);
+    if (ref.current.vacante?.id === vacanteApi.id) nuevaVacante();
+    notificar(`Se eliminó la vacante "${vacanteApi.titulo}".`, 'ok');
+    await refrescar();
+    return true;
+  }, [nuevaVacante, refrescar, registrar, notificar]);
 
   // ── Demo ───────────────────────────────────────────────────────────────────
   const cargarDemo = useCallback(() => {
@@ -467,7 +526,7 @@ export function AppProvider({ children }) {
       modoCiego: s.modoCiego,
       vacanteDesactivada: backend === 'conectado',
     }));
-    setServidor({ candidatos: [], ranking: [], enRevision: [], cargando: false, error: null, erroresEvaluacion: [] });
+    setServidor(SERVIDOR_VACIO);
     if (backend === 'conectado') setTimeout(() => refrescar(), 0);
   }, [backend, refrescar]);
 
@@ -525,9 +584,9 @@ export function AppProvider({ children }) {
 
   const valor = {
     ...estado,
-    candidatos: todos, backend, enDemo, avisos, ranking, pendientes, enRevision, trazabilidad, evaluando, erroresEvaluacion,
+    candidatos: todos, vacantes, backend, enDemo, avisos, ranking, pendientes, enRevision, trazabilidad, evaluando, erroresEvaluacion,
     cargandoServidor: servidor.cargando, errorServidor: servidor.error,
-    confirmarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar, cargarCandidato,
+    confirmarVacante, abrirVacante, nuevaVacante, eliminarVacante, setPesos, agregarArchivos, reintentar, quitarArchivo, evaluar, refrescar, cargarCandidato,
     cargarDemo, reiniciar, toggleCiego, toggleSeleccion, guardarEntrevista, registrar, notificar, nombreVisible, corregirEvaluacion,
   };
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;

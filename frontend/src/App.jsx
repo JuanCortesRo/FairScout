@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, Link } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
+import Vacantes from './pages/Vacantes.jsx';
 import NuevaVacante from './pages/NuevaVacante.jsx';
 import CargaCVs from './pages/CargaCVs.jsx';
 import Ranking from './pages/Ranking.jsx';
@@ -17,7 +18,8 @@ export default function App() {
     <Routes>
       <Route path="entrevista/:token" element={<EntrevistaPublica />} />
       <Route element={<Layout />}>
-        <Route index element={<Navigate to="/vacante" replace />} />
+        <Route index element={<Navigate to="/vacantes" replace />} />
+        <Route path="vacantes" element={<Vacantes />} />
         <Route path="vacante" element={<NuevaVacante />} />
         <Route path="cvs" element={<CargaCVs />} />
         <Route path="ranking" element={<Ranking />} />
@@ -27,7 +29,7 @@ export default function App() {
         <Route path="auditoria" element={<Auditoria />} />
         <Route path="*" element={(
           <EstadoVacio icono={Compass} titulo="Página no encontrada" descripcion="La dirección no existe. Vuelve al inicio del flujo.">
-            <Link to="/vacante" className={buttonVariants({ size: 'lg' })}>Ir a la vacante</Link>
+            <Link to="/vacantes" className={buttonVariants({ size: 'lg' })}>Ir a las vacantes</Link>
           </EstadoVacio>
         )} />
       </Route>

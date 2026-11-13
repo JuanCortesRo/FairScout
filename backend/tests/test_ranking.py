@@ -71,13 +71,21 @@ def session_factory(tmp_path):
             id="V1", titulo="Backend", descripcion="Vacante de prueba", requisitos_confirmados=True,
             requisitos=[RequisitoDB(id=i, nombre=n, tipo=t, categoria=c, peso=1.0) for i, n, t, c in REQUISITOS],
         ))
+        db.flush()  # la vacante debe existir antes que los candidatos que la referencian
+        # V2 es otra vacante con sus propios CVs: nunca deben aparecer ni evaluarse en V1.
+        db.add(VacanteDB(
+            id="V2", titulo="Frontend", descripcion="Otra vacante de prueba", requisitos_confirmados=True,
+            requisitos=[RequisitoDB(id=i, nombre=n, tipo=t, categoria=c, peso=1.0) for i, n, t, c in REQUISITOS],
+        ))
+        db.flush()
         candidatos = (
-            ("C1", "processed", []), ("C2", "processed", []), ("C3", "processed", ["hidden_text"]),
-            ("C4", "needs_review", ["prompt_injection"]),
+            ("C1", "V1", "processed", []), ("C2", "V1", "processed", []),
+            ("C3", "V1", "processed", ["hidden_text"]), ("C4", "V1", "needs_review", ["prompt_injection"]),
+            ("C8", "V2", "needs_review", ["prompt_injection"]), ("C9", "V2", "processed", []),
         )
-        for cid, estado, alertas in candidatos:
+        for cid, vacante_id, estado, alertas in candidatos:
             db.add(CandidatoDB(
-                id=cid, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado=estado,
+                id=cid, vacante_id=vacante_id, documento_id=cid, nombre_archivo=f"{cid}.pdf", estado=estado,
                 ficha=_ficha(cid), lineas_anonimizadas=LINEAS, lineas_originales=LINEAS, alertas=alertas,
             ))
         db.commit()
@@ -287,3 +295,39 @@ def test_obtener_evaluacion_individual_devuelve_solo_la_vigente(client, session_
         db.get(VacanteDB, "V1").version_requisitos += 1
         db.commit()
     assert client.get(endpoint).status_code == 404
+
+
+def test_no_se_evalua_un_cv_de_otra_vacante(client):
+    respuesta = client.post("/api/evaluations", json={"candidato_id": "C9", "vacante_id": "V1"})
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detail"] == "El CV no pertenece a esta vacante."
+    assert client.llamadas == []
+
+
+def test_borrar_una_vacante_borra_sus_cvs_y_evaluaciones_pero_no_los_de_otra(client, session_factory):
+    client.post("/api/vacantes/V1/evaluar")
+
+    assert client.delete("/api/vacantes/V1").status_code == 204
+    assert client.get("/api/vacantes/V1").status_code == 404
+    assert client.delete("/api/vacantes/V1").status_code == 404
+    with session_factory() as db:
+        assert {c.id for c in db.query(CandidatoDB)} == {"C8", "C9"}
+    assert [v["id"] for v in client.get("/api/vacantes").json()] == ["V2"]
+
+
+def test_entrevista_exige_que_el_cv_sea_de_la_vacante(client, monkeypatch):
+    from app.interview.agent import PreguntaEntrevista
+
+    async def plan_falso(ficha, requisitos):
+        return [PreguntaEntrevista(id=f"P{i}", tema="Python", texto=f"Pregunta de prueba número {i}") for i in range(5)]
+    monkeypatch.setattr("app.routers.interviews.generar_plan", plan_falso)
+
+    propia = client.post("/api/entrevistas", json={"candidato_id": "C1", "vacante_id": "V1"})
+    ajena = client.post("/api/entrevistas", json={"candidato_id": "C9", "vacante_id": "V1"})
+    invitacion_ajena = client.post("/api/vacantes/V1/candidatos/C9/entrevista")
+
+    assert propia.status_code == 200
+    assert propia.json()["pregunta"]["id"] == "P0"
+    assert ajena.status_code == 409
+    assert invitacion_ajena.status_code == 409
