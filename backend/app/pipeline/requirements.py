@@ -40,9 +40,9 @@ async def proponer_requisitos(descripcion: str) -> VacanteSalida:
             messages=messages,
         )
         if message.stop_reason == "refusal":
-            raise RespuestaLLMInvalida("El modelo se negó a procesar esta descripción.")
+            raise RespuestaLLMInvalida("La IA no pudo procesar esta descripción. Revisa el texto e intenta de nuevo.")
         if message.stop_reason == "max_tokens":
-            raise RespuestaLLMInvalida("La respuesta del modelo quedó incompleta. Intenta con una descripción más corta.")
+            raise RespuestaLLMInvalida("La descripción es demasiado larga. Intenta con una más corta.")
 
         texto = texto_de_respuesta(message)
         try:
@@ -55,4 +55,4 @@ async def proponer_requisitos(descripcion: str) -> VacanteSalida:
                                             "Responde de nuevo solo con el objeto JSON corregido."},
             ]
 
-    raise RespuestaLLMInvalida("El modelo devolvió requisitos con un formato inválido. Intenta de nuevo.")
+    raise RespuestaLLMInvalida("La IA no pudo proponer los requisitos en un formato válido. Intenta de nuevo.")

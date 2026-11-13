@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.llm import LLMNoConfigurado
+from app.mensajes import error_de_ia
 from app.models import RequisitoDB, VacanteDB
 from app.pipeline.datos_protegidos import motivo_bloqueo, separar_requisitos
 from app.pipeline.requirements import RespuestaLLMInvalida, proponer_requisitos
@@ -35,12 +36,15 @@ def _salida(vacante: VacanteDB) -> VacanteSalida:
         ],
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
     )
 
 
 @router.get("/vacantes", response_model=list[VacanteSalida])
 def listar_vacantes(db: Session = Depends(get_db)) -> list[VacanteSalida]:
-    vacantes = db.scalars(select(VacanteDB).order_by(VacanteDB.id)).all()
+    vacantes = db.scalars(
+        select(VacanteDB).order_by(VacanteDB.fecha_creacion.desc().nulls_last(), VacanteDB.id)
+    ).all()
     return [_salida(vacante) for vacante in vacantes]
 
 
@@ -52,6 +56,16 @@ def obtener_vacante(vacante_id: str, db: Session = Depends(get_db)) -> VacanteSa
     return _salida(vacante)
 
 
+@router.delete("/vacantes/{vacante_id}", status_code=204)
+def eliminar_vacante(vacante_id: str, db: Session = Depends(get_db)) -> None:
+    """Borra la vacante con sus requisitos, CVs, evaluaciones y entrevistas (llaves foráneas en cascada)."""
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+    db.delete(vacante)
+    db.commit()
+
+
 @router.post("/vacantes", response_model=VacanteSalida)
 async def crear_vacante(
     entrada: VacanteEntrada,
@@ -59,23 +73,11 @@ async def crear_vacante(
 ) -> VacanteSalida:
     try:
         propuesta = await proponer_requisitos(entrada.descripcion)
-    except LLMNoConfigurado as e:
-        raise HTTPException(status_code=503, detail=str(e))
     except RespuestaLLMInvalida as e:
+        # Sus mensajes ya están escritos para el reclutador (p. ej. "intenta con una descripción más corta").
         raise HTTPException(status_code=502, detail=str(e))
-    except anthropic.AuthenticationError:
-        raise HTTPException(status_code=503, detail="La llave de Anthropic no es válida. Revisa ANTHROPIC_API_KEY.")
-    except anthropic.RateLimitError:
-        raise HTTPException(status_code=429, detail="Se superó el límite de uso del modelo. Intenta de nuevo en un momento.")
-    except anthropic.APIConnectionError:
-        raise HTTPException(status_code=502, detail="No fue posible conectarse con el servicio del modelo.")
-    except anthropic.APIStatusError as e:
-        log.error("Error de la API de Anthropic: %s", e.status_code)
-        raise HTTPException(
-            status_code=502,
-            detail=f"El servicio del modelo respondió con error ({e.status_code}). "
-                   "Verifica el ID del modelo y los permisos de la API key.",
-        )
+    except (LLMNoConfigurado, anthropic.APIError) as e:
+        raise error_de_ia(e, "proponer los requisitos") from e
 
     # Aunque el prompt lo prohíbe, si el LLM propone un requisito con un dato protegido se descarta aquí.
     requisitos, bloqueados = separar_requisitos(propuesta.requisitos)
@@ -107,8 +109,14 @@ async def crear_vacante(
         requisitos=requisitos,
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
         requisitos_bloqueados=[RequisitoBloqueado(requisito=r, motivo=m) for r, m in bloqueados],
     )
+
+
+def _firma(requisitos) -> list[tuple]:
+    """Lo que la IA usa para evaluar cada requisito (sin el peso ni el orden)."""
+    return sorted((r.id, " ".join(r.nombre.split()), r.tipo, r.categoria) for r in requisitos)
 
 
 @router.put("/vacantes/{vacante_id}", response_model=VacanteSalida)
@@ -126,8 +134,12 @@ def actualizar_vacante(
 
     vacante.titulo = entrada.titulo
     vacante.descripcion = entrada.descripcion
+    # La primera confirmación del borrador es la versión 1. Después, solo un cambio que altera la evaluación crea
+    # una versión nueva (y deja sin vigencia las evaluaciones anteriores, que se vuelven a pedir a la IA). Cambiar
+    # el título, la descripción o los pesos no: los pesos se aplican en código al calcular el ranking.
+    if vacante.requisitos_confirmados and _firma(vacante.requisitos) != _firma(entrada.requisitos):
+        vacante.version_requisitos += 1
     vacante.requisitos_confirmados = True
-    vacante.version_requisitos += 1
     vacante.requisitos = [
         RequisitoDB(
             id=requisito.id,
@@ -147,4 +159,5 @@ def actualizar_vacante(
         requisitos=entrada.requisitos,
         version_requisitos=vacante.version_requisitos,
         requisitos_confirmados=vacante.requisitos_confirmados,
+        fecha_creacion=vacante.fecha_creacion,
     )

@@ -4,6 +4,7 @@ import re
 import unicodedata
 from copy import deepcopy
 
+from app.pipeline.datos_protegidos import RAICES_GENTILICIOS
 from app.schemas import Linea
 
 
@@ -61,6 +62,8 @@ _PERSONAL_LABEL = re.compile(
     r"(?i)\b(?:información personal|informacion personal|datos personales|"
     r"contact information|personal information)\b"
 )
+# Palabras que nunca forman parte de un nombre de persona: títulos de sección, cargos y áreas.
+# Evitan que el encabezado "HOJA DE VIDA" o el cargo "Ingeniero de sistemas" se borren como si fueran un nombre.
 _PROFESSIONAL_WORDS = {
     "engineer", "developer", "designer", "manager", "director", "analyst",
     "software", "full", "stack", "backend", "frontend", "universidad",
@@ -68,8 +71,36 @@ _PROFESSIONAL_WORDS = {
     "experience", "summary", "skills", "education", "certifications",
     "experiencia", "resumen", "habilidades", "educacion", "formacion",
     "profesional", "laboral",
+    # títulos de sección y del documento
+    "hoja", "vida", "curriculum", "vitae", "cv", "resume", "perfil", "profile", "contacto", "contact",
+    "objetivo", "objective", "referencias", "references", "datos", "personales", "personal", "informacion",
+    "information", "about", "acerca", "sobre", "logros", "achievements", "idiomas", "languages", "proyectos",
+    "projects", "cursos", "courses", "competencias", "aptitudes", "intereses", "interests", "work", "history",
+    "professional", "qualifications", "accomplishments", "highlights", "career", "carrera", "estudios",
+    # cargos y áreas (español e inglés)
+    "ingeniero", "ingeniera", "desarrollador", "desarrolladora", "contador", "contadora", "analista",
+    "gerente", "directora", "administrador", "administradora", "tecnico", "tecnica", "tecnologo",
+    "tecnologa", "licenciado", "licenciada", "auxiliar", "asistente", "coordinador", "coordinadora", "jefe",
+    "especialista", "consultor", "consultora", "abogado", "abogada", "docente", "profesor", "profesora",
+    "medico", "medica", "enfermero", "enfermera", "disenador", "disenadora", "programador", "programadora",
+    "arquitecto", "arquitecta", "economista", "psicologo", "psicologa", "practicante", "pasante",
+    "estudiante", "lider", "sistemas", "publico", "publica", "contaduria", "finanzas", "ventas", "soporte",
+    "accountant", "staff", "intern", "specialist", "consultant", "assistant", "associate", "coordinator",
+    "supervisor", "officer", "clerk", "administrator", "technician", "representative", "executive", "lead",
+    "head", "chief", "president", "vice", "accounting", "finance", "financial", "sales", "marketing",
+    "operations", "project", "product", "data", "network", "systems", "support", "services", "service",
+    "senior", "junior", "sr", "jr", "team", "office", "business", "customer", "human", "resources", "hr",
+    "teacher", "nurse", "agent", "advisor", "auditor", "bookkeeper", "cashier", "controller", "owner",
+    "partner", "member", "volunteer", "trainee", "student", "graduate", "general", "regional", "national",
 }
 _NAME_TOKEN = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[-'][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)?$")
+_CONECTORES_NOMBRE = {"de", "del", "la", "las", "los", "y", "da", "dos", "van", "von"}
+# Un encabezado suele escribirse "Nombre | correo | teléfono" o "Nombre - Cargo": se revisa cada segmento.
+_SEPARADORES = re.compile(r"\s*(?:\||·|•|–|—|\s-\s|,|/)\s*")
+_ZONA_ENCABEZADO = 6   # primeras líneas con texto donde suele estar el nombre
+_GENTILICIO_SUELTO = re.compile(
+    r"(?i)^(?:" + RAICES_GENTILICIOS + r")(?:o|a|os|as|e|es|ian|ean)?$"
+)
 _POSSIBLE_PERSONAL = (
     _EMAIL,
     _PHONE,
@@ -79,17 +110,31 @@ _POSSIBLE_PERSONAL = (
 
 
 @dataclass(frozen=True)
+class Contacto:
+    """Datos para contactar al candidato. Nunca van al LLM ni a la interfaz: solo al ranking exportado."""
+
+    nombre: str | None = None
+    correo: str | None = None
+    telefono: str | None = None
+
+
+@dataclass(frozen=True)
 class ResultadoAnonimizacion:
-    """Resultado seguro: las líneas originales no forman parte del resultado."""
+    """Las líneas originales no forman parte del resultado; del texto personal solo se conserva el contacto."""
 
     lineas_anonimizadas: list[Linea]
     categorias: tuple[str, ...]
     alertas: tuple[str, ...]
+    contacto: Contacto = Contacto()
 
 
-def _reemplazar(texto: str, patron: re.Pattern[str], etiqueta: str, encontrados: set[str]) -> str:
+def _reemplazar(
+    texto: str, patron: re.Pattern[str], etiqueta: str, encontrados: set[str], valores: dict[str, str] | None = None
+) -> str:
     def reemplazo(match: re.Match[str]) -> str:
         encontrados.add(etiqueta)
+        if valores is not None:
+            valores.setdefault(etiqueta, match.group(0).strip())
         return etiqueta
 
     return patron.sub(reemplazo, texto)
@@ -102,25 +147,52 @@ def _sin_acentos(texto: str) -> str:
     )
 
 
-def _parece_nombre(texto: str, posicion: int, contexto_personal: bool) -> bool:
-    limpio = " ".join(texto.strip().split())
-    palabras = limpio.replace("·", " ").split()
-    if not 2 <= len(palabras) <= 5 or any(not _NAME_TOKEN.fullmatch(palabra) for palabra in palabras):
+def _es_nombre(segmento: str, minusculas: bool = False) -> bool:
+    """2 a 6 palabras con mayúscula inicial (admite "de", "la"...) y ninguna palabra de cargo o sección.
+
+    `minusculas` acepta además un nombre escrito todo en minúsculas; solo se usa en el encabezado.
+    """
+    palabras = segmento.split()
+    if not 2 <= len(palabras) <= 6:
         return False
-    normalizado = _sin_acentos(limpio).casefold()
-    if any(palabra in _PROFESSIONAL_WORDS for palabra in normalizado.split()):
+    propias = [p for p in palabras if p.casefold() not in _CONECTORES_NOMBRE]
+    if len(propias) < 2 or palabras[0].casefold() in _CONECTORES_NOMBRE:
         return False
-    # A name-like line is only anonymized without a label near the CV header
-    # or inside an explicitly personal-information block.
-    return contexto_personal or posicion < 3
+    if any(not _NAME_TOKEN.fullmatch(p) for p in propias):
+        return False
+    # Cada palabra con mayúscula inicial, o todo en minúsculas ("maria fernanda lopez").
+    if not (all(p[0].isupper() for p in propias) or (minusculas and segmento.islower())):
+        return False
+    # En un texto con minúsculas, una palabra corta toda en mayúsculas es una sigla ("Active TS"), no un nombre.
+    if not segmento.isupper() and any(p.isupper() and len(p) <= 3 for p in propias):
+        return False
+    return not any(_sin_acentos(p).casefold() in _PROFESSIONAL_WORDS for p in palabras)
+
+
+def _anonimizar_segmentos(texto: str, encontrados: set[str], valores: dict[str, str], con_gentilicios: bool) -> str:
+    """Reemplaza, dentro de una línea, solo los segmentos que son un nombre (o una nacionalidad suelta)."""
+    partes = _SEPARADORES.split(texto)
+    separadores = _SEPARADORES.findall(texto)
+    for i, parte in enumerate(partes):
+        limpio = " ".join(parte.split())
+        # En minúsculas solo cuenta si es la línea completa: un trozo entre comas suele ser parte de una oración.
+        if _es_nombre(limpio, minusculas=len(partes) == 1):
+            valores.setdefault("[NOMBRE]", limpio)
+            encontrados.add("[NOMBRE]")
+            partes[i] = "[NOMBRE]"
+        elif con_gentilicios and _GENTILICIO_SUELTO.match(_sin_acentos(limpio)):
+            encontrados.add("[NACIONALIDAD]")
+            partes[i] = "[NACIONALIDAD]"
+    return "".join(parte + (separadores[i] if i < len(separadores) else "") for i, parte in enumerate(partes))
 
 
 def _anonimizar_texto(
     texto: str,
     encontrados: set[str],
     alertas: list[str],
-    posicion: int,
+    en_encabezado: bool,
     contexto_personal: bool,
+    valores: dict[str, str],
 ) -> str:
     if not texto:
         return texto
@@ -136,22 +208,29 @@ def _anonimizar_texto(
     texto = _reemplazar(texto, _GENDER, "[GENERO]", encontrados)
     texto = _reemplazar(texto, _MARITAL, "[ESTADO_CIVIL]", encontrados)
     texto = _reemplazar(texto, _PRONOUNS, "[PRONOMBRES]", encontrados)
-    texto = _reemplazar(texto, _EMAIL, "[CORREO]", encontrados)
-    texto = _reemplazar(texto, _PHONE, "[TELEFONO]", encontrados)
+    texto = _reemplazar(texto, _EMAIL, "[CORREO]", encontrados, valores)
+    texto = _reemplazar(texto, _PHONE, "[TELEFONO]", encontrados, valores)
 
-    nombre = _NAME_LABEL.match(texto.strip())
-    contexto_nombre = _NAME_CONTEXT.search(texto.strip())
-    if nombre:
-        inicio = texto.find(nombre.group(1))
-        texto = texto[:inicio] + "[NOMBRE]"
+    etiqueta = _NAME_LABEL.match(texto.strip())
+    contexto = _NAME_CONTEXT.search(texto.strip())
+    # "Nombre: X" siempre es un nombre; tras "soy", "candidate"... solo si lo que sigue tiene forma de nombre
+    # ("Graduating Ph.D. candidate with a research focus" es evidencia, no un nombre).
+    valor_contexto = contexto.group(1).strip(" .,:;") if contexto else ""
+    if etiqueta or (contexto and _es_nombre(valor_contexto)):
+        valor = etiqueta.group(1) if etiqueta else valor_contexto
+        inicio = texto.find(valor)
+        valores.setdefault("[NOMBRE]", " ".join(valor.split()))
+        texto = texto[:inicio] + "[NOMBRE]" + (texto[inicio + len(valor):] if not etiqueta else "")
         encontrados.add("[NOMBRE]")
-    elif contexto_nombre:
-        inicio = texto.find(contexto_nombre.group(1))
-        texto = texto[:inicio] + "[NOMBRE]"
-        encontrados.add("[NOMBRE]")
-    elif _parece_nombre(texto, posicion, contexto_personal):
-        texto = "[NOMBRE]"
-        encontrados.add("[NOMBRE]")
+        return texto
+
+    # Un encabezado con el nombre es corto ("Juan Pérez | correo | teléfono"); las líneas largas del inicio
+    # suelen ser listas de habilidades con productos en mayúscula ("MS Word, Great Plains") que no son nombres.
+    palabras = len(texto.split())
+    con_contacto = "[CORREO]" in texto or "[TELEFONO]" in texto
+    corta = ";" not in texto and palabras <= 10
+    if ((en_encabezado or contexto_personal) and corta) or (con_contacto and palabras <= 16):
+        texto = _anonimizar_segmentos(texto, encontrados, valores, con_gentilicios=en_encabezado or contexto_personal)
     return texto
 
 
@@ -160,21 +239,34 @@ def anonimizar_con_metadatos(lineas: list[Linea]) -> ResultadoAnonimizacion:
     anonimizadas: list[Linea] = []
     categorias: set[str] = set()
     alertas: list[str] = []
+    valores: dict[str, str] = {}
     contexto_personal_restante = 0
-    for posicion, linea in enumerate(lineas):
+    lineas_con_texto = 0
+    for linea in lineas:
         if not isinstance(linea, Linea) or not linea.id or linea.texto is None:
             raise ValueError("Cada línea debe tener id y texto válido.")
         if _PERSONAL_LABEL.search(linea.texto):
             contexto_personal_restante = 3
         contexto_personal = contexto_personal_restante > 0
-        texto = _anonimizar_texto(linea.texto, categorias, alertas, posicion, contexto_personal)
+        en_encabezado = bool(linea.texto.strip()) and lineas_con_texto < _ZONA_ENCABEZADO
+        lineas_con_texto += bool(linea.texto.strip())
+        texto = _anonimizar_texto(linea.texto, categorias, alertas, en_encabezado, contexto_personal, valores)
         if contexto_personal_restante:
             contexto_personal_restante -= 1
         anonimizadas.append(linea.model_copy(update={"texto": texto}))
+
+    # El nombre detectado en el encabezado también se borra donde vuelva a aparecer (firma, pie de página...).
+    if nombre := valores.get("[NOMBRE]"):
+        repetido = re.compile(r"\s+".join(map(re.escape, nombre.split())), re.I)
+        anonimizadas = [l.model_copy(update={"texto": repetido.sub("[NOMBRE]", l.texto)}) for l in anonimizadas]
+
     fugas = any(patron.search(linea.texto) for linea in anonimizadas for patron in _POSSIBLE_PERSONAL)
     if fugas:
         alertas.append("posible_fuga_personal")
-    return ResultadoAnonimizacion(anonimizadas, tuple(sorted(categorias)), tuple(sorted(set(alertas))))
+    contacto = Contacto(
+        nombre=valores.get("[NOMBRE]"), correo=valores.get("[CORREO]"), telefono=valores.get("[TELEFONO]")
+    )
+    return ResultadoAnonimizacion(anonimizadas, tuple(sorted(categorias)), tuple(sorted(set(alertas))), contacto)
 
 
 def anonimizar(lineas: list[Linea]) -> list[Linea]:

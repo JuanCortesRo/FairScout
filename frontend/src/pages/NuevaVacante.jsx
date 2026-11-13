@@ -64,7 +64,7 @@ function Resumen({ vacante, onEditar }) {
   const grupos = ['obligatorio', 'deseable', 'descalificante'].map((t) => ({ tipo: t, items: vacante.requisitos.filter((r) => r.tipo === t) }));
   const fechaConfirmacion = vacante.confirmada_en
     ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
-    : 'recuperada del servidor';
+    : 'guardada';
   return (
     <>
       <PageHeader
@@ -74,9 +74,6 @@ function Resumen({ vacante, onEditar }) {
         acciones={(
           <>
             <Button variant="outline" size="lg" onClick={onEditar}><Pencil /> Editar requisitos</Button>
-            <Button size="lg" onClick={() => navigate(candidatos.length ? '/ranking' : '/cvs')}>
-              {candidatos.length ? 'Ver ranking' : 'Cargar CVs'} <ArrowRight />
-            </Button>
           </>
         )}
       />
@@ -139,7 +136,7 @@ export default function NuevaVacante() {
   ].filter(Boolean);
 
   if ((cargandoServidor || backend === 'verificando') && !vacante?.requisitos) {
-    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Recuperando vacantes del servidor">Espera un momento para continuar.</Alerta>;
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando vacantes…" />;
   }
 
   if (vacante?.requisitos_confirmados && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} />;
@@ -147,7 +144,7 @@ export default function NuevaVacante() {
   const extraer = async () => {
     setError('');
     if (backend !== 'conectado') {
-      setError('El servidor no está disponible. Inicia el backend para que la IA proponga los requisitos.');
+      setError('No pudimos conectarnos. Intenta de nuevo en unos minutos.');
       return;
     }
     setCargando(true);
@@ -162,7 +159,7 @@ export default function NuevaVacante() {
       setBloqueados(descartados);
       descartados.forEach((b) => registrar('Requisito bloqueado', `"${b.requisito.nombre}": ${b.motivo}`));
     } catch (e) {
-      setError(e instanceof ErrorConexion ? 'No pudimos conectar con el servidor. Intenta de nuevo.' : e.message);
+      setError(e instanceof ErrorConexion ? 'No pudimos conectarnos. Intenta de nuevo en unos minutos.' : e.message);
     } finally {
       setCargando(false);
     }
@@ -183,12 +180,12 @@ export default function NuevaVacante() {
       // En la demo los requisitos solo viven en el navegador.
       if (!enDemo) {
         if (backend !== 'conectado') throw new ErrorConexion();
-        if (!vacanteId) throw new Error('Primero pide a la IA que proponga los requisitos para crear la vacante en el servidor.');
+        if (!vacanteId) throw new Error('Primero pide a la IA que proponga los requisitos.');
         vacanteGuardada = await actualizarVacante(vacanteId, { titulo: titulo.trim(), descripcion, requisitos });
       }
     } catch (e) {
       setError(e instanceof ErrorConexion
-        ? 'No pudimos guardar la vacante en el servidor.'
+        ? 'No pudimos guardar la vacante. Intenta de nuevo.'
         : e.message);
       return;
     }
@@ -341,8 +338,7 @@ export default function NuevaVacante() {
                   <Button variant="outline" onClick={agregar}><Plus /> Agregar requisito</Button>
                 </div>
                 <div className="flex gap-2">
-                  {vacante && <Button variant="ghost" size="lg" onClick={() => setEditando(false)}>Cancelar</Button>}
-                  <Button size="lg" onClick={confirmar}>Confirmar requisitos <ArrowRight /></Button>
+                  <Button size="lg" onClick={confirmar}>Confirmar<ArrowRight /></Button>
                 </div>
               </div>
               {intentado && problemas.length > 0 && (
@@ -352,10 +348,10 @@ export default function NuevaVacante() {
                   </Alerta>
                 </div>
               )}
-              {vacante && (
+              {vacante?.requisitos_confirmados && (
                 <div className="px-5 pb-5">
                   <Alerta tipo="info" icono={Info}>
-                    Al confirmar se crea la versión {vacante.version + 1} de los requisitos y se reevalúan los CVs. El cambio queda registrado en la auditoría.
+                    Si cambias un requisito (su texto, tipo o categoría) se crea la versión {vacante.version + 1} y se reevalúan los CVs. Cambiar solo los pesos o el título no requiere reevaluar.
                   </Alerta>
                 </div>
               )}

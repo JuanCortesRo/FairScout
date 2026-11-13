@@ -94,7 +94,7 @@ export function calcularResultado(candidato, requisitos, pesos) {
   const motivosConfianza = [];
   if (cobertura < 0.8) motivosConfianza.push(`Cobertura de información del ${Math.round(cobertura * 100)}%`);
   if (citasSinVerificar.length) motivosConfianza.push(`${citasSinVerificar.length} cita(s) no encontradas en el CV`);
-  if (alertas.includes('ocr')) motivosConfianza.push('El documento necesitó OCR');
+  if (alertas.includes('ocr')) motivosConfianza.push('El documento es un escaneo');
   if (alertas.includes('inconsistencia_fechas')) motivosConfianza.push('Fechas inconsistentes en la experiencia');
   if (alertas.includes('prompt_injection')) motivosConfianza.push('Se detectó texto que intenta manipular la evaluación');
   if (totalObligParciales >= 2) motivosConfianza.push('Varios obligatorios con resultado parcial');

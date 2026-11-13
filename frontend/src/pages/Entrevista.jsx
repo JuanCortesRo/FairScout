@@ -76,7 +76,7 @@ function Selector() {
   const recomendados = ranking.filter((r) => r.resultado.recomendado_entrevista);
   return (
     <>
-      <PageHeader titulo="Entrevistas" paso="Bonus"
+      <PageHeader titulo="Entrevistas"
         descripcion="Crea invitaciones públicas desde el detalle de cada candidato." />
       {ranking.length === 0 ? (
         <Card>
@@ -186,7 +186,7 @@ export default function Entrevista() {
   }
   const { candidato: c, resultado: r } = item;
   if (cargandoCandidato || (!c.ficha && !errorCandidato)) {
-    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando el CV para la simulación">Espera mientras se consulta el perfil en el servidor.</Alerta>;
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando el perfil…" />;
   }
   if (errorCandidato) {
     return <Alerta tipo="error" icono={Info} titulo="No se pudo cargar el CV">{errorCandidato}</Alerta>;

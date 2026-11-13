@@ -1,5 +1,6 @@
 """Orquestador seguro para PDF/DOCX antes de la extracción mediante LLM."""
 from dataclasses import dataclass
+import logging
 import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,7 +8,8 @@ from tempfile import TemporaryDirectory
 import pymupdf
 
 from app.config import settings
-from app.pipeline.anonymize import anonimizar_con_metadatos
+from app.mensajes import ARCHIVO_ILEGIBLE, PDF_ILEGIBLE
+from app.pipeline.anonymize import Contacto, anonimizar_con_metadatos
 from app.pipeline.parsing import (
     ConversionDocxError,
     LibreOfficeNoEncontrado,
@@ -20,6 +22,8 @@ from app.schemas import Linea
 class DocumentoNoProcesable(Exception):
     """El documento no puede continuar hacia el LLM."""
 
+
+log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PaginaDocumento:
@@ -44,6 +48,7 @@ class DocumentoProcesado:
     alertas: list[AlertaSeguridad]
     categorias_anonimizadas: tuple[str, ...]
     puede_enviarse_al_llm: bool
+    contacto: Contacto = Contacto()
 
 
 def _extraer_ocr(pagina: pymupdf.Page, numero: int) -> tuple[list[Linea], float]:
@@ -51,7 +56,8 @@ def _extraer_ocr(pagina: pymupdf.Page, numero: int) -> tuple[list[Linea], float]
         import pytesseract
         from PIL import Image
     except ImportError as error:
-        raise DocumentoNoProcesable("OCR no está disponible en el entorno.") from error
+        log.error("El OCR no está disponible: %r", error)
+        raise DocumentoNoProcesable("No pudimos leer este documento escaneado. Prueba con una versión con texto.") from error
 
     pixmap = pagina.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
     imagen = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
@@ -123,12 +129,13 @@ def process_document(file_path: str | Path, documento_id: str | None = None) -> 
             try:
                 pdf = convertir_docx_a_pdf(ruta, temporal, settings.LIBREOFFICE_PATH or None)
             except (LibreOfficeNoEncontrado, ConversionDocxError) as error:
-                raise DocumentoNoProcesable(str(error)) from error
+                log.error("No se pudo convertir el DOCX %s: %r", ruta.name, error)
+                raise DocumentoNoProcesable(ARCHIVO_ILEGIBLE) from error
 
         try:
             documento = pymupdf.open(str(pdf))
         except (OSError, pymupdf.FileDataError) as error:
-            raise DocumentoNoProcesable("El PDF no se puede abrir.") from error
+            raise DocumentoNoProcesable(PDF_ILEGIBLE) from error
 
         lineas: list[Linea] = []
         paginas: list[PaginaDocumento] = []
@@ -187,4 +194,5 @@ def process_document(file_path: str | Path, documento_id: str | None = None) -> 
             alertas=alertas,
             categorias_anonimizadas=anonimizado.categorias,
             puede_enviarse_al_llm=not criticas,
+            contacto=anonimizado.contacto,
         )
