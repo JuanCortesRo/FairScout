@@ -58,7 +58,7 @@ export default function ExportarRanking({ etiqueta = 'Exportar' }) {
   return (
     <>
       <Button variant="outline" size="lg" onClick={() => setAbierto(true)} disabled={!total || enDemo}
-        title={enDemo ? 'La exportación necesita el servidor: los datos de ejemplo no tienen contacto.' : undefined}>
+        title={enDemo ? 'Disponible con datos reales: los de ejemplo no tienen contacto.' : undefined}>
         <Download /> {etiqueta}
       </Button>
       <Modal abierto={abierto} onClose={() => !exportando && setAbierto(false)} titulo="Exportar ranking"

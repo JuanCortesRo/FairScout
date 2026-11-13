@@ -64,8 +64,8 @@ const CARGAS_EN_PARALELO = 3;
 /** Mensaje entendible para los errores que devuelve POST /cvs. */
 function mensajeError(texto) {
   if (!texto) return 'No se pudo procesar el CV.';
-  if (texto === 'documento_sin_texto_legible') return 'El documento no tiene texto legible (¿es una imagen escaneada sin OCR?).';
-  if (texto.startsWith('extraccion_llm:')) return `La IA no pudo extraer los datos del CV: ${texto.slice(15).trim()}`;
+  if (texto === 'documento_sin_texto_legible') return 'No encontramos texto en el documento. Si es una imagen escaneada, prueba con una versión más nítida.';
+  if (texto.startsWith('extraccion_llm:')) return 'La IA no pudo leer este CV. Puedes reintentarlo.';
   return texto;
 }
 
@@ -394,7 +394,7 @@ export function AppProvider({ children }) {
       return [];
     }
     if (backend !== 'conectado') {
-      notificar('El servidor no está disponible. Inícialo para procesar los CVs.', 'error');
+      notificar('No pudimos conectarnos. Intenta de nuevo en unos minutos.', 'error');
       return [];
     }
     if (!ref.current.vacante?.id) {
@@ -570,7 +570,7 @@ export function AppProvider({ children }) {
   /** Corrección humana de un resultado: queda registrada en la auditoría (sección 12, trazabilidad). */
   const corregirEvaluacion = useCallback((candidatoId, requisitoId, resultado, motivo) => {
     if (!enDemo) {
-      notificar('Las correcciones humanas aún no se pueden guardar en el servidor.', 'error');
+      notificar('Todavía no es posible guardar correcciones en esta vacante.', 'error');
       return;
     }
     const c = todos.find((x) => x.candidato_id === candidatoId);

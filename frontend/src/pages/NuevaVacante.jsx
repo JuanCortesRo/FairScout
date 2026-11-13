@@ -64,7 +64,7 @@ function Resumen({ vacante, onEditar }) {
   const grupos = ['obligatorio', 'deseable', 'descalificante'].map((t) => ({ tipo: t, items: vacante.requisitos.filter((r) => r.tipo === t) }));
   const fechaConfirmacion = vacante.confirmada_en
     ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
-    : 'recuperada del servidor';
+    : 'guardada';
   return (
     <>
       <PageHeader
@@ -136,7 +136,7 @@ export default function NuevaVacante() {
   ].filter(Boolean);
 
   if ((cargandoServidor || backend === 'verificando') && !vacante?.requisitos) {
-    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Recuperando vacantes del servidor">Espera un momento para continuar.</Alerta>;
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando vacantes…" />;
   }
 
   if (vacante?.requisitos_confirmados && !editando) return <Resumen vacante={vacante} onEditar={() => setEditando(true)} />;
@@ -144,7 +144,7 @@ export default function NuevaVacante() {
   const extraer = async () => {
     setError('');
     if (backend !== 'conectado') {
-      setError('El servidor no está disponible. Inicia el backend para que la IA proponga los requisitos.');
+      setError('No pudimos conectarnos. Intenta de nuevo en unos minutos.');
       return;
     }
     setCargando(true);
@@ -159,7 +159,7 @@ export default function NuevaVacante() {
       setBloqueados(descartados);
       descartados.forEach((b) => registrar('Requisito bloqueado', `"${b.requisito.nombre}": ${b.motivo}`));
     } catch (e) {
-      setError(e instanceof ErrorConexion ? 'No pudimos conectar con el servidor. Intenta de nuevo.' : e.message);
+      setError(e instanceof ErrorConexion ? 'No pudimos conectarnos. Intenta de nuevo en unos minutos.' : e.message);
     } finally {
       setCargando(false);
     }
@@ -180,12 +180,12 @@ export default function NuevaVacante() {
       // En la demo los requisitos solo viven en el navegador.
       if (!enDemo) {
         if (backend !== 'conectado') throw new ErrorConexion();
-        if (!vacanteId) throw new Error('Primero pide a la IA que proponga los requisitos para crear la vacante en el servidor.');
+        if (!vacanteId) throw new Error('Primero pide a la IA que proponga los requisitos.');
         vacanteGuardada = await actualizarVacante(vacanteId, { titulo: titulo.trim(), descripcion, requisitos });
       }
     } catch (e) {
       setError(e instanceof ErrorConexion
-        ? 'No pudimos guardar la vacante en el servidor.'
+        ? 'No pudimos guardar la vacante. Intenta de nuevo.'
         : e.message);
       return;
     }

@@ -53,8 +53,8 @@ export default function Vacantes() {
 
       {backend !== 'conectado' ? (
         <Card>
-          <EstadoVacio icono={Briefcase} titulo="El servidor no está disponible"
-            descripcion="Las vacantes se guardan en el backend. Inícialo para verlas o crear una nueva." />
+          <EstadoVacio icono={Briefcase} titulo="Sin conexión"
+            descripcion="No pudimos conectarnos. Intenta de nuevo en unos minutos." />
         </Card>
       ) : cargandoServidor && !vacantes.length ? (
         <Card className="flex items-center justify-center gap-2 py-14 text-muted-foreground">
@@ -105,7 +105,7 @@ export default function Vacantes() {
             </Button>
           </>
         )}>
-        Se borran del servidor <b>{porEliminar?.titulo}</b>, sus requisitos, los CVs cargados, sus evaluaciones y entrevistas.
+        Se eliminan definitivamente <b>{porEliminar?.titulo}</b>, sus requisitos, los CVs cargados, sus evaluaciones y entrevistas.
         No se puede deshacer.
       </Modal>
     </>

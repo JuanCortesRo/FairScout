@@ -92,7 +92,7 @@ def test_vacante_salida_invalida(monkeypatch, client, session_factory):
     monkeypatch.setattr(requirements, "get_client", lambda: falso)
     r = client.post("/api/vacantes", json=DESCRIPCION)
     assert r.status_code == 502
-    assert "formato inválido" in r.json()["detail"]
+    assert r.json()["detail"] == "La IA no pudo proponer los requisitos en un formato válido. Intenta de nuevo."
     assert len(llamadas) == 2
     with session_factory() as db:
         assert db.scalars(select(VacanteDB)).all() == []

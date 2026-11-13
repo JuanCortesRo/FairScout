@@ -14,15 +14,14 @@ async function request(path, options = {}) {
   try {
     response = await fetch(`${API_BASE}/api${path}`, options);
   } catch {
-    throw new ErrorConexion('No se pudo conectar con el servidor.');
+    throw new ErrorConexion('No pudimos conectarnos. Intenta de nuevo en unos minutos.');
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const detalle = data?.detail;
-    const texto = typeof detalle === 'string'
-      ? detalle
-      : Array.isArray(detalle) ? detalle.map((d) => d.msg).join('. ') : null;
-    throw new ErrorAPI(texto || `El servidor respondió con un error (${response.status}).`, response.status);
+    // Los errores de validación automáticos vienen en inglés y con nombres de campos: se resumen.
+    const texto = typeof detalle === 'string' ? detalle : Array.isArray(detalle) ? 'Revisa los datos ingresados.' : null;
+    throw new ErrorAPI(texto || 'Ocurrió un error inesperado. Intenta de nuevo.', response.status);
   }
   return data;
 }
@@ -92,11 +91,11 @@ export async function exportarRanking(vacanteId, { top = null, pesoObligatorios 
   try {
     response = await fetch(`${API_BASE}/api/vacantes/${vacanteId}/exportar?${params}`);
   } catch {
-    throw new ErrorConexion('No se pudo conectar con el servidor.');
+    throw new ErrorConexion('No pudimos conectarnos. Intenta de nuevo en unos minutos.');
   }
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    const detalle = typeof data?.detail === 'string' ? data.detail : `El servidor respondió con un error (${response.status}).`;
+    const detalle = typeof data?.detail === 'string' ? data.detail : 'Ocurrió un error inesperado. Intenta de nuevo.';
     throw new ErrorAPI(detalle, response.status);
   }
   const nombre = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'ranking.xlsx';

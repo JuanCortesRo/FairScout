@@ -186,7 +186,7 @@ export default function Entrevista() {
   }
   const { candidato: c, resultado: r } = item;
   if (cargandoCandidato || (!c.ficha && !errorCandidato)) {
-    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando el CV para la simulación">Espera mientras se consulta el perfil en el servidor.</Alerta>;
+    return <Alerta tipo="info" icono={Loader2} className="[&>svg]:animate-spin" titulo="Cargando el perfil…" />;
   }
   if (errorCandidato) {
     return <Alerta tipo="error" icono={Info} titulo="No se pudo cargar el CV">{errorCandidato}</Alerta>;

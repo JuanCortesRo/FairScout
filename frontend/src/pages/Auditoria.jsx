@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Settings2, Zap, FlaskConical, History, FileText, Trash2, CircleCheck, User, Bot, ShieldCheck,  Lock, EyeOff, Quote, ShieldAlert, Scale, Ban,
+  Settings2, Zap, FlaskConical, History, FileText, Trash2, CircleCheck, User, Bot, ShieldCheck,  EyeOff, Quote, ShieldAlert, Scale, Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, Modal, Pill } from '@/components/ui/kit';
@@ -14,7 +14,7 @@ const PASOS = [
   { nombre: 'Proponer requisitos desde la descripción', auto: true },
   { nombre: 'Confirmar requisitos', auto: false },
   { nombre: 'Carga masiva y validación de archivos', auto: true },
-  { nombre: 'Lectura de PDF/DOCX (OCR si hace falta)', auto: true },
+  { nombre: 'Lectura de PDF/DOCX (incluso escaneados)', auto: true },
   { nombre: 'Anonimización de datos personales', auto: true },
   { nombre: 'Extracción de la ficha', auto: true },
   { nombre: 'Limpieza de fechas, años y habilidades', auto: true },
@@ -60,7 +60,7 @@ export default function Auditoria() {
     <>
       <PageHeader
         titulo="Auditoría y gobierno de IA"
-        descripcion="Consulta la trazabilidad de las evaluaciones. El registro de eventos de esta sesión todavía no se persiste en el backend."
+        descripcion="Consulta la trazabilidad de las evaluaciones."
         acciones={vacante && (
           <>
             <ExportarRanking etiqueta="Exportar resultados" />
@@ -76,12 +76,12 @@ export default function Auditoria() {
             <Dato etiqueta="Vacante" valor={vacante?.titulo ?? '—'} />
             <Dato etiqueta="Versión de requisitos" valor={vacante ? `v${vacante.version} · ${vacante.requisitos.length} requisitos` : '—'} />
             <Dato etiqueta="Pesos" valor={`${pesos.obligatorios}% obligatorios · ${100 - pesos.obligatorios}% deseables`} />
-            <Dato etiqueta="Modelo de evaluación" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5' : '—')} mono />
-            <Dato etiqueta="Versión de prompts" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1' : '—')} mono />
+            <Dato etiqueta="Modelo de IA" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5' : '—')} mono />
+            <Dato etiqueta="Versión de las instrucciones" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1' : '—')} mono />
             <Dato etiqueta="Última evaluación" valor={trazabilidad ? new Date(trazabilidad.fecha_evaluacion).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
             <Dato etiqueta="Confirmado" valor={vacante?.confirmada_en
               ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })
-              : vacante?.requisitos_confirmados ? 'Guardado en el servidor' : '—'} />
+              : vacante?.requisitos_confirmados ? 'Sí' : '—'} />
           </div>
         </Card>
 
@@ -121,7 +121,6 @@ export default function Auditoria() {
             <li className="flex items-center gap-3 py-2.5"><Ban className="size-4 text-muted-foreground" /><span className="flex-1">Requisitos protegidos bloqueados</span><span className="font-medium tabular-nums">{seguridad.bloqueados}</span></li>
             <li className="flex items-center gap-3 py-2.5"><FileText className="size-4 text-muted-foreground" /><span className="flex-1">Archivos con error (sin detener el lote)</span><span className="font-medium tabular-nums">{seguridad.errores}</span></li>
             <li className="flex items-center gap-3 py-2.5"><User className="size-4 text-muted-foreground" /><span className="flex-1">Correcciones humanas</span><span className="font-medium tabular-nums">{seguridad.correcciones}</span></li>
-            <li className="flex items-center gap-3 py-2.5"><Lock className="size-4 text-muted-foreground" /><span className="flex-1">Llave de la API solo en el servidor</span><CircleCheck className="size-4 text-ok" /></li>
           </ul>
         </Card>
       </div>
@@ -156,7 +155,7 @@ export default function Auditoria() {
         <Card>
           <CardHeader icono={History} titulo="Registro de auditoría" descripcion={enDemo
             ? 'Eventos de ejemplo, sin texto de los CVs.'
-            : 'Eventos de esta sesión; aún no existe una bitácora persistida en el backend.'} />
+            : 'Actividad reciente en este equipo.'} />
           <ol className="max-h-[420px] space-y-0 overflow-y-auto px-5 py-3 scrollbar-fino">
             {auditoria.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Todavía no hay eventos registrados.</li>}
             {auditoria.map((e, i) => (
@@ -185,7 +184,7 @@ export default function Auditoria() {
             <div>
               <p className="font-semibold">Limitaciones conocidas</p>
               <ul className="list-disc pl-5 text-foreground/80">
-                <li>Los PDFs escaneados dependen de la calidad del OCR.</li>
+                <li>Los PDFs escaneados dependen de la calidad del escaneo.</li>
                 <li>Si el CV no menciona algo, el resultado es "sin información", no "no cumple".</li>
                 <li>La equivalencia entre tecnologías se razona, pero puede requerir criterio humano.</li>
               </ul>
@@ -207,7 +206,7 @@ export default function Auditoria() {
         )}>
         {enDemo
           ? 'Se descartan los datos de ejemplo, las entrevistas y el registro de auditoría de la demo.'
-          : <>Se olvidan en este navegador la vacante, las correcciones, las entrevistas y el registro de auditoría. Los {candidatos.length} CVs y sus evaluaciones siguen guardados en el servidor; para borrarlos, elimina la vacante desde la lista de Vacantes.</>}
+          : <>Se olvidan en este navegador la vacante, las correcciones, las entrevistas y el registro de auditoría. Los {candidatos.length} CVs y sus evaluaciones siguen guardados; para borrarlos, elimina la vacante desde la lista de Vacantes.</>}
       </Modal>
     </>
   );

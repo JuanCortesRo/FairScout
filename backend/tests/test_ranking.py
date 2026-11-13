@@ -232,7 +232,7 @@ def test_lote_un_candidato_que_falla_no_detiene_el_resto(client):
 
     assert cuerpo["evaluados"] == 2
     assert cuerpo["errores"] == [
-        {"candidato_id": "C2", "detalle": "El modelo devolvió una evaluación con formato inválido."}
+        {"candidato_id": "C2", "detalle": "La IA no pudo evaluar este CV. Intenta de nuevo."}
     ]
     ranking = client.get("/api/ranking", params={"vacante_id": "V1"}).json()
     assert [c["candidato_id"] for c in ranking["candidatos"]] == ["C1", "C3"]

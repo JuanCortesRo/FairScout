@@ -121,7 +121,7 @@ function AjustePesos() {
             onChange={(e) => setPesos({ obligatorios: Number(e.target.value) })}
             onMouseUp={() => registrar('Pesos ajustados', `Obligatorios ${pesos.obligatorios}% / deseables ${100 - pesos.obligatorios}%`)}
             className="w-full accent-[var(--primary)]" aria-label="Peso de los obligatorios" />
-          <p className="mt-1 text-xs">El backend recalcula el ranking sin volver a llamar a la IA.</p>
+          <p className="mt-1 text-xs">El ranking se actualiza al instante, sin volver a evaluar los CVs.</p>
         </div>
         <p className="border-t pt-3 text-xs">El puntaje <b>no</b> es una probabilidad de éxito.</p>
       </div>
@@ -192,7 +192,7 @@ export default function Ranking() {
         <PageHeader paso="Paso 3 de 3" titulo="Ranking de candidatos" />
         {vacante && avisoEvaluacion}
         {avisoErrores}
-        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los datos del servidor">{errorServidor}</Alerta>}
+        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los resultados">{errorServidor}</Alerta>}
         <Card>
           <EstadoVacio
             icono={vacante ? FileUp : Briefcase}
@@ -214,11 +214,11 @@ export default function Ranking() {
       <PageHeader
         paso="Paso 3 de 3"
         titulo="Ranking de candidatos"
-        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el backend calcula el orden, no la IA."
+        descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado; el orden lo calculan reglas fijas, no la IA."
         acciones={(
           <>
             {!enDemo && (
-              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar datos del servidor">
+              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar resultados">
                 <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
               </Button>
             )}
@@ -229,7 +229,7 @@ export default function Ranking() {
 
       {avisoEvaluacion}
       {avisoErrores}
-      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
+      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los resultados">{errorServidor}</Alerta>}
 
       <div className="entrada-escalonada grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />

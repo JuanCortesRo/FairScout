@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.llm import LLMNoConfigurado
+from app.mensajes import ERROR_INESPERADO, error_de_ia
 from app.models import CandidatoDB, EvaluacionDB, VacanteDB
 from app.pipeline.datos_protegidos import motivo_bloqueo
 from app.pipeline.evaluate import RespuestaEvaluacionInvalida, evaluar
@@ -228,20 +229,10 @@ def _guardar(db: Session, resultado: EvaluacionSalida) -> None:
 
 def _error_http(error: Exception) -> HTTPException:
     """Traduce los errores de la evaluación a HTTP con mensajes en español."""
+    if isinstance(error, (LLMNoConfigurado, anthropic.APIError, RespuestaEvaluacionInvalida)):
+        return error_de_ia(error, "evaluar este CV")
     if isinstance(error, (ValidationError, ValueError)):
-        return HTTPException(status_code=422, detail=f"Datos del candidato inválidos: {error}")
-    if isinstance(error, LLMNoConfigurado):
-        return HTTPException(status_code=503, detail=str(error))
-    if isinstance(error, RespuestaEvaluacionInvalida):
-        return HTTPException(status_code=502, detail=str(error))
-    if isinstance(error, anthropic.AuthenticationError):
-        return HTTPException(status_code=503, detail="La llave de Anthropic no es válida.")
-    if isinstance(error, anthropic.RateLimitError):
-        return HTTPException(status_code=429, detail="Se superó el límite de uso del modelo.")
-    if isinstance(error, anthropic.APIConnectionError):
-        return HTTPException(status_code=502, detail="No fue posible conectarse con Anthropic.")
-    if isinstance(error, anthropic.APIStatusError):
-        log.error("Error de Anthropic al evaluar: %s", error.status_code)
-        return HTTPException(status_code=502, detail="El servicio del modelo no pudo evaluar el candidato.")
+        log.warning("Datos guardados del candidato inválidos: %r", error)
+        return HTTPException(status_code=422, detail="No se pudieron leer los datos de este CV. Vuelve a subirlo.")
     log.exception("Error inesperado al evaluar")
-    return HTTPException(status_code=500, detail="Error inesperado al evaluar el candidato.")
+    return HTTPException(status_code=500, detail=ERROR_INESPERADO)

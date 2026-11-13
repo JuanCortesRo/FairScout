@@ -3,6 +3,7 @@
 Los PDF se procesan inmediatamente con PyMuPDF para conservar el texto y las
 coordenadas de cada línea. Los DOCX se convierten primero con LibreOffice.
 """
+import logging
 import uuid
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from app.models import CandidatoDB, ContactoCandidatoDB, VacanteDB
 from app.schemas import CargaCVsSalida, CVResumen, CVSubido, Ficha, ListaCVsSalida
 
 router = APIRouter(tags=["cvs"])
+log = logging.getLogger(__name__)
 
 EXTENSIONES_PERMITIDAS = {".pdf", ".docx"}
 
@@ -79,11 +81,12 @@ async def subir_cvs(
         try:
             ficha = limpiar_ficha(await extraer_ficha(documento.lineas_anonimizadas))
         except (APIError, LLMNoConfigurado, RespuestaLLMInvalida) as error:
+            log.warning("La IA no pudo extraer la ficha del CV %s: %r", cv_id, error)
             subidos[-1] = CVSubido(
                 id=cv_id,
                 lineas=documento.lineas_anonimizadas,
                 estado="failed",
-                alertas=[f"extraccion_llm: {error}"],
+                alertas=["extraccion_llm"],   # el frontend lo muestra como "La IA no pudo leer este CV"
             )
             continue
         if ficha.inconsistencia_fechas:

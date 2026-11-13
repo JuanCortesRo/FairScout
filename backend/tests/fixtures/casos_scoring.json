@@ -2239,7 +2239,7 @@
       "desglose": {
         "cobertura": 1,
         "motivos_confianza": [
-          "El documento necesitó OCR"
+          "El documento es un escaneo"
         ],
         "categorias": {
           "tecnica": 1,
@@ -4720,7 +4720,7 @@
       "desglose": {
         "cobertura": 1,
         "motivos_confianza": [
-          "El documento necesitó OCR"
+          "El documento es un escaneo"
         ],
         "categorias": {
           "tecnica": 1,

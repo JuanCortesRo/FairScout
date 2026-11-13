@@ -59,7 +59,7 @@ function FilaArchivo({ a, onReintentar, onQuitar, onEliminar, onVer }) {
         {['listo', 'revision'].includes(a.estado) && a.candidato_id && <Button variant="ghost" size="sm" onClick={onVer}>Ver <ArrowRight /></Button>}
         {a.estado === 'error' && a.reintentable !== false && <Button variant="outline" size="sm" onClick={onReintentar}><RotateCw /> Reintentar</Button>}
         {!procesando && (onEliminar ? (
-          <button onClick={onEliminar} className="rounded-md p-1.5 text-muted-foreground hover:bg-bad-soft hover:text-bad" aria-label={`Eliminar ${a.nombre}`} title="Eliminar el CV del servidor">
+          <button onClick={onEliminar} className="rounded-md p-1.5 text-muted-foreground hover:bg-bad-soft hover:text-bad" aria-label={`Eliminar ${a.nombre}`} title="Eliminar CV">
             <Trash2 className="size-4" />
           </button>
         ) : (
@@ -139,8 +139,8 @@ export default function CargaCVs() {
       />
 
       {!enDemo && backend === 'desconectado' && (
-        <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="El servidor no está disponible">
-          Inicia el backend para procesar CVs. No se generan datos ficticios para tus archivos.
+        <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="Sin conexión">
+          No pudimos conectarnos. Intenta de nuevo en unos minutos.
         </Alerta>
       )}
 
@@ -196,7 +196,7 @@ export default function CargaCVs() {
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500 transition-all duration-500" style={{ width: `${progreso}%` }} />
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Leer → anonimizar → extraer → evaluar. Hasta 3 archivos en paralelo.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Cada CV se lee, se anonimiza y se evalúa. Se procesan varios a la vez.</p>
             </Card>
             <Card className="flex items-center gap-3 p-4">
               <span className="grid size-10 place-items-center rounded-lg bg-ok-soft text-ok"><CircleCheck className="size-5" /></span>
@@ -250,7 +250,7 @@ export default function CargaCVs() {
                 </Button>
               </>
             )}>
-            Se borran del servidor <b>{porEliminar?.nombre}</b>, sus datos de contacto, su evaluación y sus entrevistas. No se puede deshacer.
+            Se eliminan definitivamente <b>{porEliminar?.nombre}</b>, sus datos de contacto, su evaluación y sus entrevistas. No se puede deshacer.
           </Modal>
         </>
       )}

@@ -49,7 +49,7 @@ function VisorCV({ candidato, activas, citadas, alClicLinea }) {
             if (l.oculto) {
               return (
                 <div key={l.id} data-linea={l.id} className={cn('my-1 rounded-md border border-dashed border-bad/50 bg-bad-soft px-2 py-1.5', activa && 'linea-activa')}>
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-bad"><ShieldAlert className="size-3.5" /> Texto oculto detectado (blanco, tamaño 1 pt). Se trató como dato y se ignoró:</p>
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-bad"><ShieldAlert className="size-3.5" /> Texto oculto detectado (blanco, tamaño 1 pt). No se tuvo en cuenta:</p>
                   <p className="font-mono text-xs text-bad/80 line-through">{l.texto}</p>
                 </div>
               );
@@ -289,7 +289,7 @@ export default function DetalleCandidato() {
 
   const sinEvaluar = !item && candidatoActual;
   if (cargandoDetalle || necesitaCarga) {
-    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV y la evaluación desde el servidor">Las líneas del documento se consultan solo al abrir el detalle.</Alerta>;
+    return <Alerta tipo="info" icono={CircleAlert} titulo="Cargando el CV…" />;
   }
   if (errorDetalle && !sinEvaluar?.lineas?.length && !item?.candidato.lineas?.length) {
     return (
@@ -410,13 +410,8 @@ export default function DetalleCandidato() {
 
       {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
-          Se encontró una instrucción escrita en blanco y en tamaño mínimo. El texto del CV se envía a la IA como dato, nunca como instrucción, así que no tuvo efecto.
+          Se encontró una instrucción escrita en blanco y en tamaño mínimo. La IA ignora cualquier instrucción escrita dentro del CV, así que no tuvo efecto.
           {c.linea_inyeccion && <>{' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button></>}
-        </Alerta>
-      )}
-      {!enDemo && (
-        <Alerta tipo="info" icono={CircleAlert} className="mb-6" titulo="Correcciones humanas no disponibles en el backend">
-          El servidor aún no ofrece un endpoint para guardar correcciones. La evidencia y el resultado que ves provienen de la evaluación persistida.
         </Alerta>
       )}
 

@@ -162,7 +162,7 @@ def calcular_con_desglose(
     if citas_sin_verificar:
         motivos_confianza.append(f"{len(citas_sin_verificar)} cita(s) no encontradas en el CV")
     if ALERTA_OCR in alertas:
-        motivos_confianza.append("El documento necesitó OCR")
+        motivos_confianza.append("El documento es un escaneo")
     if ALERTA_FECHAS in alertas:
         motivos_confianza.append("Fechas inconsistentes en la experiencia")
     if ALERTA_PROMPT_INJECTION in alertas:
