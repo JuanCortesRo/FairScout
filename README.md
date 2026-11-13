@@ -51,11 +51,16 @@ npm install
 npm run dev                   # http://localhost:5173 (redirige /api a localhost:8000)
 ```
 
-Si el backend no responde en `/api/health`, el frontend entra en **modo demostración**: el botón
-"Ver demo completa" carga una vacante y 60 CVs de ejemplo (`src/data/demo.js`) con los casos difíciles de la demo
-(AWS vs Azure, sin información de idiomas, texto oculto, fechas solapadas, OCR, cita no verificada). El puntaje,
-el estado, la confianza y la recomendación se recalculan en el cliente con las mismas reglas de `scoring.py`
-(`src/lib/scoring.js`), así que cambiar los pesos no vuelve a llamar a la IA.
+**Cómo usa el frontend la API:** crea la vacante con `POST /api/vacantes`, confirma los requisitos con
+`PUT /api/vacantes/{id}`, sube cada CV con `POST /api/cvs` (3 en paralelo), evalúa en lote con
+`POST /api/vacantes/{id}/evaluar` al terminar la carga y lee los resultados con `GET /api/cvs` y
+`GET /api/vacantes/{id}/evaluaciones`. El puntaje, el estado, la confianza y la recomendación se recalculan en el
+cliente con `src/lib/scoring.js` (idéntico a `scoring.py`, con test de paridad), así que cambiar los pesos no vuelve
+a llamar a la IA. Las correcciones humanas y las entrevistas se guardan por ahora solo en el navegador.
+
+Si el backend no responde en `/api/health`, se ofrece **"Ver demo completa"**: una vacante y 60 CVs de ejemplo
+(`src/data/demo.js`) con los casos difíciles de la demo (AWS vs Azure, sin información de idiomas, texto oculto,
+fechas solapadas, OCR, cita no verificada). Los archivos que subas nunca se convierten en datos ficticios.
 
 **Todo con Docker:**
 

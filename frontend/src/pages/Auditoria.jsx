@@ -34,7 +34,7 @@ function Dato({ etiqueta, valor, mono }) {
 }
 
 export default function Auditoria() {
-  const { vacante, pesos, ranking, candidatos, archivos, auditoria, lote, borrarTodo, nombreVisible } = useApp();
+  const { vacante, pesos, ranking, candidatos, archivos, auditoria, lote, reiniciar, nombreVisible, trazabilidad, enDemo } = useApp();
   const navigate = useNavigate();
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
   const [ejecutando, setEjecutando] = useState(false);
@@ -46,7 +46,7 @@ export default function Auditoria() {
     return {
       citas: filas.length,
       verificadas,
-      inyecciones: candidatos.filter((c) => c.alertas.includes('prompt_injection')).length,
+      inyecciones: candidatos.filter((c) => c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a))).length,
       errores: archivos.filter((a) => a.estado === 'error').length,
       correcciones: auditoria.filter((a) => a.accion === 'Corrección humana').length,
       bloqueados: auditoria.filter((a) => a.accion === 'Requisito bloqueado').length,
@@ -73,7 +73,7 @@ export default function Auditoria() {
             <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
               <Download /> Exportar resultados
             </Button>
-            <Button variant="destructive" size="lg" onClick={() => setConfirmarBorrado(true)}><Trash2 /> Borrar datos</Button>
+            <Button variant="destructive" size="lg" onClick={() => setConfirmarBorrado(true)}><Trash2 /> {enDemo ? 'Salir de la demo' : 'Cerrar vacante'}</Button>
           </>
         )}
       />
@@ -85,9 +85,9 @@ export default function Auditoria() {
             <Dato etiqueta="Vacante" valor={vacante?.titulo ?? '—'} />
             <Dato etiqueta="Versión de requisitos" valor={vacante ? `v${vacante.version} · ${vacante.requisitos.length} requisitos` : '—'} />
             <Dato etiqueta="Pesos" valor={`${pesos.obligatorios}% obligatorios · ${100 - pesos.obligatorios}% deseables`} />
-            <Dato etiqueta="Modelo de extracción" valor="claude-haiku-5-5" mono />
-            <Dato etiqueta="Modelo de evaluación" valor="claude-haiku-5-5" mono />
-            <Dato etiqueta="Versión de prompts" valor="v1" mono />
+            <Dato etiqueta="Modelo de evaluación" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5 (demo)' : '—')} mono />
+            <Dato etiqueta="Versión de prompts" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1 (demo)' : '—')} mono />
+            <Dato etiqueta="Última evaluación" valor={trazabilidad ? new Date(trazabilidad.fecha_evaluacion).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
             <Dato etiqueta="Confirmado" valor={vacante ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
           </div>
         </Card>
@@ -208,14 +208,16 @@ export default function Auditoria() {
         </Card>
       </div>
 
-      <Modal abierto={confirmarBorrado} onClose={() => setConfirmarBorrado(false)} titulo="¿Borrar la vacante y todos sus datos?"
+      <Modal abierto={confirmarBorrado} onClose={() => setConfirmarBorrado(false)} titulo={enDemo ? '¿Salir de la demo?' : '¿Cerrar la vacante en este navegador?'}
         pie={(
           <>
             <Button variant="ghost" onClick={() => setConfirmarBorrado(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => { borrarTodo(); setConfirmarBorrado(false); navigate('/vacante'); }}><Trash2 /> Borrar definitivamente</Button>
+            <Button variant="destructive" onClick={() => { reiniciar(); setConfirmarBorrado(false); navigate('/vacante'); }}><Trash2 /> {enDemo ? 'Salir de la demo' : 'Cerrar vacante'}</Button>
           </>
         )}>
-        Se eliminarán la vacante, {candidatos.length} CVs, sus resultados, entrevistas y el registro de auditoría. Esta acción no se puede deshacer.
+        {enDemo
+          ? 'Se descartan los datos de ejemplo, las entrevistas y el registro de auditoría de la demo.'
+          : <>Se olvidan en este navegador la vacante, las correcciones, las entrevistas y el registro de auditoría. Los {candidatos.length} CVs y sus evaluaciones siguen guardados en el servidor; el backend todavía no tiene una opción para borrarlos.</>}
       </Modal>
     </>
   );

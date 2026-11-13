@@ -3,20 +3,26 @@
 //   { pregunta_siguiente, evaluacion_respuesta, inconsistencias, terminar }
 // Reglas de IA responsable: nunca pregunta por edad, estado civil, hijos, nacionalidad, etc.
 import { detectarDatoProtegido } from './protegidos';
+import { aniosExperiencia } from './ficha';
 
-const PREGUNTAS = {
-  R1: '¿Cuántos años has trabajado con Python y en qué tipo de proyectos lo has usado?',
-  R2: 'Cuéntame tu experiencia con AWS: ¿qué servicios has usado y para qué?',
-  R3: '¿Cuál es tu nivel de inglés y en qué situaciones de trabajo lo has usado?',
-  R4: '¿Cuál es tu formación académica y cómo se relaciona con el desarrollo de software?',
-  R5: '¿Tienes alguna certificación en nube o estás preparando alguna?',
-  R6: '¿Cómo has usado Docker y Kubernetes en tus proyectos?',
-  R7: '¿Qué experiencia tienes con PostgreSQL u otras bases de datos relacionales?',
-  R8: '¿Has liderado equipos? ¿De cuántas personas y qué fue lo más difícil?',
-};
+// Pregunta según la categoría del requisito: sirve para cualquier vacante, no solo la de ejemplo.
+function preguntaPara(req) {
+  const n = `«${req.nombre}»`;
+  switch (req.categoria) {
+    case 'experiencia': return `Cuéntame tu experiencia relacionada con ${n}: ¿cuántos años y en qué proyectos?`;
+    case 'idioma': return `Sobre ${n}: ¿cuál es tu nivel y en qué situaciones de trabajo lo has usado?`;
+    case 'formacion': return `¿Cuál es tu formación académica y cómo se relaciona con ${n}?`;
+    case 'certificacion': return `¿Tienes una certificación relacionada con ${n}? ¿Cuándo la obtuviste o la estás preparando?`;
+    case 'blanda': return `Dame un ejemplo concreto en el que hayas demostrado ${n}.`;
+    default: return `Cuéntame tu experiencia con ${n}: ¿qué hiciste concretamente y con qué resultado?`;
+  }
+}
+const VACIAS = new Set(['con', 'para', 'del', 'las', 'los', 'una', 'uno', 'experiencia', 'años', 'superior', 'nivel', 'conocimiento', 'conocimientos', 'manejo', 'más', 'menos']);
+const palabrasClave = (texto) => texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 3 && !VACIAS.has(w) && !/^d+$/.test(w));
 const GENERALES = [
   { id: 'G1', tema: 'Resolución de problemas', texto: 'Describe un problema técnico difícil que hayas resuelto recientemente. ¿Cómo lo abordaste?' },
-  { id: 'G2', tema: 'Motivación', texto: '¿Qué te interesa de este cargo y del trabajo en un equipo de plataforma?' },
+  { id: 'G2', tema: 'Motivación', texto: '¿Qué te interesa de este cargo y qué te gustaría aportar al equipo?' },
 ];
 const NIVELES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const PALABRAS_NIVEL = { básico: 'A2', basico: 'A2', intermedio: 'B1', 'intermedio alto': 'B2', avanzado: 'C1', fluido: 'C1', nativo: 'C2', bilingüe: 'C2' };
@@ -39,14 +45,15 @@ function nivelIngles(texto) {
 
 /** Plan inicial: primero lo que falta verificar, luego brechas, luego una verificación de algo cumplido y preguntas generales. */
 export function crearPlan(resultado) {
-  const filas = resultado.detalle.filas.filter((f) => f.req.tipo !== 'descalificante' && PREGUNTAS[f.req.id]);
+  const filas = resultado.detalle.filas.filter((f) => f.req.tipo !== 'descalificante');
+  const item = (f, motivo) => ({ id: f.req.id, tema: f.req.nombre, categoria: f.req.categoria, texto: preguntaPara(f.req), motivo });
   const sinInfo = filas.filter((f) => f.ev.resultado === 'sin_informacion');
   const brechas = filas.filter((f) => ['parcial', 'no_cumple'].includes(f.ev.resultado));
   const cumplidos = filas.filter((f) => ['cumple', 'equivalente'].includes(f.ev.resultado));
   const plan = [
-    ...sinInfo.map((f) => ({ id: f.req.id, tema: f.req.nombre, texto: PREGUNTAS[f.req.id], motivo: 'Sin información en el CV' })),
-    ...brechas.slice(0, 2).map((f) => ({ id: f.req.id, tema: f.req.nombre, texto: PREGUNTAS[f.req.id], motivo: 'Brecha a profundizar' })),
-    ...cumplidos.filter((f) => f.req.id === 'R1' || f.req.id === 'R3').slice(0, 1).map((f) => ({ id: f.req.id, tema: f.req.nombre, texto: PREGUNTAS[f.req.id], motivo: 'Verificar lo que dice el CV' })),
+    ...sinInfo.map((f) => item(f, 'Sin información en el CV')),
+    ...brechas.slice(0, 2).map((f) => item(f, 'Brecha a profundizar')),
+    ...cumplidos.filter((f) => ['experiencia', 'idioma'].includes(f.req.categoria)).slice(0, 1).map((f) => item(f, 'Verificar lo que dice el CV')),
     ...GENERALES.map((g) => ({ ...g, motivo: 'Competencias generales' })),
   ];
   // Entre 5 y 8 preguntas planeadas (con repreguntas el total no pasa de 10).
@@ -54,7 +61,7 @@ export function crearPlan(resultado) {
   while (unico.length < 5) {
     const extra = cumplidos.find((f) => !unico.some((u) => u.id === f.req.id));
     if (!extra) break;
-    unico.splice(unico.length - 2, 0, { id: extra.req.id, tema: extra.req.nombre, texto: PREGUNTAS[extra.req.id], motivo: 'Verificar lo que dice el CV' });
+    unico.splice(unico.length - 2, 0, item(extra, 'Verificar lo que dice el CV'));
   }
   return unico.slice(0, 8);
 }
@@ -71,39 +78,45 @@ export function evaluarRespuesta(pregunta, respuesta, candidato) {
   const protegido = detectarDatoProtegido(r);
   if (protegido) notas.push(`La respuesta menciona un dato protegido (${protegido}). Se ignoró y no influye en la evaluación.`);
 
-  if (pregunta.id === 'R1') {
+  if (pregunta.categoria === 'experiencia') {
     const n = numeroAnios(r);
-    const cv = candidato.ficha.anios_python;
+    const total = aniosExperiencia(candidato.ficha);
     if (n != null) {
       verificado = true;
-      if (Math.abs(n - cv) >= 2) {
-        inconsistencias.push(`El CV indica ${cv} años con Python; en la entrevista dijo ${n}.`);
+      // Más años en un tema que los de toda la experiencia del CV es una contradicción.
+      if (n > total + 1.5) {
+        inconsistencias.push(`El CV suma ${total} años de experiencia en total; en la entrevista dijo ${n} sobre «${pregunta.tema}».`);
         comentario = 'Los años que menciona no coinciden con el CV.';
         calificacion = 'debil';
-      } else comentario = `Confirma ${n} años con Python, coherente con el CV (${cv}).`;
+      } else comentario = `Menciona ${n} años, coherente con el CV (${total} años en total).`;
     }
   }
-  if (pregunta.id === 'R3') {
+  if (pregunta.categoria === 'idioma') {
     const n = nivelIngles(r);
-    const cv = candidato.ficha.idiomas.find((i) => i.idioma === 'Inglés')?.nivel;
+    const claves = palabrasClave(pregunta.tema);
+    const idioma = candidato.ficha.idiomas.find((i) => claves.some((k) => palabrasClave(i.idioma).includes(k)))
+      ?? candidato.ficha.idiomas.find((i) => !/nativ/i.test(i.nivel ?? ''));
+    const cv = idioma?.nivel && NIVELES.includes(idioma.nivel) ? idioma.nivel : null;
     if (n) {
       verificado = true;
       if (cv && Math.abs(NIVELES.indexOf(n) - NIVELES.indexOf(cv)) >= 2) {
-        inconsistencias.push(`El CV declara inglés ${cv}; en la entrevista dijo ${n}.`);
+        inconsistencias.push(`El CV declara nivel ${cv}; en la entrevista dijo ${n}.`);
         comentario = 'El nivel declarado no coincide con el del CV.';
         calificacion = 'debil';
       } else {
-        comentario = cv ? `Confirma inglés ${n}, coherente con el CV.` : `Declara inglés ${n}. El CV no lo mencionaba: queda verificado en entrevista.`;
-        if (NIVELES.indexOf(n) >= NIVELES.indexOf('B2') && calificacion === 'debil') calificacion = 'aceptable';
+        comentario = cv ? `Confirma nivel ${n}, coherente con el CV.` : `Declara nivel ${n}. El CV no lo mencionaba: queda verificado en entrevista.`;
+        if (calificacion === 'debil') calificacion = 'aceptable';
       }
     }
   }
-  if (pregunta.id === 'R2') {
-    const t = r.toLowerCase();
-    const aws = /\b(aws|ec2|s3|lambda|rds|ecs|cloudformation|dynamodb)\b/.test(t);
-    const otra = /\b(azure|gcp|google cloud)\b/.test(t);
-    if (aws) { verificado = true; comentario = 'Menciona servicios concretos de AWS.'; if (calificacion === 'debil') calificacion = 'aceptable'; }
-    else if (otra) comentario = 'Describe experiencia en otra nube; la brecha con AWS se mantiene.';
+  if (pregunta.categoria === 'tecnica' || pregunta.categoria === 'certificacion') {
+    const claves = palabrasClave(pregunta.tema);
+    const dichas = palabrasClave(r);
+    if (claves.some((k) => dichas.includes(k))) {
+      verificado = true;
+      comentario = 'Menciona experiencia concreta con lo que pide el requisito.';
+      if (calificacion === 'debil') calificacion = 'aceptable';
+    }
   }
   return { calificacion, comentario, inconsistencias, notas, verificado };
 }

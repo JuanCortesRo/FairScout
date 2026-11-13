@@ -111,6 +111,33 @@ async def evaluar_todos(
     )
 
 
+@router.get("/vacantes/{vacante_id}/evaluaciones", response_model=list[EvaluacionSalida])
+def listar_evaluaciones(vacante_id: str, db: Session = Depends(get_db)) -> list[EvaluacionSalida]:
+    """Evaluación vigente de cada candidato (versión actual de los requisitos, la más reciente).
+
+    Es lo que usa la vista de detalle: resultado por requisito con su cita, explicación y trazabilidad.
+    """
+    vacante = db.get(VacanteDB, vacante_id)
+    if vacante is None:
+        raise HTTPException(status_code=404, detail="La vacante no existe.")
+    filas = db.scalars(
+        select(EvaluacionDB).where(
+            EvaluacionDB.vacante_id == vacante.id,
+            EvaluacionDB.version_requisitos == vacante.version_requisitos,
+        )
+    ).all()
+    vigentes: dict[str, EvaluacionDB] = {}
+    for fila in filas:
+        actual = vigentes.get(fila.candidato_id)
+        if actual is None or _fecha(fila) > _fecha(actual):
+            vigentes[fila.candidato_id] = fila
+    return [EvaluacionSalida.model_validate(f.resultado) for _, f in sorted(vigentes.items())]
+
+
+def _fecha(fila: EvaluacionDB) -> str:
+    return fila.resultado.get("trazabilidad", {}).get("fecha_evaluacion", "")
+
+
 def _requisitos_evaluables(vacante: VacanteDB) -> list[Requisito]:
     if not vacante.requisitos_confirmados:
         raise HTTPException(status_code=409, detail="Los requisitos de la vacante aún no están confirmados.")

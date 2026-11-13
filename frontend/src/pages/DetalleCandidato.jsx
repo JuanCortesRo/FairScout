@@ -12,6 +12,7 @@ import { useApp } from '@/store';
 import { explicar } from '@/lib/scoring';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS, RESULTADOS } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
+import { aniosExperiencia, nombreCertificacion } from '@/lib/ficha';
 
 // ── Visor del CV con resaltado de la evidencia ──────────────────────────────
 function VisorCV({ candidato, activas, citadas, alClicLinea }) {
@@ -146,8 +147,8 @@ function Ficha({ ficha, onLinea }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.anios_experiencia}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
-        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.anios_python}</p><p className="text-xs text-muted-foreground">años con Python</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{aniosExperiencia(ficha)}</p><p className="text-xs text-muted-foreground">años de experiencia (solapes unidos)</p></div>
+        <div className="rounded-lg bg-muted/60 p-3"><p className="text-2xl font-semibold tabular-nums">{ficha.experiencias.length}</p><p className="text-xs text-muted-foreground">cargos registrados</p></div>
       </div>
       <Seccion icono={Briefcase} titulo="Experiencia">
         <ol className="relative space-y-3 border-l pl-4">
@@ -171,7 +172,7 @@ function Ficha({ ficha, onLinea }) {
       </Seccion>
       <div className="grid gap-5 sm:grid-cols-2">
         <Seccion icono={Award} titulo="Certificaciones">
-          {ficha.certificaciones.length ? <div className="flex flex-wrap gap-1.5">{ficha.certificaciones.map((c) => <Chip key={c.nombre}>{c.nombre}</Chip>)}</div>
+          {ficha.certificaciones.length ? <div className="flex flex-wrap gap-1.5">{ficha.certificaciones.map((c, i) => <Chip key={i}>{nombreCertificacion(c)}</Chip>)}</div>
             : <p className="text-sm text-muted-foreground">Ninguna reportada.</p>}
         </Seccion>
         <Seccion icono={Languages} titulo="Idiomas">
@@ -189,6 +190,36 @@ function Ficha({ ficha, onLinea }) {
   );
 }
 
+/** CV en revisión humana (no se envió a la IA) o procesado pero todavía sin evaluar. */
+function SinEvaluacion({ c, nombre, onVolver }) {
+  const revision = c.estado_documento === 'needs_review';
+  return (
+    <>
+      <button onClick={onVolver} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> Volver al ranking
+      </button>
+      <Card className="mb-6 p-5">
+        <p className="text-xs font-medium text-muted-foreground">{c.nombre_archivo}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{nombre}</h1>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
+        </div>
+      </Card>
+      <Alerta tipo={revision ? 'warn' : 'info'} icono={revision ? ShieldAlert : CircleAlert} className="mb-6"
+        titulo={revision ? 'En revisión humana: este CV no se envió a la IA' : 'Este CV todavía no se ha evaluado'}>
+        {revision
+          ? 'Se detectó una alerta de seguridad (texto que intenta manipular la evaluación o un dato personal sin anonimizar). Revisa el documento antes de decidir.'
+          : 'Ya se leyó y anonimizó. Evalúalo desde el ranking para ver su resultado por requisito.'}
+        <ul className="mt-1 list-disc pl-4">{c.alertas.map((a) => <li key={a}>{ALERTAS[a]?.texto ?? a}</li>)}</ul>
+      </Alerta>
+      <Card className="overflow-hidden">
+        <CardHeader icono={FileText} titulo="Hoja de vida anonimizada" descripcion="Texto extraído del documento." />
+        <VisorCV candidato={c} activas={[]} citadas={new Set()} alClicLinea={() => {}} />
+      </Card>
+    </>
+  );
+}
+
 const OPCIONES_CORRECCION = {
   normal: ['cumple', 'equivalente', 'parcial', 'no_cumple', 'sin_informacion'],
   descalificante: ['presente', 'ausente', 'sin_informacion'],
@@ -197,7 +228,7 @@ const OPCIONES_CORRECCION = {
 export default function DetalleCandidato() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { ranking, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar } = useApp();
+  const { ranking, candidatos, vacante, nombreVisible, toggleSeleccion, seleccion, corregirEvaluacion, notificar } = useApp();
   const [pestana, setPestana] = useState('evaluacion');
   const [activas, setActivas] = useState([]);
   const [reqActivo, setReqActivo] = useState(null);
@@ -206,6 +237,9 @@ export default function DetalleCandidato() {
 
   const item = ranking.find((r) => r.candidato.candidato_id === id);
   const exp = useMemo(() => (item ? explicar(item.resultado) : null), [item]);
+
+  const sinEvaluar = !item && candidatos.find((x) => x.candidato_id === id);
+  if (sinEvaluar) return <SinEvaluacion c={sinEvaluar} nombre={nombreVisible(sinEvaluar)} onVolver={() => navigate('/ranking')} />;
 
   if (!item) {
     return (
@@ -275,10 +309,10 @@ export default function DetalleCandidato() {
         </div>
       </Card>
 
-      {c.alertas.includes('prompt_injection') && (
+      {c.alertas.some((a) => ['prompt_injection', 'hidden_text'].includes(a)) && (
         <Alerta tipo="error" icono={ShieldAlert} className="mb-6" titulo="Este CV contiene texto oculto que intenta manipular la evaluación">
           Se encontró una instrucción escrita en blanco y en tamaño mínimo. El texto del CV se envía a la IA como dato, nunca como instrucción, así que no tuvo efecto.
-          {' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button>
+          {c.linea_inyeccion && <>{' '}<button className="font-medium underline" onClick={() => { setActivas([c.linea_inyeccion]); setReqActivo(null); }}>Ver en el CV</button></>}
         </Alerta>
       )}
 

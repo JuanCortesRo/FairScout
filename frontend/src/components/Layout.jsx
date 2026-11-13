@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Briefcase, FileUp, Trophy, Columns3, MessagesSquare, ShieldCheck, Menu, X, Eye, EyeOff, Scale,
-  CircleCheck, CircleX, Info, Check,
+  CircleCheck, CircleX, Info, Check, Rocket,
 } from 'lucide-react';
 import { useApp } from '@/store';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ function ItemNav({ item, completado, onNavigate }) {
 }
 
 function Sidebar({ onNavigate }) {
-  const { vacante, candidatos, backend } = useApp();
+  const { vacante, candidatos, backend, enDemo } = useApp();
   const completados = { 1: !!vacante, 2: candidatos.length > 0, 3: false };
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -82,13 +82,13 @@ function Sidebar({ onNavigate }) {
 
       <div className="m-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-3 text-xs">
         <div className="flex items-center gap-2">
-          <span className={cn('size-2 rounded-full', backend === 'conectado' ? 'bg-emerald-400' : backend === 'demo' ? 'bg-amber-400' : 'animate-pulse bg-sidebar-foreground/40')} />
+          <span className={cn('size-2 rounded-full', enDemo ? 'bg-amber-400' : backend === 'conectado' ? 'bg-emerald-400' : backend === 'desconectado' ? 'bg-red-400' : 'animate-pulse bg-sidebar-foreground/40')} />
           <span className="font-medium text-sidebar-accent-foreground">
-            {backend === 'conectado' ? 'Servidor conectado' : backend === 'demo' ? 'Modo demostración' : 'Verificando servidor…'}
+            {enDemo ? 'Modo demostración' : backend === 'conectado' ? 'Servidor conectado' : backend === 'desconectado' ? 'Servidor no disponible' : 'Verificando servidor…'}
           </span>
         </div>
         <p className="mt-1 text-sidebar-foreground/55">
-          {backend === 'demo' ? 'Sin conexión al backend: se usan datos de ejemplo.' : 'La IA recomienda; el equipo de selección decide.'}
+          {enDemo ? 'Estás viendo datos de ejemplo.' : backend === 'desconectado' ? 'Inicia el backend para procesar CVs reales.' : 'La IA recomienda; el equipo de selección decide.'}
         </p>
       </div>
     </div>
@@ -96,7 +96,8 @@ function Sidebar({ onNavigate }) {
 }
 
 function BarraSuperior({ onMenu }) {
-  const { vacante, modoCiego, toggleCiego } = useApp();
+  const { vacante, modoCiego, toggleCiego, enDemo, reiniciar } = useApp();
+  const navigate = useNavigate();
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
       <button className="-ml-1 rounded-md p-1.5 hover:bg-muted lg:hidden" onClick={onMenu} aria-label="Abrir menú">
@@ -115,6 +116,12 @@ function BarraSuperior({ onMenu }) {
           <span className="text-muted-foreground">Sin vacante activa</span>
         )}
       </div>
+      {enDemo && (
+        <button onClick={() => { reiniciar(); navigate('/vacante'); }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-warn/30 bg-warn-soft px-3 py-1.5 text-sm font-medium text-warn transition-colors hover:bg-warn-soft/70">
+          <Rocket className="size-4" /> <span className="hidden sm:inline">Demo ·</span> Salir
+        </button>
+      )}
       <button
         onClick={toggleCiego}
         aria-pressed={modoCiego}

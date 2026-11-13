@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, CircleCheck, CircleAlert, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
+  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
-  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor,
+  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor, Alerta, Pill,
 } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
@@ -57,7 +58,10 @@ function AjustePesos() {
 }
 
 export default function Ranking() {
-  const { vacante, ranking, candidatos, cargarDemo, nombreVisible, seleccion, toggleSeleccion } = useApp();
+  const {
+    vacante, ranking, cargarDemo, nombreVisible, seleccion, toggleSeleccion, backend, enDemo,
+    pendientes, enRevision, evaluando, evaluar, refrescar, cargandoServidor, errorServidor,
+  } = useApp();
   const navigate = useNavigate();
   const [pestana, setPestana] = useState('aptos');
   const [busqueda, setBusqueda] = useState('');
@@ -81,18 +85,38 @@ export default function Ranking() {
     return true;
   }), [ranking, pestana, confianza, soloRecomendados, busqueda, nombreVisible]);
 
-  if (!vacante || candidatos.length === 0) {
+  const avisoEvaluacion = !enDemo && (evaluando || pendientes.length > 0) && (
+    evaluando ? (
+      <Alerta tipo="info" icono={Loader2} className="mb-4 [&>svg]:animate-spin" titulo="Evaluando CVs con la IA…">
+        Cada requisito se evalúa con una cita del CV. El ranking se actualiza al terminar.
+      </Alerta>
+    ) : (
+      <Alerta tipo="warn" icono={Clock} className="mb-4" titulo={`${pendientes.length} CV(s) procesados todavía sin evaluar`}>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <span>Aún no aparecen en el ranking.</span>
+          <Button size="sm" onClick={() => evaluar()}><Sparkles /> Evaluar ahora</Button>
+        </div>
+      </Alerta>
+    )
+  );
+
+  if (!vacante || (ranking.length === 0 && enRevision.length === 0)) {
+    const sinCVs = vacante && pendientes.length === 0 && !evaluando;
     return (
       <>
         <PageHeader paso="Paso 3 de 3" titulo="Ranking de candidatos" />
+        {vacante && avisoEvaluacion}
+        {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron cargar los datos del servidor">{errorServidor}</Alerta>}
         <Card>
           <EstadoVacio
             icono={vacante ? FileUp : Briefcase}
-            titulo={vacante ? 'Aún no hay CVs evaluados' : 'No hay una vacante activa'}
-            descripcion={vacante ? 'Carga las hojas de vida para ver aquí el ranking explicado de todos los candidatos.' : 'Crea la vacante y carga CVs, o prueba la demo con 60 candidatos ya evaluados.'}
+            titulo={!vacante ? 'No hay una vacante activa' : cargandoServidor ? 'Cargando candidatos…' : sinCVs ? 'Aún no hay CVs evaluados' : 'Todavía no hay resultados'}
+            descripcion={vacante
+              ? 'Carga las hojas de vida para ver aquí el ranking explicado de todos los candidatos.'
+              : backend === 'conectado' ? 'Crea la vacante y confirma sus requisitos para empezar.' : 'Crea la vacante cuando el servidor esté disponible, o prueba la demo con 60 candidatos ya evaluados.'}
           >
-            <Link to={vacante ? '/cvs' : '/vacante'} className={buttonVariants({ size: 'lg' })}>{vacante ? 'Cargar CVs' : 'Crear vacante'}</Link>
-            <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Ver demo completa</Button>
+            {(!vacante || sinCVs) && <Link to={vacante ? '/cvs' : '/vacante'} className={buttonVariants({ size: 'lg' })}>{vacante ? 'Cargar CVs' : 'Crear vacante'}</Link>}
+            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Ver demo completa</Button>}
           </EstadoVacio>
         </Card>
       </>
@@ -106,11 +130,21 @@ export default function Ranking() {
         titulo="Ranking de candidatos"
         descripcion="Todos los candidatos ordenados por estado y puntaje. Cada CV se evaluó por separado contra la vacante; el orden lo calcula el código, no la IA."
         acciones={(
-          <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)}>
-            <Download /> Exportar CSV
-          </Button>
+          <>
+            {!enDemo && (
+              <Button variant="ghost" size="lg" onClick={refrescar} disabled={cargandoServidor || evaluando} aria-label="Actualizar datos del servidor">
+                <RefreshCw className={cn(cargandoServidor && 'animate-spin')} /> Actualizar
+              </Button>
+            )}
+            <Button variant="outline" size="lg" onClick={() => exportarRankingCSV(ranking, vacante.requisitos, nombreVisible, vacante)} disabled={!ranking.length}>
+              <Download /> Exportar CSV
+            </Button>
+          </>
         )}
       />
+
+      {avisoEvaluacion}
+      {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />
@@ -126,6 +160,7 @@ export default function Ranking() {
             { valor: 'aptos', etiqueta: 'Para revisar', contador: stats.cumple + stats.parcial },
             { valor: 'no_cumple', etiqueta: 'No cumplen', contador: stats.no },
             { valor: 'todos', etiqueta: 'Todos', contador: stats.total },
+            ...(enRevision.length ? [{ valor: 'revision', etiqueta: 'En revisión', contador: enRevision.length }] : []),
           ]} />
           <div className="flex flex-wrap items-center gap-3">
             <label className="relative">
@@ -151,6 +186,29 @@ export default function Ranking() {
           </p>
         )}
 
+        {pestana === 'revision' ? (
+          <>
+            <p className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+              Estos CVs no se enviaron a la IA por una alerta de seguridad. Una persona debe revisarlos antes de decidir.
+            </p>
+            <ul className="divide-y">
+              {enRevision.map((c) => (
+                <li key={c.candidato_id}>
+                  <button onClick={() => navigate(`/candidato/${c.candidato_id}`)} className="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-accent/50">
+                    <ShieldAlert className="size-5 shrink-0 text-warn" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{nombreVisible(c)}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {c.alertas.map((a) => ALERTAS[a] && <Pill key={a} className={cn(ALERTAS[a].clase, 'ring-transparent')} icono={ALERTAS[a].icono}>{ALERTAS[a].corto}</Pill>)}
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
         <div className="overflow-x-auto scrollbar-fino">
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
@@ -206,6 +264,7 @@ export default function Ranking() {
             </tbody>
           </table>
         </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
           <span>{filtrados.length} de {ranking.length} candidatos</span>
           <span>{AVISO_DECISION}</span>

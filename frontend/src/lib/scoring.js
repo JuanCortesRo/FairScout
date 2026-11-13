@@ -9,6 +9,18 @@ export const VALOR_RESULTADO = {
   sin_informacion: 0,
 };
 
+// Tipo de alerta del documento → alerta que entiende el puntaje (espejo de alertas_para_puntaje en scoring.py).
+const ALERTA_DOCUMENTO_A_PUNTAJE = {
+  prompt_injection: 'prompt_injection',
+  hidden_text: 'prompt_injection',
+  ocr: 'ocr',
+  inconsistencia_fechas: 'inconsistencia_fechas',
+};
+
+export function alertasParaPuntaje(tipos = []) {
+  return [...new Set(tipos.map((t) => ALERTA_DOCUMENTO_A_PUNTAJE[t]).filter(Boolean))];
+}
+
 const UMBRAL_CUMPLE = 70;
 const UMBRAL_RECOMENDAR_PARCIAL = 60;
 
@@ -80,7 +92,7 @@ export function calcularResultado(candidato, requisitos, pesos) {
   const conCita = filas.filter((f) => f.ev.cita);
   const citasSinVerificar = conCita.filter((f) => !f.ev.cita_verificada);
   const obligSinVerificar = citasSinVerificar.filter((f) => f.req.tipo === 'obligatorio');
-  const alertas = candidato.alertas ?? [];
+  const alertas = alertasParaPuntaje(candidato.alertas ?? []);
   const obligParciales = oblig.filter((f) => f.ev.resultado === 'parcial').length;
 
   const motivosConfianza = [];

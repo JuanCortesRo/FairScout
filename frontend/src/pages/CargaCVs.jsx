@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  UploadCloud, FileText, CircleCheck, CircleX, Loader2, RotateCw, Trash2, Copy, ArrowRight, Briefcase, Rocket, Clock, Zap, TriangleAlert, FileType,
+  UploadCloud, FileText, CircleCheck, CircleX, Loader2, RotateCw, Trash2, Copy, ArrowRight, Briefcase, Rocket, Clock, Zap,
+  TriangleAlert, FileType, ShieldAlert, CloudOff, Sparkles,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, EstadoVacio, Pestanas, Alerta } from '@/components/ui/kit';
@@ -9,8 +10,8 @@ import { useApp } from '@/store';
 import { ESTADOS_ARCHIVO } from '@/lib/constantes';
 import { cn } from '@/lib/utils';
 
-const EN_PROCESO = ['pendiente', 'leyendo', 'anonimizando', 'extrayendo', 'evaluando'];
-const PASOS_UI = ['leyendo', 'anonimizando', 'extrayendo', 'evaluando', 'listo'];
+const EN_PROCESO = ['pendiente', 'procesando'];
+const PROBLEMAS = ['error', 'duplicado', 'revision'];
 
 function tamanoLegible(b) {
   if (b < 1024) return `${b} B`;
@@ -21,20 +22,10 @@ function tamanoLegible(b) {
 function IconoEstado({ estado }) {
   if (estado === 'listo') return <CircleCheck className="size-5 text-ok" />;
   if (estado === 'error') return <CircleX className="size-5 text-bad" />;
+  if (estado === 'revision') return <ShieldAlert className="size-5 text-warn" />;
   if (estado === 'duplicado') return <Copy className="size-5 text-warn" />;
   if (estado === 'pendiente') return <Clock className="size-5 text-muted-foreground" />;
   return <Loader2 className="size-5 animate-spin text-primary" />;
-}
-
-function Pasos({ estado }) {
-  const i = PASOS_UI.indexOf(estado);
-  return (
-    <div className="flex items-center gap-1" aria-hidden="true">
-      {PASOS_UI.slice(0, 4).map((p, k) => (
-        <span key={p} className={cn('h-1 w-6 rounded-full transition-colors', k < i || estado === 'listo' ? 'bg-ok' : k === i ? 'animate-pulse bg-primary' : 'bg-muted')} />
-      ))}
-    </div>
-  );
 }
 
 function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
@@ -49,16 +40,15 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
             {a.nombre.split('.').pop()}
           </span>
         </div>
-        <p className={cn('text-xs', a.estado === 'error' ? 'text-bad' : a.estado === 'duplicado' ? 'text-warn' : 'text-muted-foreground')}>
-          {a.error ?? `${ESTADOS_ARCHIVO[a.estado]}${a.candidato_id ? ` · Candidato ${a.candidato_id}` : ''} · ${tamanoLegible(a.tamano)}`}
+        <p className={cn('text-xs', a.estado === 'error' ? 'text-bad' : ['duplicado', 'revision'].includes(a.estado) ? 'text-warn' : 'text-muted-foreground')}>
+          {a.error ?? `${ESTADOS_ARCHIVO[a.estado] ?? a.estado} · ${tamanoLegible(a.tamano)}`}
         </p>
       </div>
-      {procesando && <Pasos estado={a.estado} />}
       <div className="flex shrink-0 items-center gap-1">
-        {a.estado === 'listo' && <Button variant="ghost" size="sm" onClick={onVer}>Ver <ArrowRight /></Button>}
+        {['listo', 'revision'].includes(a.estado) && a.candidato_id && <Button variant="ghost" size="sm" onClick={onVer}>Ver <ArrowRight /></Button>}
         {a.estado === 'error' && a.reintentable !== false && <Button variant="outline" size="sm" onClick={onReintentar}><RotateCw /> Reintentar</Button>}
         {!procesando && (
-          <button onClick={onQuitar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Quitar ${a.nombre}`}>
+          <button onClick={onQuitar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Quitar ${a.nombre} de la lista`}>
             <Trash2 className="size-4" />
           </button>
         )}
@@ -68,7 +58,9 @@ function FilaArchivo({ a, onReintentar, onQuitar, onVer }) {
 }
 
 export default function CargaCVs() {
-  const { vacante, archivos, agregarArchivos, reintentar, quitarArchivo, cargarDemo, lote, notificar, backend } = useApp();
+  const {
+    vacante, archivos, agregarArchivos, reintentar, quitarArchivo, cargarDemo, lote, notificar, backend, enDemo, evaluando, pendientes, ranking,
+  } = useApp();
   const navigate = useNavigate();
   const input = useRef(null);
   const [arrastrando, setArrastrando] = useState(false);
@@ -78,8 +70,7 @@ export default function CargaCVs() {
   const conteo = useMemo(() => ({
     total: archivos.length,
     listos: archivos.filter((a) => a.estado === 'listo').length,
-    errores: archivos.filter((a) => a.estado === 'error').length,
-    duplicados: archivos.filter((a) => a.estado === 'duplicado').length,
+    problemas: archivos.filter((a) => PROBLEMAS.includes(a.estado)).length,
     proceso: archivos.filter((a) => EN_PROCESO.includes(a.estado)).length,
   }), [archivos]);
 
@@ -89,58 +80,71 @@ export default function CargaCVs() {
         <PageHeader paso="Paso 2 de 3" titulo="Carga de CVs" />
         <Card>
           <EstadoVacio icono={Briefcase} titulo="Primero define la vacante"
-            descripcion="Los CVs se evalúan contra los requisitos confirmados. Crea la vacante o usa la demo con 60 CVs ya procesados.">
+            descripcion="Los CVs se evalúan contra los requisitos confirmados.">
             <Link to="/vacante" className={buttonVariants({ size: 'lg' })}>Crear vacante</Link>
-            <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}><Rocket /> Ver demo completa</Button>
+            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}><Rocket /> Ver demo</Button>}
           </EstadoVacio>
         </Card>
       </>
     );
   }
 
+  const bloqueado = enDemo || backend !== 'conectado';
   const recibir = (files) => {
     const lista = Array.from(files ?? []);
     if (!lista.length) return;
     const r = agregarArchivos(lista);
     setRechazados(r);
     const aceptados = lista.length - r.length;
-    if (aceptados) notificar(`${aceptados} archivo(s) en proceso.`, 'info');
+    if (aceptados && !bloqueado) notificar(`${aceptados} archivo(s) en proceso.`, 'info');
   };
 
-  const procesados = conteo.listos + conteo.errores + conteo.duplicados;
+  const procesados = conteo.total - conteo.proceso;
   const progreso = conteo.total ? Math.round((procesados / conteo.total) * 100) : 0;
   const duracion = lote?.fin && lote?.inicio ? (lote.fin - lote.inicio) / 1000 : null;
   const visibles = archivos.filter((a) => filtro === 'todos'
-    || (filtro === 'errores' && ['error', 'duplicado'].includes(a.estado))
+    || (filtro === 'problemas' && PROBLEMAS.includes(a.estado))
     || (filtro === 'listos' && a.estado === 'listo')
     || (filtro === 'proceso' && EN_PROCESO.includes(a.estado)));
+  const ocupado = conteo.proceso > 0 || evaluando;
 
   return (
     <>
       <PageHeader
         paso="Paso 2 de 3"
         titulo="Carga de CVs"
-        descripcion={backend === 'demo'
-          ? 'El backend no está conectado. Inícialo para procesar el CV real; no se generarán datos ficticios para tus archivos.'
-          : 'Sube entre 50 y 100 hojas de vida en PDF o DOCX. Cada archivo se lee, se anonimiza y se evalúa por separado: un archivo con problemas nunca detiene el lote.'}
-        acciones={conteo.listos > 0 && (
-          <Button size="lg" onClick={() => navigate('/ranking')} disabled={conteo.proceso > 0}>
-            {conteo.proceso > 0 ? <><Loader2 className="animate-spin" /> Procesando…</> : <>Ver ranking <ArrowRight /></>}
+        descripcion="Sube entre 50 y 100 hojas de vida en PDF o DOCX. Cada archivo se lee, se anonimiza y se evalúa por separado: un archivo con problemas nunca detiene el lote."
+        acciones={(ranking.length > 0 || conteo.listos > 0) && (
+          <Button size="lg" onClick={() => navigate('/ranking')} disabled={ocupado}>
+            {ocupado ? <><Loader2 className="animate-spin" /> {evaluando ? 'Evaluando con IA…' : 'Procesando…'}</> : <>Ver ranking <ArrowRight /></>}
           </Button>
         )}
       />
 
+      {enDemo && (
+        <Alerta tipo="info" icono={Rocket} className="mb-4" titulo="Estás viendo la demo">
+          Los archivos de abajo son de ejemplo. Para cargar CVs reales, sal de la demo desde la barra superior.
+        </Alerta>
+      )}
+      {!enDemo && backend === 'desconectado' && (
+        <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="El servidor no está disponible">
+          Inicia el backend para procesar CVs. No se generan datos ficticios para tus archivos.
+        </Alerta>
+      )}
+
       <div
-        onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
+        onDragOver={(e) => { e.preventDefault(); if (!bloqueado) setArrastrando(true); }}
         onDragLeave={() => setArrastrando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastrando(false); recibir(e.dataTransfer.files); }}
-        onClick={() => input.current?.click()}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && input.current?.click()}
+        onClick={() => !bloqueado && input.current?.click()}
+        onKeyDown={(e) => !bloqueado && (e.key === 'Enter' || e.key === ' ') && input.current?.click()}
         role="button"
-        tabIndex={0}
+        tabIndex={bloqueado ? -1 : 0}
+        aria-disabled={bloqueado}
         className={cn(
-          'group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-all',
-          arrastrando ? 'scale-[1.01] border-primary bg-accent' : 'border-input bg-card hover:border-primary/50 hover:bg-accent/40',
+          'group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-all',
+          bloqueado ? 'cursor-not-allowed border-input bg-muted/40 opacity-70'
+            : arrastrando ? 'scale-[1.01] cursor-pointer border-primary bg-accent' : 'cursor-pointer border-input bg-card hover:border-primary/50 hover:bg-accent/40',
         )}
       >
         <span className={cn('mb-4 grid size-14 place-items-center rounded-2xl bg-accent text-accent-foreground transition-transform', arrastrando ? 'scale-110' : 'group-hover:-translate-y-0.5')}>
@@ -158,6 +162,17 @@ export default function CargaCVs() {
         </Alerta>
       )}
 
+      {evaluando && (
+        <Alerta tipo="info" icono={Sparkles} className="mt-4" titulo="Evaluando los CVs contra los requisitos">
+          La IA revisa cada requisito con una cita del CV. Puede tardar unos minutos con muchos archivos; el ranking se actualiza al terminar.
+        </Alerta>
+      )}
+      {!evaluando && !enDemo && pendientes.length > 0 && conteo.proceso === 0 && (
+        <Alerta tipo="warn" icono={Clock} className="mt-4" titulo={`${pendientes.length} CV(s) procesados todavía sin evaluar`}>
+          Puedes evaluarlos desde el ranking.
+        </Alerta>
+      )}
+
       {conteo.total > 0 && (
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -169,21 +184,21 @@ export default function CargaCVs() {
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}>
                 <div className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500 transition-all duration-500" style={{ width: `${progreso}%` }} />
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">Leer → anonimizar → extraer → evaluar. Hasta 4 archivos en paralelo.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Leer → anonimizar → extraer → evaluar. Hasta 3 archivos en paralelo.</p>
             </Card>
             <Card className="flex items-center gap-3 p-4">
               <span className="grid size-10 place-items-center rounded-lg bg-ok-soft text-ok"><CircleCheck className="size-5" /></span>
-              <div><p className="text-2xl font-semibold tabular-nums">{conteo.listos}</p><p className="text-xs text-muted-foreground">evaluados</p></div>
+              <div><p className="text-2xl font-semibold tabular-nums">{conteo.listos}</p><p className="text-xs text-muted-foreground">procesados</p></div>
             </Card>
             <Card className="flex items-center gap-3 p-4">
               <span className="grid size-10 place-items-center rounded-lg bg-bad-soft text-bad"><TriangleAlert className="size-5" /></span>
-              <div><p className="text-2xl font-semibold tabular-nums">{conteo.errores + conteo.duplicados}</p><p className="text-xs text-muted-foreground">con problemas</p></div>
+              <div><p className="text-2xl font-semibold tabular-nums">{conteo.problemas}</p><p className="text-xs text-muted-foreground">con problemas o en revisión</p></div>
             </Card>
           </div>
 
-          {duracion && conteo.proceso === 0 && (
+          {duracion && conteo.proceso === 0 && conteo.listos > 0 && (
             <Alerta tipo="ok" icono={Zap} className="mt-4">
-              <b>{conteo.listos} CVs evaluados en {duracion >= 60 ? `${Math.floor(duracion / 60)} min ${Math.round(duracion % 60)} s` : `${Math.round(duracion)} s`}</b>
+              <b>{conteo.listos} CVs procesados en {duracion >= 60 ? `${Math.floor(duracion / 60)} min ${Math.round(duracion % 60)} s` : `${Math.round(duracion)} s`}</b>
               {' '}· a mano tomaría cerca de {conteo.listos * 5 < 60 ? `${conteo.listos * 5} minutos` : `${Math.round((conteo.listos * 5) / 60 * 10) / 10} horas`} (5 min por CV).
             </Alerta>
           )}
@@ -195,7 +210,7 @@ export default function CargaCVs() {
                   { valor: 'todos', etiqueta: 'Todos', contador: conteo.total },
                   { valor: 'proceso', etiqueta: 'En proceso', contador: conteo.proceso },
                   { valor: 'listos', etiqueta: 'Listos', contador: conteo.listos },
-                  { valor: 'errores', etiqueta: 'Problemas', contador: conteo.errores + conteo.duplicados },
+                  { valor: 'problemas', etiqueta: 'Problemas', contador: conteo.problemas },
                 ]} />
               )} />
             <ul className="max-h-[520px] divide-y overflow-y-auto scrollbar-fino">
@@ -209,13 +224,6 @@ export default function CargaCVs() {
             </ul>
           </Card>
         </>
-      )}
-
-      {conteo.total === 0 && (
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          ¿Sin archivos a mano? <button className="font-medium text-primary hover:underline" onClick={() => { cargarDemo(); navigate('/ranking'); }}>Carga 60 CVs de ejemplo</button>.
-          {' '}Para probar errores, sube archivos llamados <code className="rounded bg-muted px-1">corrupto.pdf</code> o <code className="rounded bg-muted px-1">protegido.pdf</code>.
-        </p>
       )}
     </>
   );

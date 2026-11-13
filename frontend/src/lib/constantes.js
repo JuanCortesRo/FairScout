@@ -43,11 +43,9 @@ export const CATEGORIAS = {
 
 export const ESTADOS_ARCHIVO = {
   pendiente: 'En cola',
-  leyendo: 'Leyendo',
-  anonimizando: 'Anonimizando',
-  extrayendo: 'Extrayendo datos',
-  evaluando: 'Evaluando',
+  procesando: 'Leyendo, anonimizando y extrayendo datos',
   listo: 'Listo',
+  revision: 'En revisión humana',
   error: 'Error',
   duplicado: 'Duplicado',
 };

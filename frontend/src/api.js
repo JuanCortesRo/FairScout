@@ -13,10 +13,15 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const detalle = data?.detail;
-    throw new Error(typeof detalle === 'string' ? detalle : `El servidor respondió con un error (${response.status}).`);
+    const texto = typeof detalle === 'string'
+      ? detalle
+      : Array.isArray(detalle) ? detalle.map((d) => d.msg).join('. ') : null;
+    throw new Error(texto || `El servidor respondió con un error (${response.status}).`);
   }
   return data;
 }
+
+const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 export async function salud() {
   const controller = new AbortController();
@@ -33,24 +38,25 @@ export async function salud() {
   }
 }
 
-export function crearVacante(descripcion) {
-  return request('/vacantes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ descripcion }),
-  });
-}
+/** Propone requisitos con el LLM y crea la vacante (sin confirmar). */
+export const crearVacante = (descripcion) => request('/vacantes', json('POST', { descripcion }));
 
-export function actualizarVacante(id, vacante) {
-  return request(`/vacantes/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(vacante),
-  });
-}
+/** Confirma los requisitos editados: crea una nueva versión de la vacante. */
+export const actualizarVacante = (id, vacante) => request(`/vacantes/${id}`, json('PUT', vacante));
 
+/** Sube CVs: se leen, se anonimizan y se extrae su ficha. */
 export function subirCVs(archivos) {
   const form = new FormData();
   archivos.forEach((a) => form.append('archivos', a));
   return request('/cvs', { method: 'POST', body: form });
 }
+
+/** Todos los CVs guardados (procesados y en revisión). */
+export const listarCVs = () => request('/cvs');
+
+/** Evalúa en lote los CVs procesados que aún no tienen evaluación con la versión vigente. */
+export const evaluarLote = (vacanteId, reevaluar = false) =>
+  request(`/vacantes/${vacanteId}/evaluar${reevaluar ? '?reevaluar=true' : ''}`, { method: 'POST' });
+
+/** Evaluación vigente de cada candidato: resultado por requisito, citas, explicación y trazabilidad. */
+export const listarEvaluaciones = (vacanteId) => request(`/vacantes/${vacanteId}/evaluaciones`);

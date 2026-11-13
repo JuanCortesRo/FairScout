@@ -250,3 +250,23 @@ def test_no_se_evalua_con_un_requisito_protegido_guardado(client, session_factor
     assert r.status_code == 422
     assert "dato protegido (género)" in r.json()["detail"]
     assert client.llamadas == []
+
+
+def test_listar_evaluaciones_devuelve_la_vigente_de_cada_candidato(client, session_factory):
+    _evaluar(client, "C1")
+    _evaluar(client, "C2")
+    _evaluar(client, "C2")
+
+    cuerpo = client.get("/api/vacantes/V1/evaluaciones").json()
+
+    assert [e["candidato_id"] for e in cuerpo] == ["C1", "C2"]
+    c1 = cuerpo[0]
+    assert [e["requisito_id"] for e in c1["evaluaciones"]] == ["R1", "R2", "R3"]
+    assert c1["evaluaciones"][0]["cita_verificada"] is True
+    assert c1["trazabilidad"]["version_requisitos"] == 1
+
+    with session_factory() as db:
+        db.get(VacanteDB, "V1").version_requisitos += 1
+        db.commit()
+    assert client.get("/api/vacantes/V1/evaluaciones").json() == []
+    assert client.get("/api/vacantes/NO/evaluaciones").status_code == 404
