@@ -41,7 +41,7 @@ function VisorCV({ candidato, activas, citadas, alClicLinea }) {
   return (
     <div ref={contenedor} className="max-h-[calc(100vh-11rem)] space-y-4 overflow-y-auto bg-muted/50 p-4 scrollbar-fino">
       {paginas.map(([p, lineas]) => (
-        <div key={p} className="rounded-lg bg-white px-6 py-5 shadow-sm ring-1 ring-black/5">
+        <div key={p} className="hoja-papel rounded-md bg-white px-7 py-6 ring-1 ring-black/5">
           <p className="mb-3 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Página {p.slice(1)}</p>
           {lineas.map((l) => {
             const activa = activas.includes(l.id);
@@ -341,13 +341,18 @@ export default function DetalleCandidato() {
       </div>
 
       {/* Encabezado */}
-      <Card className="mb-6 p-5">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <AnilloPuntaje valor={r.puntaje} tamano={84} />
+      <Card className="relative mb-6 overflow-hidden p-0">
+        <div aria-hidden="true" className={cn('h-1.5 w-full',
+          r.estado === 'cumple' ? 'bg-ok' : r.estado === 'no_cumple' ? 'bg-bad' : r.estado === 'pendiente_verificar' ? 'bg-info' : 'bg-warn')} />
+        <span aria-hidden="true" className="bg-marca pointer-events-none absolute -top-24 -left-16 size-64 rounded-full opacity-[0.07] blur-3xl" />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-5">
+            <div className="rounded-full bg-card p-1.5 shadow-[0_8px_24px_-12px_rgba(91,91,240,0.5)] ring-1 ring-border">
+              <AnilloPuntaje valor={r.puntaje} tamano={84} grosor={8} />
+            </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">Posición #{posicion} · {c.nombre_archivo}</p>
-              <h1 className="truncate text-2xl font-semibold tracking-tight">{nombreVisible(c)}</h1>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Posición #{posicion} de {ranking.length}</p>
+              <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">{nombreVisible(c)}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <EstadoBadge estado={r.estado} />
                 <Confianza nivel={r.confianza} />
@@ -356,8 +361,11 @@ export default function DetalleCandidato() {
               <p className="mt-1.5 text-sm text-muted-foreground">{r.motivo_estado}</p>
             </div>
           </div>
-          <div className={cn('flex items-start gap-3 rounded-xl border p-4 lg:w-80', r.recomendado_entrevista ? 'border-info/25 bg-info-soft' : 'bg-muted/50')}>
-            {r.recomendado_entrevista ? <ThumbsUp className="mt-0.5 size-5 shrink-0 text-info" /> : <ThumbsDown className="mt-0.5 size-5 shrink-0 text-muted-foreground" />}
+          <div className={cn('flex items-start gap-3 rounded-2xl border p-4 lg:w-96',
+            r.recomendado_entrevista ? 'border-violet-200 bg-gradient-to-br from-indigo-50 via-violet-50 to-cyan-50 dark:border-violet-400/25 dark:from-indigo-500/10 dark:via-violet-500/10 dark:to-cyan-500/10' : 'bg-muted/50')}>
+            <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', r.recomendado_entrevista ? 'bg-marca text-white shadow-md shadow-violet-500/30' : 'bg-card text-muted-foreground ring-1 ring-border')}>
+              {r.recomendado_entrevista ? <ThumbsUp className="size-5" /> : <ThumbsDown className="size-5" />}
+            </span>
             <div className="min-w-0">
               <p className="font-semibold">{r.recomendado_entrevista ? 'Recomendado para entrevista' : 'No recomendado para entrevista'}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">

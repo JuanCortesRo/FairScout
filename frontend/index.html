@@ -3,8 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Evaluación de hojas de vida asistida por IA" />
-    <title>AI Talent Scout</title>
+    <meta name="description" content="FairScout: preselección de talento justa, explicable y basada en evidencia." />
+    <meta name="theme-color" content="#5b5bf0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>FairScout · Talento elegido con evidencia</title>
+    <script>
+      // Aplica el tema antes de pintar para evitar un destello claro.
+      try {
+        var t = localStorage.getItem('fairscout:tema');
+        if (t === 'oscuro' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

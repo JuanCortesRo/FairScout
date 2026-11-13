@@ -216,19 +216,14 @@ export default function NuevaVacante() {
         descripcion="Pega la descripción del cargo. La IA propone los requisitos y tú los ajustas antes de evaluar cualquier CV."
         acciones={!vacante && backend !== 'conectado' && (
           <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}>
-            <Rocket /> Ver demo completa
+            <Rocket /> Explorar un ejemplo
           </Button>
         )}
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
         <Card className="self-start">
-          <CardHeader icono={FileText} titulo="Descripción del cargo" descripcion="Acepta texto en español o inglés."
-            accion={(
-              <Button variant="ghost" size="sm" onClick={() => setDescripcion(DESCRIPCION_EJEMPLO)}>
-                <Wand2 /> Usar ejemplo
-              </Button>
-            )} />
+          <CardHeader icono={FileText} titulo="Descripción del cargo" descripcion="Acepta texto en español o inglés." />
           <div className="p-5">
             <textarea
               rows={requisitos ? 12 : 16}
@@ -239,7 +234,9 @@ export default function NuevaVacante() {
             />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground tabular-nums">
-                {descripcion.trim().length < 20 ? `Mínimo 20 caracteres (${descripcion.trim().length}/20)` : `${descripcion.trim().length} caracteres`}
+                {descripcion.trim().length === 0
+                  ? <button type="button" onClick={() => setDescripcion(DESCRIPCION_EJEMPLO)} className="inline-flex items-center gap-1 font-medium text-primary hover:underline"><Wand2 className="size-3.5" /> ¿Sin una vacante a mano? Usa un ejemplo</button>
+                  : descripcion.trim().length < 20 ? `Mínimo 20 caracteres (${descripcion.trim().length}/20)` : `${descripcion.trim().length} caracteres`}
               </span>
               <Button size="lg" onClick={extraer} disabled={cargando || descripcion.trim().length < 20}>
                 {cargando ? <><Loader2 className="animate-spin" /> Analizando la descripción…</> : <><Sparkles /> {requisitos ? 'Volver a proponer' : 'Proponer requisitos'}</>}
@@ -251,7 +248,7 @@ export default function NuevaVacante() {
                 {!requisitos && (
                   <div className="mt-2 flex gap-2">
                     <Button size="sm" variant="outline" onClick={extraer}>Reintentar</Button>
-                    {backend !== 'conectado' && <Button size="sm" variant="ghost" onClick={() => { cargarDemo(); navigate('/ranking'); }}>Ver la demo</Button>}
+                    {backend !== 'conectado' && <Button size="sm" variant="ghost" onClick={() => { cargarDemo(); navigate('/ranking'); }}>Explorar un ejemplo</Button>}
                   </div>
                 )}
               </Alerta>

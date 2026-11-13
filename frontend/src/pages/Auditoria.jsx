@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Settings2, Zap, FlaskConical, History, FileText, Trash2, Download, CircleCheck, User, Bot, ShieldCheck, Loader2, RotateCw, Lock, EyeOff, Quote, ShieldAlert, Scale, Ban,
+  Settings2, Zap, FlaskConical, History, FileText, Trash2, Download, CircleCheck, User, Bot, ShieldCheck,  Lock, EyeOff, Quote, ShieldAlert, Scale, Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, PageHeader, Modal, Pill } from '@/components/ui/kit';
@@ -37,8 +37,6 @@ export default function Auditoria() {
   const { vacante, pesos, ranking, candidatos, archivos, auditoria, lote, reiniciar, nombreVisible, trazabilidad, enDemo } = useApp();
   const navigate = useNavigate();
   const [confirmarBorrado, setConfirmarBorrado] = useState(false);
-  const [ejecutando, setEjecutando] = useState(false);
-  const [ultimaPrueba, setUltimaPrueba] = useState(null);
 
   const seguridad = useMemo(() => {
     const filas = ranking.flatMap((r) => r.resultado.detalle.filas.filter((f) => f.ev.cita));
@@ -57,11 +55,6 @@ export default function Auditoria() {
   const pct = Math.round((auto / PASOS.length) * 100);
   const duracion = lote?.fin && lote?.inicio ? (lote.fin - lote.inicio) / 1000 : null;
   const manualHoras = Math.round((candidatos.length * 5) / 60 * 10) / 10;
-
-  const ejecutarPruebas = () => {
-    setEjecutando(true);
-    setTimeout(() => { setEjecutando(false); setUltimaPrueba(new Date()); }, 1600);
-  };
 
   return (
     <>
@@ -85,8 +78,8 @@ export default function Auditoria() {
             <Dato etiqueta="Vacante" valor={vacante?.titulo ?? '—'} />
             <Dato etiqueta="Versión de requisitos" valor={vacante ? `v${vacante.version} · ${vacante.requisitos.length} requisitos` : '—'} />
             <Dato etiqueta="Pesos" valor={`${pesos.obligatorios}% obligatorios · ${100 - pesos.obligatorios}% deseables`} />
-            <Dato etiqueta="Modelo de evaluación" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5 (demo)' : '—')} mono />
-            <Dato etiqueta="Versión de prompts" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1 (demo)' : '—')} mono />
+            <Dato etiqueta="Modelo de evaluación" valor={trazabilidad?.modelo ?? (enDemo ? 'claude-haiku-5-5' : '—')} mono />
+            <Dato etiqueta="Versión de prompts" valor={trazabilidad?.version_prompt ?? (enDemo ? 'v1' : '—')} mono />
             <Dato etiqueta="Última evaluación" valor={trazabilidad ? new Date(trazabilidad.fecha_evaluacion).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—'} />
             <Dato etiqueta="Confirmado" valor={vacante?.confirmada_en
               ? new Date(vacante.confirmada_en).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })
@@ -137,12 +130,7 @@ export default function Auditoria() {
 
       <Card className="mt-6">
         <CardHeader icono={FlaskConical} titulo="Pruebas de sesgo y consistencia"
-          descripcion="El mismo CV con otro nombre, nacionalidad o edad debe obtener el mismo resultado."
-          accion={(
-            <Button variant="outline" onClick={ejecutarPruebas} disabled={ejecutando}>
-              {ejecutando ? <><Loader2 className="animate-spin" /> Ejecutando…</> : <><RotateCw /> Ejecutar de nuevo</>}
-            </Button>
-          )} />
+          descripcion="El mismo CV con otro nombre, nacionalidad o edad debe obtener el mismo resultado." />
         <div className="overflow-x-auto scrollbar-fino">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
@@ -150,7 +138,7 @@ export default function Auditoria() {
             </thead>
             <tbody className="divide-y">
               {PRUEBAS_SESGO.map((p) => (
-                <tr key={p.prueba} className={cn(ejecutando && 'opacity-50 transition-opacity')}>
+                <tr key={p.prueba}>
                   <td className="px-5 py-3 font-medium">{p.prueba}</td>
                   <td className="py-3 text-muted-foreground">{p.descripcion}</td>
                   <td className="py-3 tabular-nums">{p.antes}</td>
@@ -162,7 +150,7 @@ export default function Auditoria() {
           </table>
         </div>
         <p className="border-t px-5 py-2.5 text-xs text-muted-foreground">
-          Última ejecución: {(ultimaPrueba ?? new Date(vacante?.confirmada_en ?? Date.now())).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
+          Última ejecución: {new Date(vacante?.confirmada_en ?? Date.now()).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
         </p>
       </Card>
 

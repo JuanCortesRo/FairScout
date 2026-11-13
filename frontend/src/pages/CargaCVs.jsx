@@ -91,7 +91,7 @@ export default function CargaCVs() {
           <EstadoVacio icono={Briefcase} titulo="Primero define la vacante"
             descripcion="Los CVs se evalúan contra los requisitos confirmados.">
             <Link to="/vacante" className={buttonVariants({ size: 'lg' })}>Crear vacante</Link>
-            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}><Rocket /> Ver demo</Button>}
+            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={() => { cargarDemo(); navigate('/ranking'); }}><Rocket /> Explorar un ejemplo</Button>}
           </EstadoVacio>
         </Card>
       </>
@@ -130,11 +130,6 @@ export default function CargaCVs() {
         )}
       />
 
-      {enDemo && (
-        <Alerta tipo="info" icono={Rocket} className="mb-4" titulo="Estás viendo la demo">
-          Los archivos de abajo son de ejemplo. Para cargar CVs reales, sal de la demo desde la barra superior.
-        </Alerta>
-      )}
       {!enDemo && backend === 'desconectado' && (
         <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="El servidor no está disponible">
           Inicia el backend para procesar CVs. No se generan datos ficticios para tus archivos.

@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, CircleCheck, CircleAlert, CircleHelp, CircleX, Star, Search, Download, SlidersHorizontal, Columns3, Rocket, Briefcase, FileUp, X, ChevronRight, ThumbsUp, Minus,
-  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert,
+  Loader2, Clock, Sparkles, CloudOff, RefreshCw, ShieldAlert, Trophy, ArrowRight,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
-  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor, Alerta, Pill,
+  Card, PageHeader, Kpi, EstadoBadge, Confianza, BarraPuntaje, Pestanas, EstadoVacio, Ayuda, Interruptor, Alerta, Pill, AnilloPuntaje,
 } from '@/components/ui/kit';
 import { useApp } from '@/store';
 import { ALERTAS, AVISO_DECISION, CATEGORIAS } from '@/lib/constantes';
@@ -28,6 +28,78 @@ function MiniCategorias({ categorias }) {
         );
       })}
     </div>
+  );
+}
+
+const MEDALLAS = [
+  { etiqueta: '1.º', clase: 'from-amber-300 to-amber-500 text-amber-950', borde: 'ring-amber-300/60' },
+  { etiqueta: '2.º', clase: 'from-slate-200 to-slate-400 text-slate-800', borde: 'ring-slate-300/60' },
+  { etiqueta: '3.º', clase: 'from-orange-300 to-orange-500 text-orange-950', borde: 'ring-orange-300/60' },
+];
+
+/** Los tres primeros del ranking, destacados (solo presentación). */
+function Podio({ items, nombreVisible, onAbrir }) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-6">
+      <div className="mb-3 flex items-center gap-2">
+        <Trophy className="size-4 text-amber-500" />
+        <h2 className="font-heading text-lg font-bold">Mejor evaluados</h2>
+      </div>
+      <div className="entrada-escalonada grid gap-4 md:grid-cols-3">
+        {items.map(({ candidato: c, resultado: r }, i) => (
+          <button key={c.candidato_id} onClick={() => onAbrir(c.candidato_id)}
+            className={cn('tarjeta-viva group relative overflow-hidden rounded-2xl border bg-card p-5 text-left shadow-sm ring-1', MEDALLAS[i].borde)}>
+            <span aria-hidden="true" className="bg-marca pointer-events-none absolute -top-12 -right-12 size-32 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-25" />
+            <div className="flex items-start justify-between">
+              <span className={cn('grid size-9 place-items-center rounded-full bg-gradient-to-br font-heading text-sm font-extrabold shadow-sm', MEDALLAS[i].clase)}>{MEDALLAS[i].etiqueta}</span>
+              <AnilloPuntaje valor={r.puntaje} tamano={64} grosor={6} />
+            </div>
+            <p className="mt-3 truncate font-heading text-lg font-bold">{nombreVisible(c)}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <EstadoBadge estado={r.estado} />
+              <Confianza nivel={r.confianza} />
+            </div>
+            <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-xs text-muted-foreground">{r.motivo_estado}</p>
+            <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+              {r.recomendado_entrevista ? 'Recomendado para entrevista' : 'Ver evaluación'}
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Barra apilada con la distribución de estados del lote. */
+function Distribucion({ stats }) {
+  const partes = [
+    { clave: 'cumple', etiqueta: 'Cumplen', valor: stats.cumple, color: 'bg-ok' },
+    { clave: 'parcial', etiqueta: 'Parcialmente', valor: stats.parcial, color: 'bg-warn' },
+    { clave: 'pendiente', etiqueta: 'Por verificar', valor: stats.pendiente, color: 'bg-info' },
+    { clave: 'no', etiqueta: 'No cumplen', valor: stats.no, color: 'bg-bad' },
+  ].filter((p) => p.valor > 0);
+  if (!stats.total) return null;
+  return (
+    <Card className="mt-4 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Distribución del lote</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {partes.map((p) => (
+            <span key={p.clave} className="inline-flex items-center gap-1.5">
+              <span className={cn('size-2.5 rounded-full', p.color)} /> {p.etiqueta} <b className="text-foreground tabular-nums">{p.valor}</b>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label="Distribución de candidatos por estado">
+        {partes.map((p) => (
+          <div key={p.clave} className={cn('h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full', p.color)}
+            style={{ width: `${(p.valor / stats.total) * 100}%` }} title={`${p.etiqueta}: ${p.valor}`} />
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -127,10 +199,10 @@ export default function Ranking() {
             titulo={!vacante ? 'No hay una vacante activa' : cargandoServidor ? 'Cargando candidatos…' : sinCVs ? 'Aún no hay CVs evaluados' : 'Todavía no hay resultados'}
             descripcion={vacante
               ? 'Carga las hojas de vida para ver aquí el ranking explicado de todos los candidatos.'
-              : backend === 'conectado' ? 'Crea la vacante y confirma sus requisitos para empezar.' : 'Crea la vacante cuando el servidor esté disponible, o prueba la demo con 60 candidatos ya evaluados.'}
+              : backend === 'conectado' ? 'Crea la vacante y confirma sus requisitos para empezar.' : 'Crea una vacante para empezar, o explora un ejemplo con 60 candidatos ya evaluados.'}
           >
             {(!vacante || sinCVs) && <Link to={vacante ? '/cvs' : '/vacante'} className={buttonVariants({ size: 'lg' })}>{vacante ? 'Cargar CVs' : 'Crear vacante'}</Link>}
-            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Ver demo completa</Button>}
+            {backend !== 'conectado' && <Button variant="outline" size="lg" onClick={cargarDemo}><Rocket /> Explorar un ejemplo</Button>}
           </EstadoVacio>
         </Card>
       </>
@@ -161,14 +233,18 @@ export default function Ranking() {
       {avisoErrores}
       {errorServidor && <Alerta tipo="error" icono={CloudOff} className="mb-4" titulo="No se pudieron actualizar los datos del servidor">{errorServidor}</Alerta>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="entrada-escalonada grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icono={Users} etiqueta="CVs evaluados" valor={stats.total} />
-        <Kpi icono={CircleCheck} tono="ok" etiqueta="Cumplen" valor={stats.cumple} />
-        <Kpi icono={CircleAlert} tono="warn" etiqueta="Cumplen parcialmente" valor={stats.parcial} />
-        <Kpi icono={CircleHelp} tono="info" etiqueta="Pendientes de verificar" valor={stats.pendiente} />
-        <Kpi icono={CircleX} tono="bad" etiqueta="No cumplen" valor={stats.no} />
-        <Kpi icono={Star} tono="info" etiqueta="Recomendados a entrevista" valor={stats.recomendados} />
+        <Kpi icono={CircleCheck} tono="ok" etiqueta="Cumplen" valor={stats.cumple} total={stats.total} />
+        <Kpi icono={CircleAlert} tono="warn" etiqueta="Cumplen parcialmente" valor={stats.parcial} total={stats.total} />
+        <Kpi icono={CircleHelp} tono="info" etiqueta="Pendientes de verificar" valor={stats.pendiente} total={stats.total} />
+        <Kpi icono={CircleX} tono="bad" etiqueta="No cumplen" valor={stats.no} total={stats.total} />
+        <Kpi icono={Star} etiqueta="Recomendados a entrevista" valor={stats.recomendados} total={stats.total} />
       </div>
+
+      <Distribucion stats={stats} />
+      <Podio items={ranking.filter((r) => r.resultado.estado !== 'no_cumple').slice(0, 3)} nombreVisible={nombreVisible}
+        onAbrir={(id) => navigate(`/candidato/${id}`)} />
 
       <Card className="mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between">

@@ -287,16 +287,6 @@ export default function Entrevista() {
         <Button variant="ghost" size="sm" onClick={reiniciar}><RotateCcw /> Reiniciar</Button>
       </div>
 
-      {enDemo ? (
-        <Alerta tipo="warn" icono={Info} className="mb-4" titulo="Entrevista simulada">
-          El flujo usa reglas locales porque estás utilizando datos de demostración.
-        </Alerta>
-      ) : (
-        <Alerta tipo="info" icono={ShieldCheck} className="mb-4" titulo="Entrevista conectada al agente">
-          Las preguntas, evaluaciones e historial se generan y guardan en el backend.
-        </Alerta>
-      )}
-
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
         <Card className="flex h-[calc(100vh-10rem)] min-h-[520px] flex-col overflow-hidden">
           <div className="flex items-center gap-3 border-b px-5 py-3.5">
@@ -428,11 +418,6 @@ export default function Entrevista() {
             </div>
           </Card>
 
-          {enDemo && !estado.terminada && nPreg === 0 && (
-            <Alerta tipo="info" icono={Info}>
-              En la demo, una persona del equipo responde como candidato. Prueba decir un número de años distinto al del CV para ver la detección de inconsistencias.
-            </Alerta>
-          )}
         </div>
       </div>
     </>

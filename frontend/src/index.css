@@ -1,11 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/plus-jakarta-sans";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
+    --font-heading: 'Plus Jakarta Sans Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', Consolas, monospace;
 
@@ -46,6 +47,11 @@
     --color-info: var(--info);
     --color-info-soft: var(--info-soft);
 
+    /* Marca FairScout */
+    --color-marca-1: var(--marca-1);
+    --color-marca-2: var(--marca-2);
+    --color-marca-3: var(--marca-3);
+
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -72,7 +78,11 @@
     --border: oklch(0.92 0.008 260);
     --input: oklch(0.90 0.01 260);
     --ring: oklch(0.62 0.17 268);
-    --radius: 0.7rem;
+    --radius: 0.75rem;
+
+    --marca-1: oklch(0.55 0.21 270);   /* índigo */
+    --marca-2: oklch(0.58 0.22 300);   /* violeta */
+    --marca-3: oklch(0.72 0.13 200);   /* turquesa */
 
     --ok: oklch(0.52 0.13 155);
     --ok-soft: oklch(0.95 0.05 155);
@@ -83,14 +93,49 @@
     --info: oklch(0.52 0.14 240);
     --info-soft: oklch(0.95 0.03 240);
 
-    --sidebar: oklch(0.20 0.035 270);
+    --sidebar: oklch(0.18 0.04 272);
     --sidebar-foreground: oklch(0.86 0.02 270);
     --sidebar-primary: oklch(0.70 0.15 268);
     --sidebar-primary-foreground: oklch(0.99 0 0);
-    --sidebar-accent: oklch(0.27 0.045 270);
+    --sidebar-accent: oklch(0.25 0.05 272);
     --sidebar-accent-foreground: oklch(0.99 0 0);
     --sidebar-border: oklch(0.30 0.04 270);
     --sidebar-ring: oklch(0.62 0.17 268);
+}
+
+/* ── Modo oscuro (clase .dark en <html>) ───────────────────────────────── */
+.dark {
+    color-scheme: dark;
+    --background: oklch(0.155 0.022 272);
+    --foreground: oklch(0.95 0.008 270);
+    --card: oklch(0.2 0.026 272);
+    --card-foreground: oklch(0.95 0.008 270);
+    --popover: oklch(0.22 0.028 272);
+    --popover-foreground: oklch(0.95 0.008 270);
+    --primary: oklch(0.68 0.17 272);
+    --primary-foreground: oklch(0.14 0.02 272);
+    --secondary: oklch(0.26 0.03 272);
+    --secondary-foreground: oklch(0.9 0.02 272);
+    --muted: oklch(0.25 0.024 272);
+    --muted-foreground: oklch(0.7 0.02 270);
+    --accent: oklch(0.28 0.05 272);
+    --accent-foreground: oklch(0.86 0.08 272);
+    --destructive: oklch(0.68 0.19 25);
+    --border: oklch(0.3 0.025 272);
+    --input: oklch(0.34 0.028 272);
+    --ring: oklch(0.68 0.17 272);
+
+    --ok: oklch(0.76 0.15 155);
+    --ok-soft: oklch(0.3 0.06 155);
+    --warn: oklch(0.82 0.14 80);
+    --warn-soft: oklch(0.33 0.06 75);
+    --bad: oklch(0.72 0.17 25);
+    --bad-soft: oklch(0.32 0.07 25);
+    --info: oklch(0.76 0.12 240);
+    --info-soft: oklch(0.3 0.06 245);
+
+    --sidebar: oklch(0.13 0.03 272);
+    --sidebar-border: oklch(0.26 0.03 272);
 }
 
 @layer base {
@@ -102,6 +147,10 @@
     }
     body {
         @apply bg-background text-foreground;
+    }
+    h1, h2, h3, .font-heading {
+        font-family: var(--font-heading);
+        letter-spacing: -0.015em;
     }
 }
 
@@ -119,4 +168,67 @@
 .scrollbar-fino {
     scrollbar-width: thin;
     scrollbar-color: oklch(0.85 0.01 260) transparent;
+}
+
+/* ── Identidad visual FairScout ─────────────────────────────────────────── */
+.bg-marca {
+    background-image: linear-gradient(135deg, var(--marca-1), var(--marca-2) 55%, var(--marca-3));
+}
+.texto-marca {
+    background-image: linear-gradient(100deg, var(--marca-1), var(--marca-2) 50%, var(--marca-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+/* Fondo de las cabeceras de página: degradado tenue + trama de puntos. */
+.fondo-cabecera {
+    background-image:
+        radial-gradient(circle at 1px 1px, oklch(0.55 0.21 270 / 0.10) 1px, transparent 0),
+        linear-gradient(120deg, oklch(0.96 0.035 270), oklch(0.97 0.03 300) 55%, oklch(0.97 0.03 200));
+    background-size: 18px 18px, 100% 100%;
+}
+.dark .fondo-cabecera {
+    background-image:
+        radial-gradient(circle at 1px 1px, oklch(0.75 0.15 270 / 0.10) 1px, transparent 0),
+        linear-gradient(120deg, oklch(0.24 0.06 272), oklch(0.22 0.06 300) 55%, oklch(0.22 0.05 210));
+}
+.fondo-sidebar {
+    background-image:
+        radial-gradient(120% 60% at 0% 0%, oklch(0.55 0.21 270 / 0.28), transparent 60%),
+        radial-gradient(90% 50% at 100% 100%, oklch(0.72 0.13 200 / 0.12), transparent 60%);
+}
+
+/* Entrada suave de cada página y de elementos en lista. */
+@keyframes aparecer {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+.entrada { animation: aparecer 0.35s ease-out both; }
+.entrada-escalonada > * { animation: aparecer 0.4s ease-out both; }
+.entrada-escalonada > *:nth-child(2) { animation-delay: 40ms; }
+.entrada-escalonada > *:nth-child(3) { animation-delay: 80ms; }
+.entrada-escalonada > *:nth-child(4) { animation-delay: 120ms; }
+.entrada-escalonada > *:nth-child(5) { animation-delay: 160ms; }
+.entrada-escalonada > *:nth-child(n+6) { animation-delay: 200ms; }
+
+/* Tarjetas que se elevan al pasar el mouse. */
+.tarjeta-viva { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.tarjeta-viva:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -12px oklch(0.45 0.15 270 / 0.28);
+}
+
+/* Cambio de tema sin saltos bruscos. */
+html.tema-transicion, html.tema-transicion * {
+    transition: background-color .25s ease, border-color .25s ease, color .25s ease !important;
+}
+
+/* Hoja de papel para el visor del CV. */
+.hoja-papel {
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px -12px rgba(16, 24, 40, .18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .entrada, .entrada-escalonada > *, .tarjeta-viva { animation: none !important; transition: none !important; }
+    .tarjeta-viva:hover { transform: none; }
 }
